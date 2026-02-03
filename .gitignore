@@ -1,0 +1,47 @@
+# Build
+build/
+cmake-build-*/
+out/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# JUCE / Tracktion (fetched by CMake)
+_deps/
+
+# Compiled
+*.o
+*.obj
+*.a
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+dist/
+
+# Audio files (don't commit large assets)
+*.wav
+*.mp3
+*.flac
+*.ogg
+*.aif
+*.aiff
+
+# User session files
+*.tracktionedit
+
+# Secrets
+.env

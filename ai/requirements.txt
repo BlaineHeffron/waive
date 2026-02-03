@@ -1,0 +1,10 @@
+# Waive Python AI Layer — Dependencies
+# Core client has no external deps (stdlib only).
+# Below are for future AI features:
+
+# numpy>=1.24
+# torch>=2.0
+# torchaudio>=2.0
+# demucs>=4.0         # Stem separation
+# transformers>=4.30  # AI model inference
+# midiutil>=1.2       # MIDI generation

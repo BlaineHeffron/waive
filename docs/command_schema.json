@@ -1,0 +1,86 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Waive Command Protocol",
+  "description": "JSON command schema for communication between the Python AI layer and the C++ Engine.",
+  "type": "object",
+  "required": ["action"],
+  "properties": {
+    "action": {
+      "type": "string",
+      "enum": [
+        "ping",
+        "get_edit_state",
+        "get_tracks",
+        "add_track",
+        "remove_track",
+        "set_track_volume",
+        "set_track_pan",
+        "insert_audio_clip",
+        "insert_midi_clip",
+        "set_parameter",
+        "load_plugin",
+        "transport_play",
+        "transport_stop",
+        "transport_seek"
+      ],
+      "description": "The command action to perform."
+    },
+    "track_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based track index."
+    },
+    "value_db": {
+      "type": "number",
+      "description": "Volume in decibels (e.g., -6.0, 0.0, 3.0)."
+    },
+    "value": {
+      "type": "number",
+      "description": "Generic parameter value. For pan: -1.0 (left) to 1.0 (right)."
+    },
+    "start_time": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Start time in seconds for clip insertion."
+    },
+    "file_path": {
+      "type": "string",
+      "description": "Absolute path to an audio file (WAV, FLAC, AIFF)."
+    },
+    "position": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Transport position in seconds for seeking."
+    },
+    "plugin_id": {
+      "type": "string",
+      "description": "VST3 plugin identifier string."
+    },
+    "param_id": {
+      "type": "string",
+      "description": "Plugin parameter identifier."
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "action": { "const": "set_track_volume" } } },
+      "then": { "required": ["action", "track_id", "value_db"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "set_track_pan" } } },
+      "then": { "required": ["action", "track_id", "value"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "insert_audio_clip" } } },
+      "then": { "required": ["action", "track_id", "file_path"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "transport_seek" } } },
+      "then": { "required": ["action", "position"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "set_parameter" } } },
+      "then": { "required": ["action", "track_id", "plugin_id", "param_id", "value"] }
+    }
+  ]
+}
