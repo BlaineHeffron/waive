@@ -26,9 +26,14 @@ private:
     juce::var handleSetTrackVolume (const juce::var& params);
     juce::var handleSetTrackPan (const juce::var& params);
     juce::var handleInsertAudioClip (const juce::var& params);
+    juce::var handleRemoveTrack (const juce::var& params);
+    juce::var handleInsertMidiClip (const juce::var& params);
+    juce::var handleLoadPlugin (const juce::var& params);
+    juce::var handleSetParameter (const juce::var& params);
     juce::var handleTransportPlay();
     juce::var handleTransportStop();
     juce::var handleTransportSeek (const juce::var& params);
+    juce::var handleListPlugins();
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::AudioTrack* getTrackById (int trackIndex);

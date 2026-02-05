@@ -22,15 +22,12 @@ public:
         // ── Tracktion Engine ────────────────────────────────────────────
         engine = std::make_unique<te::Engine> ("Waive");
 
-        // Create an empty Edit with a single audio track
-        edit = std::make_unique<te::Edit> (
-            *engine,
-            te::createEmptyEdit (*engine),
-            te::Edit::forEditing,
-            nullptr, 0
-        );
+        // Create temp file for Edit
+        auto editFile = juce::File::createTempFile (".tracktionedit");
+        edit = te::createEmptyEdit (*engine, editFile);
 
-        edit->getOrInsertAudioTrackAt (0);
+        // Add initial audio track
+        edit->ensureNumberOfAudioTracks (1);
         juce::Logger::writeToLog ("Edit created with 1 audio track.");
 
         // ── Command layer ───────────────────────────────────────────────

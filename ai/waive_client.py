@@ -45,13 +45,13 @@ class WaiveClient:
         payload = json.dumps(command).encode("utf-8")
 
         # JUCE InterprocessConnection wire format:
-        # [4 bytes: magic number] [4 bytes: payload length (big-endian)] [payload]
-        header = struct.pack(">II", JUCE_MAGIC, len(payload))
+        # [4 bytes: magic number] [4 bytes: payload length (LITTLE-endian)] [payload]
+        header = struct.pack("<II", JUCE_MAGIC, len(payload))
         self.sock.sendall(header + payload)
 
         # Read response header
         resp_header = self._recv_exact(8)
-        _magic, resp_len = struct.unpack(">II", resp_header)
+        _magic, resp_len = struct.unpack("<II", resp_header)
 
         # Read response payload
         resp_data = self._recv_exact(resp_len)
@@ -104,6 +104,40 @@ class WaiveClient:
             "file_path": file_path,
             "start_time": start_time,
         })
+
+    def remove_track(self, track_id: int) -> dict:
+        return self.send_command({"action": "remove_track", "track_id": track_id})
+
+    def insert_midi_clip(
+        self, track_id: int, file_path: str, start_time: float = 0.0
+    ) -> dict:
+        return self.send_command({
+            "action": "insert_midi_clip",
+            "track_id": track_id,
+            "file_path": file_path,
+            "start_time": start_time,
+        })
+
+    def load_plugin(self, track_id: int, plugin_id: str) -> dict:
+        return self.send_command({
+            "action": "load_plugin",
+            "track_id": track_id,
+            "plugin_id": plugin_id,
+        })
+
+    def set_parameter(
+        self, track_id: int, plugin_id: str, param_id: str, value: float
+    ) -> dict:
+        return self.send_command({
+            "action": "set_parameter",
+            "track_id": track_id,
+            "plugin_id": plugin_id,
+            "param_id": param_id,
+            "value": value,
+        })
+
+    def list_plugins(self) -> dict:
+        return self.send_command({"action": "list_plugins"})
 
     def transport_play(self) -> dict:
         return self.send_command({"action": "transport_play"})

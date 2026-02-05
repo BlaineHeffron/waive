@@ -1,10 +1,13 @@
 # Waive Python AI Layer — Dependencies
 # Core client has no external deps (stdlib only).
-# Below are for future AI features:
+# AI skills require the packages below.
 
-# numpy>=1.24
-# torch>=2.0
-# torchaudio>=2.0
-# demucs>=4.0         # Stem separation
-# transformers>=4.30  # AI model inference
-# midiutil>=1.2       # MIDI generation
+numpy==1.24.3
+torch==2.0.1
+torchaudio==2.0.2
+demucs==4.0.1            # Stem separation (StemSplitter)
+librosa==0.10.1          # Audio analysis (GrooveMatcher, GhostEngineer, TemporalArranger)
+scipy==1.10.1            # Signal processing (TemporalArranger)
+midiutil==1.2.1          # MIDI generation (GrooveMatcher)
+soundfile==0.12.1        # Audio I/O (TemporalArranger)
+pytest==7.4.3            # Testing framework

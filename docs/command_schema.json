@@ -21,6 +21,7 @@
         "load_plugin",
         "transport_play",
         "transport_stop",
+        "list_plugins",
         "transport_seek"
       ],
       "description": "The command action to perform."
@@ -73,6 +74,18 @@
     {
       "if": { "properties": { "action": { "const": "insert_audio_clip" } } },
       "then": { "required": ["action", "track_id", "file_path"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "remove_track" } } },
+      "then": { "required": ["action", "track_id"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "insert_midi_clip" } } },
+      "then": { "required": ["action", "track_id", "file_path"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "load_plugin" } } },
+      "then": { "required": ["action", "track_id", "plugin_id"] }
     },
     {
       "if": { "properties": { "action": { "const": "transport_seek" } } },

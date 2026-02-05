@@ -6,7 +6,7 @@
 //==============================================================================
 
 CommandConnection::CommandConnection (CommandHandler& h)
-    : InterprocessConnection (true, 0xADIO), handler (h)
+    : InterprocessConnection (true, 0x0000AD10), handler (h)
 {
 }
 
