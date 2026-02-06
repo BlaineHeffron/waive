@@ -189,7 +189,7 @@ juce::Result GainStageSelectedTracksTool::preparePlan (const ToolExecutionContex
             TrackPlanInput input;
             input.trackIndex = trackIndex;
             input.trackName = track->getName();
-            input.currentVolumeDb = te::volumeFaderPositionToDB (volumePlugin->volParam->getCurrentValue());
+            input.currentVolumeDb = te::volumeFaderPositionToDB (volumePlugin->volume.get());
             found = trackPlans.emplace (trackIndex, std::move (input)).first;
         }
 
@@ -317,8 +317,7 @@ juce::Result GainStageSelectedTracksTool::apply (const ToolExecutionContext& con
             if (volumePlugin == nullptr)
                 continue;
 
-            volumePlugin->volParam->setValue (te::decibelsToVolumeFaderPosition ((float) change.afterValue),
-                                              &edit.getUndoManager());
+            volumePlugin->volume = te::decibelsToVolumeFaderPosition ((float) change.afterValue);
             ++appliedCount;
         }
     });

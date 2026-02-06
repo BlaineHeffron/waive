@@ -20,6 +20,261 @@ struct PlanState
 }
 
 //==============================================================================
+class ToolSidebarComponent::ModelManagerSection : public juce::Component
+{
+public:
+    ModelManagerSection (waive::ModelManager& mgr, ToolSidebarComponent& parent)
+        : modelManager (mgr), sidebarParent (parent)
+    {
+        addAndMakeVisible (titleLabel);
+        titleLabel.setText ("Models", juce::dontSendNotification);
+        titleLabel.setFont (juce::Font (14.0f, juce::Font::bold));
+
+        addAndMakeVisible (usageLabel);
+        addAndMakeVisible (settingsButton);
+        settingsButton.setButtonText ("Settings");
+        settingsButton.onClick = [this] { showSettingsDialog(); };
+
+        refreshModelList();
+    }
+
+    void refreshModelList()
+    {
+        modelEntries.clear();
+
+        auto available = modelManager.getAvailableModels();
+        auto installed = modelManager.getInstalledModels();
+
+        for (const auto& catalog : available)
+        {
+            auto entry = std::make_unique<ModelEntry>();
+            entry->modelID = catalog.modelID;
+            entry->displayName = catalog.displayName;
+            entry->defaultVersion = catalog.defaultVersion;
+            entry->installSizeBytes = catalog.installSizeBytes;
+
+            auto it = std::find_if (installed.begin(), installed.end(),
+                                    [&] (const auto& inst) { return inst.modelID == catalog.modelID; });
+            if (it != installed.end())
+            {
+                entry->installedVersion = it->version;
+                entry->isPinned = it->pinned;
+            }
+
+            entry->nameLabel.setText (catalog.displayName, juce::dontSendNotification);
+
+            juce::String statusText;
+            if (entry->installedVersion.isNotEmpty())
+            {
+                statusText = "v" + entry->installedVersion;
+                if (entry->isPinned)
+                    statusText += " (pinned)";
+            }
+            else
+            {
+                statusText = "Not installed";
+            }
+            entry->statusLabel.setText (statusText, juce::dontSendNotification);
+
+            entry->installButton.setButtonText (entry->installedVersion.isEmpty() ? "Install" : "Uninstall");
+            entry->installButton.onClick = [this, id = catalog.modelID, installed = !entry->installedVersion.isEmpty()]
+            {
+                if (installed)
+                    uninstallModel (id);
+                else
+                    installModel (id);
+            };
+
+            entry->pinButton.setButtonText (entry->isPinned ? "Unpin" : "Pin");
+            entry->pinButton.setEnabled (entry->installedVersion.isNotEmpty());
+            entry->pinButton.onClick = [this, id = catalog.modelID, pinned = entry->isPinned]
+            {
+                if (pinned)
+                    unpinModel (id);
+                else
+                    pinModel (id);
+            };
+
+            addAndMakeVisible (entry->nameLabel);
+            addAndMakeVisible (entry->statusLabel);
+            addAndMakeVisible (entry->installButton);
+            addAndMakeVisible (entry->pinButton);
+
+            modelEntries.push_back (std::move (entry));
+        }
+
+        updateUsageLabel();
+        resized();
+    }
+
+    void resized() override
+    {
+        auto bounds = getLocalBounds().reduced (4);
+
+        auto headerRow = bounds.removeFromTop (20);
+        titleLabel.setBounds (headerRow.removeFromLeft (60));
+        settingsButton.setBounds (headerRow.removeFromRight (70));
+
+        bounds.removeFromTop (2);
+        usageLabel.setBounds (bounds.removeFromTop (16));
+        bounds.removeFromTop (4);
+
+        for (auto& entry : modelEntries)
+        {
+            auto row = bounds.removeFromTop (24);
+            entry->nameLabel.setBounds (row.removeFromLeft (120));
+            entry->statusLabel.setBounds (row.removeFromLeft (100));
+            row.removeFromLeft (4);
+            entry->pinButton.setBounds (row.removeFromLeft (50));
+            row.removeFromLeft (4);
+            entry->installButton.setBounds (row);
+        }
+    }
+
+    int getIdealHeight() const
+    {
+        return 20 + 2 + 16 + 4 + (int) modelEntries.size() * 24 + 8;
+    }
+
+private:
+    struct ModelEntry
+    {
+        juce::String modelID;
+        juce::String displayName;
+        juce::String defaultVersion;
+        juce::String installedVersion;
+        int64 installSizeBytes = 0;
+        bool isPinned = false;
+
+        juce::Label nameLabel;
+        juce::Label statusLabel;
+        juce::TextButton installButton;
+        juce::TextButton pinButton;
+    };
+
+    void installModel (const juce::String& modelID)
+    {
+        auto result = modelManager.installModel (modelID);
+        if (result.failed())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Install Failed",
+                                                     result.getErrorMessage());
+        }
+        refreshModelList();
+        sidebarParent.updateButtonStates();
+    }
+
+    void uninstallModel (const juce::String& modelID)
+    {
+        auto result = modelManager.uninstallModel (modelID);
+        if (result.failed())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Uninstall Failed",
+                                                     result.getErrorMessage());
+        }
+        refreshModelList();
+        sidebarParent.updateButtonStates();
+    }
+
+    void pinModel (const juce::String& modelID)
+    {
+        auto installedVersion = juce::String();
+        auto installed = modelManager.getInstalledModels();
+        auto it = std::find_if (installed.begin(), installed.end(),
+                                [&] (const auto& m) { return m.modelID == modelID; });
+        if (it != installed.end())
+            installedVersion = it->version;
+
+        auto result = modelManager.pinModelVersion (modelID, installedVersion);
+        if (result.failed())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Pin Failed",
+                                                     result.getErrorMessage());
+        }
+        refreshModelList();
+    }
+
+    void unpinModel (const juce::String& modelID)
+    {
+        auto result = modelManager.unpinModelVersion (modelID);
+        if (result.failed())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Unpin Failed",
+                                                     result.getErrorMessage());
+        }
+        refreshModelList();
+    }
+
+    void updateUsageLabel()
+    {
+        auto usage = modelManager.getStorageUsageBytes();
+        auto quota = modelManager.getQuotaBytes();
+
+        auto usageMB = usage / (1024.0 * 1024.0);
+        auto quotaMB = quota / (1024.0 * 1024.0);
+
+        usageLabel.setText (juce::String::formatted ("Storage: %.1f / %.1f MB", usageMB, quotaMB),
+                            juce::dontSendNotification);
+    }
+
+    void showSettingsDialog()
+    {
+        auto dialog = std::make_unique<juce::AlertWindow> ("Model Settings", "Configure storage directory and quota", juce::AlertWindow::NoIcon);
+
+        dialog->addTextEditor ("directory", modelManager.getStorageDirectory().getFullPathName(), "Storage Directory:");
+        dialog->addTextEditor ("quota", juce::String (modelManager.getQuotaBytes() / (1024 * 1024)), "Quota (MB):");
+
+        dialog->addButton ("OK", 1);
+        dialog->addButton ("Cancel", 0);
+
+        auto& mgr = modelManager;
+        auto* self = this;
+        dialog->enterModalState (true, juce::ModalCallbackFunction::create ([self, &mgr, dialogPtr = dialog.get()] (int result)
+        {
+            if (result == 1)
+            {
+                auto dirPath = dialogPtr->getTextEditorContents ("directory");
+                auto quotaMB = dialogPtr->getTextEditorContents ("quota").getLargeIntValue();
+
+                if (dirPath.isNotEmpty())
+                {
+                    juce::File newDir (dirPath);
+                    mgr.setStorageDirectory (newDir);
+                }
+
+                if (quotaMB > 0)
+                {
+                    auto quotaResult = mgr.setQuotaBytes (quotaMB * 1024 * 1024);
+                    if (quotaResult.failed())
+                    {
+                        juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                                 "Quota Update Failed",
+                                                                 quotaResult.getErrorMessage());
+                    }
+                }
+
+                self->updateUsageLabel();
+                self->refreshModelList();
+            }
+        }), true);
+
+        dialog.release();
+    }
+
+    waive::ModelManager& modelManager;
+    ToolSidebarComponent& sidebarParent;
+
+    juce::Label titleLabel;
+    juce::Label usageLabel;
+    juce::TextButton settingsButton;
+    std::vector<std::unique_ptr<ModelEntry>> modelEntries;
+};
+
+//==============================================================================
 ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
                                             EditSession& session,
                                             ProjectManager& projectMgr,
@@ -58,11 +313,18 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
     addAndMakeVisible (previewLabel);
     addAndMakeVisible (previewEditor);
 
-    toolCombo.onChange = [this] { loadDefaultParamsForSelectedTool(); };
+    toolCombo.onChange = [this] {
+        loadDefaultParamsForSelectedTool();
+        lastPlanError.clear();
+        updateButtonStates();
+    };
     planButton.onClick = [this] { runPlan(); };
     applyButton.onClick = [this] { applyPlan(); };
     rejectButton.onClick = [this] { rejectPlan(); };
     cancelButton.onClick = [this] { cancelRunningPlan(); };
+
+    modelManagerSection = std::make_unique<ModelManagerSection> (modelMgr, *this);
+    addAndMakeVisible (modelManagerSection.get());
 
     populateToolList();
     updateButtonStates();
@@ -78,6 +340,14 @@ ToolSidebarComponent::~ToolSidebarComponent()
 void ToolSidebarComponent::resized()
 {
     auto bounds = getLocalBounds().reduced (8);
+
+    // Model manager section at top
+    if (modelManagerSection != nullptr)
+    {
+        auto modelSectionHeight = juce::jlimit (120, 240, modelManagerSection->getIdealHeight());
+        modelManagerSection->setBounds (bounds.removeFromTop (modelSectionHeight));
+        bounds.removeFromTop (6);
+    }
 
     auto toolRow = bounds.removeFromTop (24);
     toolLabel.setBounds (toolRow.removeFromLeft (36));
@@ -174,9 +444,13 @@ void ToolSidebarComponent::runPlan()
     auto prepResult = tool->preparePlan (context, params, task);
     if (prepResult.failed())
     {
-        setStatusText ("Plan failed: " + prepResult.getErrorMessage());
+        lastPlanError = prepResult.getErrorMessage();
+        setStatusText (lastPlanError);
+        updateButtonStates();
         return;
     }
+
+    lastPlanError.clear();
 
     pendingPlan.reset();
     sessionComponent.clearToolPreview();
@@ -275,7 +549,28 @@ juce::String ToolSidebarComponent::getSelectedToolName() const
 
 void ToolSidebarComponent::updateButtonStates()
 {
-    planButton.setEnabled (! planRunning);
+    bool canPlan = !planRunning;
+
+    if (canPlan)
+    {
+        auto toolName = getSelectedToolName();
+        auto requiredModel = getToolModelRequirement (toolName);
+
+        if (requiredModel.isNotEmpty())
+        {
+            auto resolved = modelManager.resolveInstalledModel (requiredModel);
+            if (!resolved.has_value())
+            {
+                canPlan = false;
+                if (lastPlanError.isEmpty())
+                {
+                    setStatusText ("Model '" + requiredModel + "' required. Install it via Model Manager.");
+                }
+            }
+        }
+    }
+
+    planButton.setEnabled (canPlan);
     applyButton.setEnabled (! planRunning && pendingPlan.has_value());
     rejectButton.setEnabled (! planRunning && pendingPlan.has_value());
     cancelButton.setEnabled (planRunning);
@@ -347,6 +642,21 @@ juce::File ToolSidebarComponent::resolveProjectCacheDirectory() const
                       .getChildFile (projectManager.getProjectName());
 }
 
+juce::String ToolSidebarComponent::getToolModelRequirement (const juce::String& toolName) const
+{
+    if (toolToRequiredModel.count (toolName) > 0)
+        return toolToRequiredModel[toolName];
+
+    auto* tool = toolRegistry.findTool (toolName);
+    if (tool == nullptr)
+        return {};
+
+    const auto desc = tool->describe();
+    toolToRequiredModel[toolName] = desc.modelRequirement;
+
+    return toolToRequiredModel[toolName];
+}
+
 void ToolSidebarComponent::jobEvent (const waive::JobEvent& event)
 {
     if (! planRunning || event.jobId != activePlanJobID)
@@ -373,6 +683,11 @@ void ToolSidebarComponent::selectToolForTesting (const juce::String& toolName)
         if (toolNamesByComboIndex[i] == toolName)
         {
             toolCombo.setSelectedItemIndex (i, juce::sendNotification);
+            // CRITICAL: Explicitly call loadDefaultParamsForSelectedTool to ensure schema rebuild.
+            // toolCombo.onChange may not fire reliably in test context.
+            loadDefaultParamsForSelectedTool();
+            // Run message loop to allow schemaForm fields to fully initialize after buildFromSchema().
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (1);
             break;
         }
     }
@@ -436,6 +751,11 @@ juce::String ToolSidebarComponent::getPreviewTextForTesting() const
     return previewEditor.getText();
 }
 
+juce::String ToolSidebarComponent::getStatusTextForTesting() const
+{
+    return statusLabel.getText();
+}
+
 juce::File ToolSidebarComponent::getLastPlanArtifactForTesting() const
 {
     return lastPlanArtifact;
@@ -480,4 +800,9 @@ bool ToolSidebarComponent::isModelInstalledForTesting (const juce::String& model
                                                         const juce::String& version) const
 {
     return modelManager.isInstalled (modelID, version);
+}
+
+juce::String ToolSidebarComponent::getToolModelRequirementForTesting (const juce::String& toolName) const
+{
+    return getToolModelRequirement (toolName);
 }

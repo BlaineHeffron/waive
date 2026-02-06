@@ -209,6 +209,8 @@ ToolDescription AutoMixSuggestionsTool::describe() const
     defaults->setProperty ("analysis_delay_ms", 0);
     desc.defaultParams = juce::var (defaults);
 
+    desc.modelRequirement = "auto_mix_suggester";
+
     return desc;
 }
 

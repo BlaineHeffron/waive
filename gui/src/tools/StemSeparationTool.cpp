@@ -254,6 +254,8 @@ ToolDescription StemSeparationTool::describe() const
     defaults->setProperty ("analysis_delay_ms", 0);
     desc.defaultParams = juce::var (defaults);
 
+    desc.modelRequirement = "stem_separator";
+
     return desc;
 }
 

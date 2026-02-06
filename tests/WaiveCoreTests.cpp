@@ -3,6 +3,7 @@
 
 #include "EditSession.h"
 #include "ClipEditActions.h"
+#include "ModelManager.h"
 
 #include <cmath>
 #include <iostream>
@@ -127,6 +128,42 @@ void testPerformEditExceptionSafety (EditSession& session)
     expect (! ok, "Expected performEdit to return false when mutation throws");
 }
 
+void testModelManagerSettingsPersistence()
+{
+    auto fixtureDir = juce::File::getCurrentWorkingDirectory()
+                          .getChildFile ("build")
+                          .getChildFile ("test_fixtures")
+                          .getChildFile ("model_manager_persistence");
+    fixtureDir.createDirectory();
+
+    {
+        waive::ModelManager manager;
+        manager.setStorageDirectory (fixtureDir);
+
+        auto setQuotaResult = manager.setQuotaBytes (512 * 1024 * 1024);
+        expect (setQuotaResult.wasOk(), "Expected quota set to succeed");
+
+        auto installResult = manager.installModel ("stem_separator", "1.1.0", false);
+        expect (installResult.wasOk(), "Expected stem_separator install to succeed");
+
+        auto pinResult = manager.pinModelVersion ("stem_separator", "1.1.0");
+        expect (pinResult.wasOk(), "Expected pin to succeed");
+    }
+
+    {
+        waive::ModelManager manager;
+        manager.setStorageDirectory (fixtureDir);
+
+        expect (manager.getQuotaBytes() == 512 * 1024 * 1024, "Expected quota to persist");
+        expect (manager.getPinnedVersion ("stem_separator") == "1.1.0",
+                "Expected pinned version to persist");
+        expect (manager.isInstalled ("stem_separator", "1.1.0"),
+                "Expected installed model to persist");
+    }
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 } // namespace
 
 int main()
@@ -143,6 +180,7 @@ int main()
         testCoalescedTransactionsAndReset (session);
         testDuplicateMidiClipPreservesSequence (session);
         testPerformEditExceptionSafety (session);
+        testModelManagerSettingsPersistence();
 
         std::cout << "WaiveCoreTests: PASS" << std::endl;
         return 0;

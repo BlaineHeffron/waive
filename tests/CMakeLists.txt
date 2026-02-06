@@ -15,6 +15,8 @@ target_sources(WaiveCoreTests PRIVATE
     ../gui/src/edit/EditSession.cpp
     ../gui/src/ui/ClipEditActions.h
     ../gui/src/ui/ClipEditActions.cpp
+    ../gui/src/tools/ModelManager.h
+    ../gui/src/tools/ModelManager.cpp
 )
 
 target_compile_features(WaiveCoreTests PRIVATE cxx_std_20)
@@ -24,6 +26,7 @@ find_package(CURL REQUIRED)
 target_include_directories(WaiveCoreTests PRIVATE
     ../gui/src/edit
     ../gui/src/ui
+    ../gui/src/tools
 )
 
 target_link_libraries(WaiveCoreTests PRIVATE

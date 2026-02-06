@@ -23,6 +23,7 @@ struct ToolDescription
     juce::String description;
     juce::var inputSchema;
     juce::var defaultParams;
+    juce::String modelRequirement;
 };
 
 struct ToolExecutionContext

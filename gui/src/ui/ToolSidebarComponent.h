@@ -41,6 +41,7 @@ public:
     bool waitForIdleForTesting (int timeoutMs = 4000);
     bool hasPendingPlanForTesting() const;
     juce::String getPreviewTextForTesting() const;
+    juce::String getStatusTextForTesting() const;
     juce::File getLastPlanArtifactForTesting() const;
     juce::Result setModelStorageDirectoryForTesting (const juce::File& directory);
     juce::Result setModelQuotaForTesting (int64 bytes);
@@ -54,12 +55,15 @@ public:
     juce::String getPinnedModelVersionForTesting (const juce::String& modelID) const;
     bool isModelInstalledForTesting (const juce::String& modelID,
                                      const juce::String& version = {}) const;
+    juce::String getToolModelRequirementForTesting (const juce::String& toolName) const;
 
     //==============================================================================
     // waive::JobQueue::Listener
     void jobEvent (const waive::JobEvent& event) override;
 
 private:
+    class ModelManagerSection;
+    friend class ModelManagerSection;
     void populateToolList();
     void loadDefaultParamsForSelectedTool();
 
@@ -73,6 +77,7 @@ private:
     void setStatusText (const juce::String& text);
     void handlePlanCompletion (waive::JobStatus status, std::optional<waive::ToolPlan> planResult);
     juce::File resolveProjectCacheDirectory() const;
+    juce::String getToolModelRequirement (const juce::String& toolName) const;
 
     waive::ToolRegistry& toolRegistry;
     EditSession& editSession;
@@ -87,7 +92,10 @@ private:
 
     int activePlanJobID = 0;
     bool planRunning = false;
+    juce::String lastPlanError;
+    mutable std::map<juce::String, juce::String> toolToRequiredModel;
 
+    std::unique_ptr<ModelManagerSection> modelManagerSection;
     juce::Label toolLabel { {}, "Tool" };
     juce::ComboBox toolCombo;
     SchemaFormComponent schemaForm;
