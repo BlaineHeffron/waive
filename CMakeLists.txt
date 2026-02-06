@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # ── Fetch JUCE ──────────────────────────────────────────────────────────────
 include(FetchContent)
+include(CTest)
 
 # CI / sandbox environments may not have network access. If dependencies are already
 # populated in the build tree, don't attempt to update them.
@@ -18,6 +19,9 @@ FetchContent_Declare(
     GIT_SHALLOW    TRUE
 )
 
+# Tracktion examples are not required by Waive and can fail in some environments.
+set(TE_ADD_EXAMPLES OFF CACHE BOOL "Disable tracktion_engine example targets" FORCE)
+
 FetchContent_MakeAvailable(tracktion_engine)
 
 # ── Engine target ───────────────────────────────────────────────────────────
@@ -25,3 +29,7 @@ add_subdirectory(engine)
 
 # ── GUI target ──────────────────────────────────────────────────────────────
 add_subdirectory(gui)
+
+if (BUILD_TESTING)
+    add_subdirectory(tests)
+endif()

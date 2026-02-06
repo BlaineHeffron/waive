@@ -2,15 +2,16 @@
 
 #include <JuceHeader.h>
 #include <tracktion_engine/tracktion_engine.h>
+#include "EditSession.h"
 
 namespace te = tracktion;
 
-class EditSession;
 class UndoableCommandHandler;
 
 //==============================================================================
 /** Plugin scanning + browser + per-track insert chain UI. */
 class PluginBrowserComponent : public juce::Component,
+                               private EditSession::Listener,
                                private juce::Timer
 {
 public:
@@ -20,6 +21,8 @@ public:
     void resized() override;
 
 private:
+    void editAboutToChange() override;
+    void editChanged() override;
     void timerCallback() override;
     void rebuildTrackListIfNeeded();
 
@@ -75,4 +78,3 @@ private:
 
     int lastTrackCount = -1;
 };
-

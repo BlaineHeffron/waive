@@ -2,6 +2,20 @@
 #include "ClipComponent.h"
 #include "TimelineComponent.h"
 
+#include <cmath>
+
+namespace
+{
+float toNormalised (float value, const juce::Range<float>& range)
+{
+    if (range.getLength() <= 0.0f)
+        return 0.0f;
+
+    return juce::jlimit (0.0f, 1.0f,
+                         (value - range.getStart()) / range.getLength());
+}
+}
+
 //==============================================================================
 TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl)
     : track (t), timeline (tl)
@@ -11,6 +25,11 @@ TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl
     headerLabel.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
     addAndMakeVisible (headerLabel);
 
+    automationParamCombo.setTextWhenNothingSelected ("Automation: none");
+    automationParamCombo.onChange = [this] { repaint(); };
+    addAndMakeVisible (automationParamCombo);
+
+    refreshAutomationParams();
     updateClips();
     startTimerHz (5);
 }
@@ -33,6 +52,67 @@ void TrackLaneComponent::paint (juce::Graphics& g)
     g.setColour (juce::Colour (0xff222222));
     g.fillRect (bounds);
 
+    // Grid lines (clip + automation area)
+    juce::Array<double> majorLines, minorLines;
+    const auto startTime = timeline.getScrollOffsetSeconds();
+    const auto endTime = startTime + bounds.getWidth() / timeline.getPixelsPerSecond();
+    timeline.getGridLineTimes (startTime, endTime, majorLines, minorLines);
+
+    g.setColour (juce::Colours::grey.withAlpha (0.12f));
+    for (auto t : minorLines)
+    {
+        const int x = timeline.timeToX (t);
+        g.drawVerticalLine (x, 0.0f, (float) getHeight());
+    }
+
+    g.setColour (juce::Colours::lightgrey.withAlpha (0.2f));
+    for (auto t : majorLines)
+    {
+        const int x = timeline.timeToX (t);
+        g.drawVerticalLine (x, 0.0f, (float) getHeight());
+    }
+
+    // Automation lane background
+    auto automationBounds = getAutomationBounds();
+    g.setColour (juce::Colour (0xff1f1f1f));
+    g.fillRect (automationBounds);
+    g.setColour (juce::Colour (0xff303030));
+    g.drawRect (automationBounds);
+
+    if (auto* param = getSelectedAutomationParameter())
+    {
+        auto& curve = param->getCurve();
+        const auto valueRange = param->getValueRange();
+
+        if (curve.getNumPoints() > 0)
+        {
+            juce::Path path;
+            for (int i = 0; i < curve.getNumPoints(); ++i)
+            {
+                const auto ptTime = curve.getPointTime (i).inSeconds();
+                const auto x = (float) timeline.timeToX (ptTime);
+                const auto y = (float) automationYForNormalisedValue (toNormalised (curve.getPointValue (i), valueRange));
+
+                if (i == 0)
+                    path.startNewSubPath (x, y);
+                else
+                    path.lineTo (x, y);
+            }
+
+            g.setColour (juce::Colour (0xff77b7ff));
+            g.strokePath (path, juce::PathStrokeType (1.5f));
+
+            for (int i = 0; i < curve.getNumPoints(); ++i)
+            {
+                const auto ptTime = curve.getPointTime (i).inSeconds();
+                const auto x = (float) timeline.timeToX (ptTime);
+                const auto y = (float) automationYForNormalisedValue (toNormalised (curve.getPointValue (i), valueRange));
+                g.setColour (juce::Colours::white.withAlpha (0.9f));
+                g.fillEllipse (x - 3.0f, y - 3.0f, 6.0f, 6.0f);
+            }
+        }
+    }
+
     // Bottom separator
     g.setColour (juce::Colour (0xff3a3a3a));
     g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
@@ -41,10 +121,12 @@ void TrackLaneComponent::paint (juce::Graphics& g)
 void TrackLaneComponent::resized()
 {
     auto bounds = getLocalBounds();
-    headerLabel.setBounds (bounds.removeFromLeft (TimelineComponent::trackHeaderWidth).reduced (4));
+    auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth).reduced (4);
+    headerLabel.setBounds (headerBounds.removeFromTop (20));
+    headerBounds.removeFromTop (2);
+    automationParamCombo.setBounds (headerBounds.removeFromTop (20));
 
-    for (auto& cc : clipComponents)
-        cc->updatePosition();
+    layoutClipComponents();
 }
 
 void TrackLaneComponent::updateClips()
@@ -52,6 +134,7 @@ void TrackLaneComponent::updateClips()
     clipComponents.clear();
     removeAllChildren();
     addAndMakeVisible (headerLabel);
+    addAndMakeVisible (automationParamCombo);
 
     for (auto* clip : track.getClips())
     {
@@ -66,12 +149,187 @@ void TrackLaneComponent::updateClips()
 
 void TrackLaneComponent::timerCallback()
 {
-    int currentCount = track.getClips().size();
+    const int currentCount = track.getClips().size();
+    const int automatableCount = track.getAllAutomatableParams().size();
+
     if (currentCount != lastClipCount)
         updateClips();
-    else
+
+    if (automatableCount != lastAutomatableParamCount)
+        refreshAutomationParams();
+
+    layoutClipComponents();
+    repaint();
+}
+
+void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
+{
+    if (! getAutomationBounds().contains (e.getPosition()))
+        return;
+
+    auto* param = getSelectedAutomationParameter();
+    if (param == nullptr)
+        return;
+
+    auto& curve = param->getCurve();
+    draggingAutomationPointIndex = findNearbyAutomationPoint (curve, *param, e.x, e.y);
+
+    if (draggingAutomationPointIndex >= 0)
+        return;
+
+    const auto snappedTime = timeline.snapTimeToGrid (timeline.xToTime (e.x));
+    const auto normalised = normalisedFromAutomationY (e.y);
+    const auto value = juce::jmap (normalised, 0.0f, 1.0f,
+                                   param->getValueRange().getStart(),
+                                   param->getValueRange().getEnd());
+
+    timeline.getEditSession().performEdit ("Add Automation Point", [&] (te::Edit& edit)
     {
-        for (auto& cc : clipComponents)
-            cc->updatePosition();
+        draggingAutomationPointIndex = curve.addPoint (te::TimePosition::fromSeconds (snappedTime),
+                                                       value, 0.0f, &edit.getUndoManager());
+    });
+}
+
+void TrackLaneComponent::mouseDrag (const juce::MouseEvent& e)
+{
+    if (draggingAutomationPointIndex < 0)
+        return;
+
+    auto* param = getSelectedAutomationParameter();
+    if (param == nullptr)
+        return;
+
+    auto& curve = param->getCurve();
+    if (! juce::isPositiveAndBelow (draggingAutomationPointIndex, curve.getNumPoints()))
+        return;
+
+    const auto snappedTime = timeline.snapTimeToGrid (timeline.xToTime (e.x));
+    const auto normalised = normalisedFromAutomationY (e.y);
+    const auto value = juce::jmap (normalised, 0.0f, 1.0f,
+                                   param->getValueRange().getStart(),
+                                   param->getValueRange().getEnd());
+
+    timeline.getEditSession().performEdit ("Move Automation Point", true, [&] (te::Edit& edit)
+    {
+        draggingAutomationPointIndex = curve.movePoint (*param, draggingAutomationPointIndex,
+                                                        te::TimePosition::fromSeconds (snappedTime),
+                                                        value, false, &edit.getUndoManager());
+    });
+}
+
+void TrackLaneComponent::mouseUp (const juce::MouseEvent&)
+{
+    if (draggingAutomationPointIndex >= 0)
+        timeline.getEditSession().endCoalescedTransaction();
+
+    draggingAutomationPointIndex = -1;
+}
+
+void TrackLaneComponent::refreshAutomationParams()
+{
+    lastAutomatableParamCount = track.getAllAutomatableParams().size();
+
+    const auto previousId = automationParamCombo.getSelectedId();
+
+    automationParamCombo.clear (juce::dontSendNotification);
+    automationParamCombo.addItem ("Automation: none", 1);
+
+    automationParams.clear();
+    for (auto* param : track.getAllAutomatableParams())
+    {
+        if (param == nullptr || param->getPlugin() == nullptr)
+            continue;
+
+        automationParams.add (param);
+        const auto itemId = automationParams.size() + 1;
+        automationParamCombo.addItem (param->getPluginAndParamName(), itemId);
     }
+
+    bool hasPrevious = false;
+    for (int i = 0; i < automationParamCombo.getNumItems(); ++i)
+    {
+        if (automationParamCombo.getItemId (i) == previousId)
+        {
+            hasPrevious = true;
+            break;
+        }
+    }
+
+    if (hasPrevious)
+        automationParamCombo.setSelectedId (previousId, juce::dontSendNotification);
+    else if (automationParamCombo.getNumItems() > 1)
+        automationParamCombo.setSelectedId (2, juce::dontSendNotification);
+    else
+        automationParamCombo.setSelectedId (1, juce::dontSendNotification);
+}
+
+void TrackLaneComponent::layoutClipComponents()
+{
+    auto clipBounds = getClipLaneBounds();
+    const int clipHeight = juce::jmax (10, clipBounds.getHeight() - 2);
+
+    for (auto& cc : clipComponents)
+    {
+        auto pos = cc->getClip().getPosition();
+        const int x = timeline.timeToX (pos.getStart().inSeconds());
+        const int w = (int) (pos.getLength().inSeconds() * timeline.getPixelsPerSecond());
+        cc->setBounds (x, clipBounds.getY(), juce::jmax (4, w), clipHeight);
+    }
+}
+
+juce::Rectangle<int> TrackLaneComponent::getClipLaneBounds() const
+{
+    auto bounds = getLocalBounds();
+    bounds.removeFromLeft (TimelineComponent::trackHeaderWidth);
+    return bounds.removeFromTop (getHeight() - automationLaneHeight);
+}
+
+juce::Rectangle<int> TrackLaneComponent::getAutomationBounds() const
+{
+    auto bounds = getLocalBounds();
+    bounds.removeFromLeft (TimelineComponent::trackHeaderWidth);
+    return bounds.removeFromBottom (automationLaneHeight);
+}
+
+te::AutomatableParameter* TrackLaneComponent::getSelectedAutomationParameter() const
+{
+    const auto itemId = automationParamCombo.getSelectedId();
+    if (itemId < 2)
+        return nullptr;
+
+    const int index = itemId - 2;
+    if (! juce::isPositiveAndBelow (index, automationParams.size()))
+        return nullptr;
+
+    return automationParams.getUnchecked (index);
+}
+
+float TrackLaneComponent::normalisedFromAutomationY (int y) const
+{
+    auto bounds = getAutomationBounds();
+    const auto norm = 1.0f - ((float) (y - bounds.getY()) / (float) juce::jmax (1, bounds.getHeight()));
+    return juce::jlimit (0.0f, 1.0f, norm);
+}
+
+int TrackLaneComponent::automationYForNormalisedValue (float normalised) const
+{
+    auto bounds = getAutomationBounds();
+    return bounds.getY() + (int) ((1.0f - juce::jlimit (0.0f, 1.0f, normalised)) * (float) bounds.getHeight());
+}
+
+int TrackLaneComponent::findNearbyAutomationPoint (te::AutomationCurve& curve, te::AutomatableParameter& param, int mouseX, int mouseY) const
+{
+    constexpr int xThreshold = 6;
+    constexpr int yThreshold = 8;
+
+    const auto valueRange = param.getValueRange();
+    for (int i = 0; i < curve.getNumPoints(); ++i)
+    {
+        const int x = timeline.timeToX (curve.getPointTime (i).inSeconds());
+        const int y = automationYForNormalisedValue (toNormalised (curve.getPointValue (i), valueRange));
+        if (std::abs (x - mouseX) <= xThreshold && std::abs (y - mouseY) <= yThreshold)
+            return i;
+    }
+
+    return -1;
 }

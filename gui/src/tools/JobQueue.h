@@ -91,6 +91,7 @@ private:
         std::atomic<bool> cancelFlag { false };
         std::atomic<float> lastProgress { 0.0f };
         juce::String lastMessage;
+        std::mutex messageMutex;
         std::atomic<bool> hasUpdate { false };
         std::atomic<int> status { static_cast<int> (JobStatus::Pending) };
         CompletionCallback onComplete;

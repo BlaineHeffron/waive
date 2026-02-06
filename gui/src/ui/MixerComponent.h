@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <tracktion_engine/tracktion_engine.h>
+#include "EditSession.h"
 
 namespace te = tracktion;
 
@@ -11,6 +12,7 @@ class MixerChannelStrip;
 //==============================================================================
 /** Container with horizontal strip viewport + master strip. */
 class MixerComponent : public juce::Component,
+                       private EditSession::Listener,
                        private juce::Timer
 {
 public:
@@ -21,6 +23,8 @@ public:
     void paint (juce::Graphics& g) override;
 
 private:
+    void editAboutToChange() override;
+    void editChanged() override;
     void timerCallback() override;
     void rebuildStrips();
 

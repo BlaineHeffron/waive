@@ -43,4 +43,5 @@ private:
     float peakL = 0.0f;
     float peakR = 0.0f;
     bool isMaster = false;
+    bool suppressControlCallbacks = false;
 };

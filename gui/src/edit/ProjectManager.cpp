@@ -31,9 +31,6 @@ bool ProjectManager::newProject()
 
 bool ProjectManager::openProject()
 {
-    if (! confirmSaveIfDirty())
-        return false;
-
     juce::FileChooser chooser ("Open Project", juce::File(), "*.tracktionedit");
 
     if (! chooser.browseForFileToOpen())

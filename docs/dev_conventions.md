@@ -42,3 +42,9 @@
 - All new source files must be listed in `gui/CMakeLists.txt` under `target_sources`.
 - Include directories for subdirectories are set via `target_include_directories` so
   `#include "Foo.h"` works without path prefixes.
+
+## Testing
+
+- C++ regression tests are integrated via CTest under `tests/`.
+- UI tests must be runnable without human interaction.
+- See `docs/testing.md` for test targets, run commands, and authoring guidelines.

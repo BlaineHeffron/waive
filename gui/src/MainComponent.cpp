@@ -4,6 +4,7 @@
 #include "EditSession.h"
 #include "ProjectManager.h"
 #include "SessionComponent.h"
+#include "TimelineComponent.h"
 #include "LibraryComponent.h"
 #include "PluginBrowserComponent.h"
 #include "ConsoleComponent.h"
@@ -45,6 +46,18 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
 MainComponent::~MainComponent()
 {
     menuBar.setModel (nullptr);
+}
+
+SessionComponent& MainComponent::getSessionComponentForTesting()
+{
+    return *sessionComponent;
+}
+
+bool MainComponent::invokeCommandForTesting (juce::CommandID commandID)
+{
+    juce::ApplicationCommandTarget::InvocationInfo info (commandID);
+    info.invocationMethod = juce::ApplicationCommandTarget::InvocationInfo::direct;
+    return perform (info);
 }
 
 void MainComponent::resized()
@@ -197,14 +210,17 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
         case cmdDelete:
             result.setInfo ("Delete", "Delete selected clips", "Edit", 0);
             result.addDefaultKeypress (juce::KeyPress::deleteKey, 0);
+            result.setActive (sessionComponent->getTimeline().getSelectionManager().getSelectedClips().size() > 0);
             break;
         case cmdDuplicate:
             result.setInfo ("Duplicate", "Duplicate selected clips", "Edit", 0);
             result.addDefaultKeypress ('d', juce::ModifierKeys::commandModifier);
+            result.setActive (sessionComponent->getTimeline().getSelectionManager().getSelectedClips().size() > 0);
             break;
         case cmdSplit:
             result.setInfo ("Split at Playhead", "Split selected clips at playhead", "Edit", 0);
             result.addDefaultKeypress ('s', 0);  // just 's' key
+            result.setActive (sessionComponent->getTimeline().getSelectionManager().getSelectedClips().size() > 0);
             break;
         default:
             break;
@@ -233,10 +249,14 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         case cmdSaveAs:
             projectManager.saveAs();
             return true;
-        // Delete/Duplicate/Split will be routed to timeline once it exists
         case cmdDelete:
+            sessionComponent->getTimeline().deleteSelectedClips();
+            return true;
         case cmdDuplicate:
+            sessionComponent->getTimeline().duplicateSelectedClips();
+            return true;
         case cmdSplit:
+            sessionComponent->getTimeline().splitSelectedClipsAtPlayhead();
             return true;
         default:
             return false;

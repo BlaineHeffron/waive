@@ -102,12 +102,14 @@ void ClipComponent::mouseDrag (const juce::MouseEvent& e)
         case Move:
         {
             double newStart = juce::jmax (0.0, dragOriginalStart + delta);
+            newStart = timeline.snapTimeToGrid (newStart);
             waive::moveClip (session, clip, newStart);
             break;
         }
         case TrimLeft:
         {
             double newStart = juce::jmax (0.0, dragOriginalStart + delta);
+            newStart = timeline.snapTimeToGrid (newStart);
             newStart = juce::jmin (newStart, dragOriginalEnd - 0.01);
             waive::trimClipLeft (session, clip, newStart);
             break;
@@ -115,6 +117,8 @@ void ClipComponent::mouseDrag (const juce::MouseEvent& e)
         case TrimRight:
         {
             double newEnd = juce::jmax (dragOriginalStart + 0.01, dragOriginalEnd + delta);
+            newEnd = timeline.snapTimeToGrid (newEnd);
+            newEnd = juce::jmax (dragOriginalStart + 0.01, newEnd);
             waive::trimClipRight (session, clip, newEnd);
             break;
         }
@@ -124,6 +128,7 @@ void ClipComponent::mouseDrag (const juce::MouseEvent& e)
 void ClipComponent::mouseUp (const juce::MouseEvent&)
 {
     dragMode = None;
+    timeline.getEditSession().endCoalescedTransaction();
 }
 
 void ClipComponent::mouseMove (const juce::MouseEvent& e)

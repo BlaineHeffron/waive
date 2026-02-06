@@ -67,7 +67,10 @@ int JobQueue::submit (const JobDescriptor& descriptor, JobFunction jobFunction,
             [capturedInfo] (int, float progress, const juce::String& message)
             {
                 capturedInfo->lastProgress.store (progress);
-                capturedInfo->lastMessage = message;
+                {
+                    std::lock_guard<std::mutex> messageLock (capturedInfo->messageMutex);
+                    capturedInfo->lastMessage = message;
+                }
                 capturedInfo->hasUpdate.store (true);
             });
 
@@ -82,6 +85,7 @@ int JobQueue::submit (const JobDescriptor& descriptor, JobFunction jobFunction,
         }
         catch (const std::exception& e)
         {
+            std::lock_guard<std::mutex> messageLock (capturedInfo->messageMutex);
             capturedInfo->lastMessage = e.what();
             finalStatus = JobStatus::Failed;
         }
@@ -146,7 +150,10 @@ void JobQueue::timerCallback()
         event.descriptor = info->descriptor;
         event.status = status;
         event.progress = info->lastProgress.load();
-        event.message = info->lastMessage;
+        {
+            std::lock_guard<std::mutex> messageLock (info->messageMutex);
+            event.message = info->lastMessage;
+        }
 
         notifyListeners (event);
 

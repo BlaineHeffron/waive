@@ -30,26 +30,14 @@ void duplicateClip (EditSession& session, te::Clip& clip)
             auto pos = clip.getPosition();
             auto endTime = pos.getEnd();
 
-            if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (&clip))
+            auto duplicatedState = clip.state.createCopy();
+            clip.edit.createNewItemID().writeID (duplicatedState, nullptr);
+            te::assignNewIDsToAutomationCurveModifiers (clip.edit, duplicatedState);
+
+            if (auto* newClip = track->insertClipWithState (duplicatedState))
             {
-                auto sourceFile = waveClip->getSourceFileReference().getFile();
-                if (auto* audioTrack = dynamic_cast<te::AudioTrack*> (track))
-                {
-                    audioTrack->insertWaveClip (clip.getName() + " copy", sourceFile,
-                                                { { endTime, endTime + pos.getLength() },
-                                                  te::TimeDuration() },
-                                                false);
-                }
-            }
-            else if (dynamic_cast<te::MidiClip*> (&clip) != nullptr)
-            {
-                if (auto* audioTrack = dynamic_cast<te::AudioTrack*> (track))
-                {
-                    audioTrack->insertMIDIClip (
-                        clip.getName() + " copy",
-                        te::TimeRange (endTime, endTime + pos.getLength()),
-                        nullptr);
-                }
+                newClip->setName (clip.getName() + " copy");
+                newClip->setStart (endTime, true, false);
             }
         }
     });

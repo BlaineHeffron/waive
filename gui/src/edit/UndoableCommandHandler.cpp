@@ -47,10 +47,13 @@ juce::String UndoableCommandHandler::handleInternal (const juce::String& jsonStr
 
     // Mutating command — wrap in undo transaction.
     juce::String result;
-    editSession.performEdit (action, coalesce, [&] (te::Edit&)
+    auto ok = editSession.performEdit (action, coalesce, [&] (te::Edit&)
     {
         result = commandHandler->handleCommand (jsonString);
     });
+
+    if (! ok)
+        return "{ \"status\": \"error\", \"message\": \"Command failed during edit mutation\" }";
 
     return result;
 }

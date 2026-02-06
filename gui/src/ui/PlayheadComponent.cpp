@@ -1,8 +1,9 @@
 #include "PlayheadComponent.h"
 #include "TimelineComponent.h"
+#include "EditSession.h"
 
-PlayheadComponent::PlayheadComponent (te::Edit& e, TimelineComponent& tl)
-    : edit (e), timeline (tl)
+PlayheadComponent::PlayheadComponent (EditSession& session, TimelineComponent& tl)
+    : editSession (session), timeline (tl)
 {
     setInterceptsMouseClicks (false, false);
     startTimerHz (30);
@@ -15,7 +16,7 @@ PlayheadComponent::~PlayheadComponent()
 
 void PlayheadComponent::paint (juce::Graphics& g)
 {
-    auto pos = edit.getTransport().getPosition().inSeconds();
+    auto pos = editSession.getEdit().getTransport().getPosition().inSeconds();
     int x = timeline.timeToX (pos);
 
     if (x >= 0 && x < getWidth())

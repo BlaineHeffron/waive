@@ -25,6 +25,10 @@ public:
 
     void resized() override;
 
+    // Test helpers
+    SessionComponent& getSessionComponentForTesting();
+    bool invokeCommandForTesting (juce::CommandID commandID);
+
     // MenuBarModel
     juce::StringArray getMenuBarNames() override;
     juce::PopupMenu getMenuForIndex (int menuIndex, const juce::String& menuName) override;

@@ -132,6 +132,8 @@ struct PluginBrowserComponent::ChainModel : public juce::ListBoxModel
 PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCommandHandler& handler)
     : editSession (session), commandHandler (handler)
 {
+    editSession.addListener (this);
+
     // Plugin browser
     auto& pm = editSession.getEngine().getPluginManager();
     auto deadMans = editSession.getEngine().getPropertyStorage()
@@ -200,6 +202,7 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     sendSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 64, 18);
     sendSlider.setTextValueSuffix (" dB");
     sendSlider.onValueChange = [this] { updateAuxSendGainFromSlider(); };
+    sendSlider.onDragEnd = [this] { editSession.endCoalescedTransaction(); };
     addAndMakeVisible (sendSlider);
 
     addReverbReturnButton.onClick = [this] { ensureReverbReturnOnMaster(); };
@@ -215,6 +218,7 @@ PluginBrowserComponent::~PluginBrowserComponent()
 {
     chainList.setModel (nullptr);
     stopTimer();
+    editSession.removeListener (this);
 }
 
 void PluginBrowserComponent::resized()
@@ -274,6 +278,18 @@ void PluginBrowserComponent::resized()
 void PluginBrowserComponent::timerCallback()
 {
     rebuildTrackListIfNeeded();
+}
+
+void PluginBrowserComponent::editAboutToChange()
+{
+    lastTrackCount = -1;
+}
+
+void PluginBrowserComponent::editChanged()
+{
+    lastTrackCount = -1;
+    rebuildTrackListIfNeeded();
+    updateControlsFromSelection();
 }
 
 void PluginBrowserComponent::rebuildTrackListIfNeeded()

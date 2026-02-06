@@ -64,6 +64,7 @@ public:
     bool canRedo() const;
     void undo();
     void redo();
+    void endCoalescedTransaction();
 
     juce::String getUndoDescription() const;
     juce::String getRedoDescription() const;

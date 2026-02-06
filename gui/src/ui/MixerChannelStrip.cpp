@@ -58,6 +58,9 @@ void MixerChannelStrip::setupControls()
 
     faderSlider.onValueChange = [this]
     {
+        if (suppressControlCallbacks)
+            return;
+
         float db = (float) faderSlider.getValue();
         editSession.performEdit ("Set Volume", true, [this, db] (te::Edit&)
         {
@@ -78,6 +81,7 @@ void MixerChannelStrip::setupControls()
                                             juce::sendNotification);
         });
     };
+    faderSlider.onDragEnd = [this] { editSession.endCoalescedTransaction(); };
 
     if (! isMaster)
     {
@@ -89,6 +93,9 @@ void MixerChannelStrip::setupControls()
 
         panKnob.onValueChange = [this]
         {
+            if (suppressControlCallbacks)
+                return;
+
             float pan = (float) panKnob.getValue();
             editSession.performEdit ("Set Pan", true, [this, pan] (te::Edit&)
             {
@@ -101,6 +108,7 @@ void MixerChannelStrip::setupControls()
                 }
             });
         };
+        panKnob.onDragEnd = [this] { editSession.endCoalescedTransaction(); };
     }
 
     startTimerHz (30);
@@ -159,6 +167,26 @@ void MixerChannelStrip::paint (juce::Graphics& g)
 
 void MixerChannelStrip::timerCallback()
 {
+    // Pull current engine state into controls without generating new undo transactions.
+    suppressControlCallbacks = true;
+    if (track != nullptr)
+    {
+        if (auto* vp = track->getVolumePlugin())
+        {
+            faderSlider.setValue (te::volumeFaderPositionToDB (vp->volParam->getCurrentValue()),
+                                  juce::dontSendNotification);
+            panKnob.setValue (vp->panParam->getCurrentValue() * 2.0f - 1.0f,
+                              juce::dontSendNotification);
+        }
+    }
+    else if (masterEdit != nullptr)
+    {
+        if (auto* vp = masterEdit->getMasterVolumePlugin().get())
+            faderSlider.setValue (te::volumeFaderPositionToDB (vp->volParam->getCurrentValue()),
+                                  juce::dontSendNotification);
+    }
+    suppressControlCallbacks = false;
+
     auto levelL = meterClient.getAndClearAudioLevel (0);
     auto levelR = meterClient.getAndClearAudioLevel (1);
 

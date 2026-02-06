@@ -77,8 +77,24 @@ bool EditSession::performEdit (const juce::String& actionName,
         edit->getUndoManager().beginNewTransaction (actionName);
 
     lastTransactionName = actionName;
-    mutation (*edit);
-    return true;
+
+    try
+    {
+        mutation (*edit);
+        edit->markAsChanged();
+        return true;
+    }
+    catch (const std::exception& e)
+    {
+        juce::Logger::writeToLog ("EditSession::performEdit failed: " + juce::String (e.what()));
+    }
+    catch (...)
+    {
+        juce::Logger::writeToLog ("EditSession::performEdit failed with unknown exception");
+    }
+
+    lastTransactionName.clear();
+    return false;
 }
 
 bool EditSession::canUndo() const
@@ -100,6 +116,11 @@ void EditSession::undo()
 void EditSession::redo()
 {
     edit->redo();
+    lastTransactionName.clear();
+}
+
+void EditSession::endCoalescedTransaction()
+{
     lastTransactionName.clear();
 }
 

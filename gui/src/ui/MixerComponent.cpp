@@ -6,6 +6,8 @@
 MixerComponent::MixerComponent (EditSession& session)
     : editSession (session)
 {
+    editSession.addListener (this);
+
     stripViewport.setViewedComponent (&stripContainer, false);
     stripViewport.setScrollBarsShown (false, true);
     addAndMakeVisible (stripViewport);
@@ -17,6 +19,7 @@ MixerComponent::MixerComponent (EditSession& session)
 MixerComponent::~MixerComponent()
 {
     stopTimer();
+    editSession.removeListener (this);
 }
 
 void MixerComponent::resized()
@@ -60,6 +63,19 @@ void MixerComponent::timerCallback()
     auto tracks = te::getAudioTracks (editSession.getEdit());
     if (tracks.size() != lastTrackCount)
         rebuildStrips();
+}
+
+void MixerComponent::editAboutToChange()
+{
+    strips.clear();
+    stripContainer.removeAllChildren();
+    masterStrip.reset();
+    lastTrackCount = -1;
+}
+
+void MixerComponent::editChanged()
+{
+    rebuildStrips();
 }
 
 void MixerComponent::rebuildStrips()
