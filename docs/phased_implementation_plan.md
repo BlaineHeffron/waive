@@ -16,7 +16,7 @@ This plan assumes Waive is a single **in-process JUCE GUI application** backed b
   - Session tab: transport, add/remove tracks, volume/pan per track
   - Console tab: sends JSON to `CommandHandler` in-process
 - `engine/src/CommandHandler.*` implements a small set of JSON “commands” for basic edit mutations.
-- Anything Python under `ai/` is legacy experimentation and not part of the core app direction.
+- Legacy Python-side experimentation has been removed from the repo; core direction is C++ in-process tooling.
 
 ## Phase 0 — Foundation (Make future work easy)
 
@@ -284,4 +284,3 @@ When splitting work across agents, copy/paste a section and fill in:
 - **Threading**: what runs where
 - **Done Criteria**: observable behavior + undo/redo expectations
 - **Tests**: what to add/run
-

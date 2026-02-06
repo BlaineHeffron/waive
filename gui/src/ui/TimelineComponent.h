@@ -81,6 +81,8 @@ public:
                                            int pointIndex,
                                            double timeSeconds,
                                            float normalisedValue);
+    void selectClipsByIDForPreview (const juce::Array<te::EditItemID>& clipIDs);
+    void clearPreviewSelection();
 
 private:
     void selectionChanged() override;

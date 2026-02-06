@@ -10,8 +10,9 @@ class ConsoleComponent;
 class ToolLogComponent;
 class LibraryComponent;
 class PluginBrowserComponent;
+class ToolsComponent;
 
-namespace waive { class JobQueue; }
+namespace waive { class JobQueue; class ToolRegistry; class ModelManager; }
 
 //==============================================================================
 class MainComponent : public juce::Component,
@@ -27,6 +28,9 @@ public:
 
     // Test helpers
     SessionComponent& getSessionComponentForTesting();
+    ToolsComponent& getToolsComponentForTesting();
+    LibraryComponent& getLibraryComponentForTesting();
+    PluginBrowserComponent& getPluginBrowserForTesting();
     bool invokeCommandForTesting (juce::CommandID commandID);
 
     // MenuBarModel
@@ -66,6 +70,9 @@ private:
     std::unique_ptr<SessionComponent> sessionComponent;
     std::unique_ptr<LibraryComponent> libraryComponent;
     std::unique_ptr<PluginBrowserComponent> pluginBrowser;
+    std::unique_ptr<waive::ModelManager> modelManager;
+    std::unique_ptr<waive::ToolRegistry> toolRegistry;
+    std::unique_ptr<ToolsComponent> toolsComponent;
     std::unique_ptr<ConsoleComponent> console;
     std::unique_ptr<ToolLogComponent> toolLog;
 };

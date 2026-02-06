@@ -131,6 +131,15 @@ void MixerChannelStrip::resized()
                             bounds.getWidth(), bounds.getHeight());
 }
 
+void MixerChannelStrip::setHighlighted (bool shouldHighlight)
+{
+    if (highlighted == shouldHighlight)
+        return;
+
+    highlighted = shouldHighlight;
+    repaint();
+}
+
 void MixerChannelStrip::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
@@ -142,6 +151,12 @@ void MixerChannelStrip::paint (juce::Graphics& g)
     // Border
     g.setColour (juce::Colour (0xff3a3a3a));
     g.drawRoundedRectangle (bounds.reduced (0.5f), 3.0f, 1.0f);
+
+    if (highlighted)
+    {
+        g.setColour (juce::Colour (0xfff0b429));
+        g.drawRoundedRectangle (bounds.reduced (1.5f), 3.0f, 2.0f);
+    }
 
     // Meter bars (beside the fader)
     auto meterBounds = getLocalBounds().reduced (2);

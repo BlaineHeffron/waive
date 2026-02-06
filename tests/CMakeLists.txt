@@ -62,6 +62,8 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/ui/LibraryComponent.cpp
     ../gui/src/ui/PluginBrowserComponent.h
     ../gui/src/ui/PluginBrowserComponent.cpp
+    ../gui/src/ui/ToolsComponent.h
+    ../gui/src/ui/ToolsComponent.cpp
     ../gui/src/ui/TimelineComponent.h
     ../gui/src/ui/TimelineComponent.cpp
     ../gui/src/ui/TrackLaneComponent.h
@@ -88,6 +90,29 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/edit/ProjectManager.cpp
     ../gui/src/tools/JobQueue.h
     ../gui/src/tools/JobQueue.cpp
+    ../gui/src/tools/ModelManager.h
+    ../gui/src/tools/ModelManager.cpp
+    ../gui/src/tools/AudioAnalysis.h
+    ../gui/src/tools/AudioAnalysis.cpp
+    ../gui/src/tools/Tool.h
+    ../gui/src/tools/ToolDiff.h
+    ../gui/src/tools/ToolDiff.cpp
+    ../gui/src/tools/ToolRegistry.h
+    ../gui/src/tools/ToolRegistry.cpp
+    ../gui/src/tools/NormalizeSelectedClipsTool.h
+    ../gui/src/tools/NormalizeSelectedClipsTool.cpp
+    ../gui/src/tools/RenameTracksFromClipsTool.h
+    ../gui/src/tools/RenameTracksFromClipsTool.cpp
+    ../gui/src/tools/GainStageSelectedTracksTool.h
+    ../gui/src/tools/GainStageSelectedTracksTool.cpp
+    ../gui/src/tools/DetectSilenceAndCutRegionsTool.h
+    ../gui/src/tools/DetectSilenceAndCutRegionsTool.cpp
+    ../gui/src/tools/AlignClipsByTransientTool.h
+    ../gui/src/tools/AlignClipsByTransientTool.cpp
+    ../gui/src/tools/StemSeparationTool.h
+    ../gui/src/tools/StemSeparationTool.cpp
+    ../gui/src/tools/AutoMixSuggestionsTool.h
+    ../gui/src/tools/AutoMixSuggestionsTool.cpp
     ../gui/src/util/CommandHelpers.h
     ../gui/src/util/CommandHelpers.cpp
 

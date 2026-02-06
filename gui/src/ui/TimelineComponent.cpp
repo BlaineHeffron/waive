@@ -173,22 +173,36 @@ double TimelineComponent::snapTimeToGrid (double seconds) const
     auto time = te::TimePosition::fromSeconds (juce::jmax (0.0, seconds));
     auto beats = sequence.toBeats (time).inBeats();
 
-    double beatStep = 1.0;
     switch (snapResolution)
     {
         case SnapResolution::bar:
         {
-            auto& timeSig = sequence.getTimeSigAt (time);
-            beatStep = juce::jmax (1.0, (double) timeSig.numerator.get());
-            break;
+            auto barsBeats = sequence.toBarsAndBeats (time);
+            const auto nearestBar = juce::jmax (0, (int) std::round (barsBeats.getTotalBars()));
+            te::tempo::BarsAndBeats snappedBarsBeats;
+            snappedBarsBeats.bars = nearestBar;
+            return sequence.toTime (snappedBarsBeats).inSeconds();
         }
-        case SnapResolution::beat:       beatStep = 1.0; break;
-        case SnapResolution::halfBeat:   beatStep = 0.5; break;
-        case SnapResolution::quarterBeat: beatStep = 0.25; break;
+        case SnapResolution::beat:
+        {
+            auto snappedBeats = std::round (beats);
+            return sequence.toTime (te::BeatPosition::fromBeats (snappedBeats)).inSeconds();
+        }
+        case SnapResolution::halfBeat:
+        {
+            constexpr double step = 0.5;
+            auto snappedBeats = std::round (beats / step) * step;
+            return sequence.toTime (te::BeatPosition::fromBeats (snappedBeats)).inSeconds();
+        }
+        case SnapResolution::quarterBeat:
+        {
+            constexpr double step = 0.25;
+            auto snappedBeats = std::round (beats / step) * step;
+            return sequence.toTime (te::BeatPosition::fromBeats (snappedBeats)).inSeconds();
+        }
     }
 
-    auto snappedBeats = std::round (beats / beatStep) * beatStep;
-    return sequence.toTime (te::BeatPosition::fromBeats (snappedBeats)).inSeconds();
+    return sequence.toTime (te::BeatPosition::fromBeats (beats)).inSeconds();
 }
 
 void TimelineComponent::getGridLineTimes (double startSeconds, double endSeconds,
@@ -331,6 +345,28 @@ void TimelineComponent::splitSelectedClipsAtPlayhead()
             waive::splitClipAtPosition (editSession, *clip, splitTime);
 
     rebuildTracks();
+}
+
+void TimelineComponent::selectClipsByIDForPreview (const juce::Array<te::EditItemID>& clipIDs)
+{
+    selectionManager->deselectAll();
+
+    auto& edit = editSession.getEdit();
+    for (auto clipID : clipIDs)
+    {
+        if (! clipID.isValid())
+            continue;
+
+        if (auto* clip = te::findClipForID (edit, clipID))
+            selectionManager->selectClip (clip, true);
+    }
+
+    trackContainer.repaint();
+}
+
+void TimelineComponent::clearPreviewSelection()
+{
+    selectionManager->deselectAll();
 }
 
 bool TimelineComponent::addAutomationPointForTrackParam (int trackIndex,

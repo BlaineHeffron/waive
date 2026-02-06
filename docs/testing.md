@@ -18,6 +18,17 @@ Waive has two native C++ regression test executables integrated with CTest.
   - Current coverage:
     - `MainComponent` command routing for `Duplicate`, `Split`, `Delete`, `Undo`, `Redo`
     - timeline selection + command execution without manual input
+    - Phase 1/2 library + plugins/routing coverage:
+      - library double-click audio import at current transport position, with undo/redo
+      - plugin chain operations via `PluginBrowserComponent` no-user helpers:
+        - built-in plugin insert/remove/reorder
+        - bypass toggle and plugin editor open/close calls
+      - input workflow on selected track:
+        - assign first available audio input, arm, monitor-on, clear input
+        - transport record start/stop state validation under assigned+armed input
+      - routing workflow:
+        - per-track aux send gain creation/update
+        - master aux-return + reverb return creation (idempotent on repeated apply)
     - project lifecycle flow without dialogs:
       - `openProject(file)` load + edit swap refresh
       - command-routed `Save` and `New`
@@ -25,9 +36,51 @@ Waive has two native C++ regression test executables integrated with CTest.
       - reopen persistence and recent-files updates
     - Phase 3 automation/time/transport coverage:
       - tempo and time-signature control updates + marker insertion at playhead
-      - bars/beats grid snap behavior via `SessionComponent`/`TimelineComponent` test helpers
-      - automation point add/move on track plugin parameter curves
+      - bars/beats grid snap behavior via `SessionComponent`/`TimelineComponent` test helpers (including non-`x/4` bar snap like `6/8`)
+      - automation point add/move on track plugin parameter curves, with undo/redo validation
       - loop range + loop enable and punch-in/out state toggles
+    - Phase 4 tool framework coverage:
+      - `ToolsComponent` no-user workflow for built-in `normalize_selected_clips`:
+        - async `plan` generation with structured preview diff
+        - reject path (no mutation)
+        - apply path (undo/redo safe clip gain mutation)
+      - preview highlighting of affected timeline clips and mixer tracks
+      - plan artifact persistence to a project-local cache location
+      - cancellable long-running tool-plan job leaving session state unchanged
+    - Phase 5 built-in tools coverage:
+      - `rename_tracks_from_clips`: selected-clip-driven rename apply + undo/redo
+      - `gain_stage_selected_tracks`: track fader adjustment from selected-clip peak analysis + undo/redo
+      - `detect_silence_and_cut_regions`: leading/trailing silence trim apply + undo/redo
+      - `align_clips_by_transient`: multi-clip transient alignment apply + undo/redo
+      - phase-5 plan artifact generation for built-in tools
+    - Phase 5B model-backed tools coverage:
+      - `ModelManager` lifecycle:
+        - explicit storage-directory selection in tests (isolated per run)
+        - quota enforcement (install fails when quota is too low)
+        - install + pin + uninstall flows for model versions
+      - `stem_separation`:
+        - fails when required model is not installed
+        - plan/apply produces stem tracks + wave clips from generated artifacts
+        - undo/redo restores/removes generated stem tracks deterministically
+      - `auto_mix_suggestions`:
+        - requires installed model version
+        - plan/apply produces track volume/pan suggestions
+        - undo/redo restores suggested mix changes deterministically
+
+## Phase Validation Matrix
+
+`WaiveUiTests` currently validates phased plan milestones end-to-end:
+
+- Phase 0/1/2 foundations and DAW workflow basics:
+  - command routing, timeline edit actions, library import, plugin/routing/input workflow coverage, and session lifecycle persistence
+- Phase 3:
+  - tempo/time-signature/grid snap, automation add/move with undo/redo, loop/punch state
+- Phase 4:
+  - Tool API plan/apply/reject/cancel behavior, preview highlighting, artifact persistence
+- Phase 5A:
+  - deterministic built-in assistant tools (rename/gain-stage/silence-cut/transient-align)
+- Phase 5B:
+  - optional model manager + model-backed tools (stem separation, auto-mix suggestions)
 
 ## Running Tests
 
@@ -58,9 +111,13 @@ Run test binaries directly:
 - Prefer deterministic tests that create/modify an in-memory `Edit`.
 - For UI tests, use command invocation and direct model assertions rather than screenshot/image checks.
 - Prefer `SessionComponent`/`TimelineComponent` deterministic helper methods when asserting UI-driven state transitions (tempo/time-signature, snap, automation, loop/punch).
+- For plugin/routing/record-input workflow coverage, use `PluginBrowserComponent` no-user helpers:
+  `selectTrackForTesting`, `insertBuiltInPluginForTesting`, `selectChainRowForTesting`,
+  `moveSelectedChainPluginForTesting`, `removeSelectedChainPluginForTesting`,
+  `toggleSelectedChainPluginBypassForTesting`, `openSelectedChainPluginEditorForTesting`,
+  `closeSelectedChainPluginEditorForTesting`, `selectFirstAvailableInputForTesting`,
+  `setArmEnabledForTesting`, `setMonitorEnabledForTesting`, `setSendLevelDbForTesting`,
+  `ensureReverbReturnOnMasterForTesting`.
+- For tool framework tests, use `ToolsComponent` test helpers (`runPlanForTesting`, `waitForIdleForTesting`, `applyPlanForTesting`, `cancelPlanForTesting`) to validate plan/apply/cancel flows without manual input.
 - Keep tests message-thread safe; use `juce::ScopedJuceInitialiser_GUI` for UI-oriented tests.
 - Avoid requiring interactive dialogs or manual file selection.
-
-## Existing Python Tests
-
-The `ai/tests/` Python suite is still available for the legacy AI tooling path and can be run separately with `pytest`.

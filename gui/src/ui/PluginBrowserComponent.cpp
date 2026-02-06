@@ -4,6 +4,8 @@
 #include "UndoableCommandHandler.h"
 
 #include <tracktion_engine/tracktion_engine.h>
+#include <cmath>
+#include <limits>
 
 namespace te = tracktion;
 
@@ -273,6 +275,279 @@ void PluginBrowserComponent::resized()
 
     right.removeFromTop (8);
     chainList.setBounds (right);
+}
+
+bool PluginBrowserComponent::selectTrackForTesting (int trackIndex)
+{
+    const int targetItemId = (trackIndex < 0) ? masterItemId : (trackItemIdBase + trackIndex);
+    bool found = false;
+
+    for (int i = 0; i < trackCombo.getNumItems(); ++i)
+    {
+        if (trackCombo.getItemId (i) == targetItemId)
+        {
+            found = true;
+            break;
+        }
+    }
+
+    if (! found)
+        return false;
+
+    trackCombo.setSelectedId (targetItemId, juce::sendNotificationSync);
+    return trackCombo.getSelectedId() == targetItemId;
+}
+
+bool PluginBrowserComponent::insertBuiltInPluginForTesting (const juce::String& pluginType)
+{
+    const auto type = pluginType.trim();
+    if (type.isEmpty())
+        return false;
+
+    bool inserted = false;
+    editSession.performEdit ("Insert Built-In Plugin (Test)", [&] (te::Edit& edit)
+    {
+        auto state = te::createValueTree (te::IDs::PLUGIN,
+                                          te::IDs::type, type);
+        auto plugin = edit.getPluginCache().createNewPlugin (state);
+        if (plugin == nullptr)
+            return;
+
+        auto& list = getSelectedPluginList();
+        list.insertPlugin (plugin, 0, nullptr);
+        inserted = true;
+    });
+
+    chainList.updateContent();
+    chainList.repaint();
+    return inserted;
+}
+
+bool PluginBrowserComponent::selectChainRowForTesting (int row)
+{
+    chainList.updateContent();
+
+    if (! juce::isPositiveAndBelow (row, chainModel->getNumRows()))
+        return false;
+
+    chainList.selectRow (row);
+    return chainList.getSelectedRow() == row;
+}
+
+bool PluginBrowserComponent::moveSelectedChainPluginForTesting (int delta)
+{
+    if (delta == 0 || chainList.getSelectedRow() < 0)
+        return false;
+
+    const auto before = getChainPluginTypeOrderForTesting();
+    moveSelectedChainPlugin (delta);
+    const auto after = getChainPluginTypeOrderForTesting();
+    return after != before;
+}
+
+bool PluginBrowserComponent::removeSelectedChainPluginForTesting()
+{
+    const auto before = getChainPluginCountForTesting();
+    removeSelectedChainPlugin();
+    return getChainPluginCountForTesting() < before;
+}
+
+bool PluginBrowserComponent::toggleSelectedChainPluginBypassForTesting()
+{
+    const int row = chainList.getSelectedRow();
+    if (! juce::isPositiveAndBelow (row, getChainPluginCountForTesting()))
+        return false;
+
+    const bool wasBypassed = isChainPluginBypassedForTesting (row);
+    toggleSelectedChainPluginBypass();
+    return isChainPluginBypassedForTesting (row) != wasBypassed;
+}
+
+bool PluginBrowserComponent::openSelectedChainPluginEditorForTesting()
+{
+    const int row = chainList.getSelectedRow();
+    if (! juce::isPositiveAndBelow (row, getChainPluginCountForTesting()))
+        return false;
+
+    openSelectedChainPluginEditor();
+    return true;
+}
+
+bool PluginBrowserComponent::closeSelectedChainPluginEditorForTesting()
+{
+    const int row = chainList.getSelectedRow();
+    if (! juce::isPositiveAndBelow (row, getChainPluginCountForTesting()))
+        return false;
+
+    closeSelectedChainPluginEditor();
+    return true;
+}
+
+bool PluginBrowserComponent::isChainPluginBypassedForTesting (int row) const
+{
+    auto& list = getSelectedPluginList();
+    auto plugins = getChainPlugins (list);
+    if (! juce::isPositiveAndBelow (row, plugins.size()))
+        return false;
+
+    if (auto plugin = plugins[row])
+        return ! plugin->isEnabled();
+
+    return false;
+}
+
+int PluginBrowserComponent::getChainPluginCountForTesting() const
+{
+    return getChainPlugins (getSelectedPluginList()).size();
+}
+
+juce::StringArray PluginBrowserComponent::getChainPluginTypeOrderForTesting() const
+{
+    juce::StringArray order;
+    auto& list = getSelectedPluginList();
+    auto plugins = getChainPlugins (list);
+
+    for (auto plugin : plugins)
+    {
+        if (plugin == nullptr)
+            continue;
+
+        auto type = plugin->state.getProperty (te::IDs::type).toString();
+        if (type.isEmpty())
+            type = plugin->getName();
+        order.add (type);
+    }
+
+    return order;
+}
+
+int PluginBrowserComponent::getAvailableInputCountForTesting() const
+{
+    return juce::jmax (0, inputCombo.getNumItems() - 1);
+}
+
+bool PluginBrowserComponent::selectFirstAvailableInputForTesting()
+{
+    if (getSelectedTrack() == nullptr || getAvailableInputCountForTesting() <= 0)
+        return false;
+
+    inputCombo.setSelectedId (2, juce::sendNotificationSync);
+    return hasAssignedInputForTesting();
+}
+
+bool PluginBrowserComponent::clearInputForTesting()
+{
+    if (getSelectedTrack() == nullptr)
+        return false;
+
+    inputCombo.setSelectedId (1, juce::sendNotificationSync);
+    return ! hasAssignedInputForTesting();
+}
+
+bool PluginBrowserComponent::hasAssignedInputForTesting() const
+{
+    auto* track = getSelectedTrack();
+    if (track == nullptr)
+        return false;
+
+    return findWaveInputInstanceOnTrack (editSession.getEdit(), *track) != nullptr;
+}
+
+bool PluginBrowserComponent::setArmEnabledForTesting (bool armed)
+{
+    if (! hasAssignedInputForTesting())
+        return false;
+
+    setArmEnabled (armed);
+    return isArmEnabledForTesting() == armed;
+}
+
+bool PluginBrowserComponent::isArmEnabledForTesting() const
+{
+    auto* track = getSelectedTrack();
+    if (track == nullptr)
+        return false;
+
+    if (auto* idi = findWaveInputInstanceOnTrack (editSession.getEdit(), *track))
+        return idi->isRecordingEnabled (track->itemID);
+
+    return false;
+}
+
+bool PluginBrowserComponent::setMonitorEnabledForTesting (bool monitorOn)
+{
+    if (! hasAssignedInputForTesting())
+        return false;
+
+    setMonitorEnabled (monitorOn);
+    return isMonitorEnabledForTesting() == monitorOn;
+}
+
+bool PluginBrowserComponent::isMonitorEnabledForTesting() const
+{
+    auto* track = getSelectedTrack();
+    if (track == nullptr)
+        return false;
+
+    if (auto* idi = findWaveInputInstanceOnTrack (editSession.getEdit(), *track))
+        return idi->getInputDevice().getMonitorMode() == te::InputDevice::MonitorMode::on;
+
+    return false;
+}
+
+bool PluginBrowserComponent::setSendLevelDbForTesting (float gainDb)
+{
+    if (getSelectedTrack() == nullptr)
+        return false;
+
+    sendSlider.setValue (juce::jlimit (-60.0, 6.0, (double) gainDb), juce::sendNotificationSync);
+    const auto actual = getAuxSendGainDbForTesting (0);
+    return std::isfinite (actual) && std::abs ((double) gainDb - actual) < 0.6;
+}
+
+float PluginBrowserComponent::getAuxSendGainDbForTesting (int busNum) const
+{
+    auto* track = getSelectedTrack();
+    if (track == nullptr)
+        return std::numeric_limits<float>::quiet_NaN();
+
+    if (auto* send = findAuxSend (*track, busNum))
+        return send->getGainDb();
+
+    return std::numeric_limits<float>::quiet_NaN();
+}
+
+void PluginBrowserComponent::ensureReverbReturnOnMasterForTesting()
+{
+    const int previousId = trackCombo.getSelectedId();
+    trackCombo.setSelectedId (masterItemId, juce::dontSendNotification);
+    updateControlsFromSelection();
+    ensureReverbReturnOnMaster();
+
+    if (previousId != 0 && previousId != masterItemId)
+    {
+        trackCombo.setSelectedId (previousId, juce::dontSendNotification);
+        updateControlsFromSelection();
+    }
+}
+
+int PluginBrowserComponent::getMasterAuxReturnCountForTesting (int busNum) const
+{
+    int count = 0;
+    for (auto* plugin : editSession.getEdit().getMasterPluginList())
+        if (auto* auxReturn = dynamic_cast<te::AuxReturnPlugin*> (plugin))
+            if ((int) auxReturn->busNumber == busNum)
+                ++count;
+    return count;
+}
+
+int PluginBrowserComponent::getMasterReverbCountForTesting() const
+{
+    int count = 0;
+    for (auto* plugin : editSession.getEdit().getMasterPluginList())
+        if (dynamic_cast<te::ReverbPlugin*> (plugin) != nullptr)
+            ++count;
+    return count;
 }
 
 void PluginBrowserComponent::timerCallback()

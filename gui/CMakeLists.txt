@@ -23,6 +23,8 @@ target_sources(Waive PRIVATE
     src/ui/LibraryComponent.cpp
     src/ui/PluginBrowserComponent.h
     src/ui/PluginBrowserComponent.cpp
+    src/ui/ToolsComponent.h
+    src/ui/ToolsComponent.cpp
     src/ui/TimelineComponent.h
     src/ui/TimelineComponent.cpp
     src/ui/TrackLaneComponent.h
@@ -53,6 +55,29 @@ target_sources(Waive PRIVATE
     # Tools
     src/tools/JobQueue.h
     src/tools/JobQueue.cpp
+    src/tools/ModelManager.h
+    src/tools/ModelManager.cpp
+    src/tools/AudioAnalysis.h
+    src/tools/AudioAnalysis.cpp
+    src/tools/Tool.h
+    src/tools/ToolDiff.h
+    src/tools/ToolDiff.cpp
+    src/tools/ToolRegistry.h
+    src/tools/ToolRegistry.cpp
+    src/tools/NormalizeSelectedClipsTool.h
+    src/tools/NormalizeSelectedClipsTool.cpp
+    src/tools/RenameTracksFromClipsTool.h
+    src/tools/RenameTracksFromClipsTool.cpp
+    src/tools/GainStageSelectedTracksTool.h
+    src/tools/GainStageSelectedTracksTool.cpp
+    src/tools/DetectSilenceAndCutRegionsTool.h
+    src/tools/DetectSilenceAndCutRegionsTool.cpp
+    src/tools/AlignClipsByTransientTool.h
+    src/tools/AlignClipsByTransientTool.cpp
+    src/tools/StemSeparationTool.h
+    src/tools/StemSeparationTool.cpp
+    src/tools/AutoMixSuggestionsTool.h
+    src/tools/AutoMixSuggestionsTool.cpp
 
     # Utilities
     src/util/CommandHelpers.h

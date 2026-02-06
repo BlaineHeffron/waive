@@ -18,6 +18,6 @@ echo "Run '/cancel-ralph' inside the session to gracefully stop."
 echo ""
 
 cat RALPH_MVP.md | claude --continue \
-  --allowedTools "Bash(build C++ engine:cmake),Bash(run tests:pytest),Bash(git operations:git),Edit,Write,Read,Glob,Grep,Task,TaskCreate,TaskUpdate,TaskGet,TaskList,Skill" \
+  --allowedTools "Bash(build C++ engine:cmake),Bash(run tests:ctest),Bash(git operations:git),Edit,Write,Read,Glob,Grep,Task,TaskCreate,TaskUpdate,TaskGet,TaskList,Skill" \
   --print \
   -p "/ralph-loop:ralph-loop \"$(cat RALPH_MVP.md)\" --max-iterations 30 --completion-promise \"MVP COMPLETE\""

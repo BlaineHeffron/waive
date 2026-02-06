@@ -4,6 +4,7 @@
 #include "CommandHelpers.h"
 #include "TimelineComponent.h"
 #include "MixerComponent.h"
+#include "ToolDiff.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -425,4 +426,36 @@ void SessionComponent::setLoopRangeForTesting (double loopInSeconds, double loop
 void SessionComponent::setPunchEnabledForTesting (bool enabled)
 {
     editSession.getEdit().recordingPunchInOut = enabled;
+}
+
+juce::Array<int> SessionComponent::getToolPreviewTracksForTesting() const
+{
+    if (mixer == nullptr)
+        return {};
+
+    return mixer->getHighlightedTrackIndicesForTesting();
+}
+
+void SessionComponent::applyToolPreviewDiff (const juce::Array<waive::ToolDiffEntry>& changes)
+{
+    juce::Array<te::EditItemID> clipIDs;
+    juce::Array<int> trackIndices;
+
+    for (const auto& change : changes)
+    {
+        if (change.clipID.isValid())
+            clipIDs.addIfNotAlreadyThere (change.clipID);
+
+        if (change.trackIndex >= 0)
+            trackIndices.addIfNotAlreadyThere (change.trackIndex);
+    }
+
+    timeline->selectClipsByIDForPreview (clipIDs);
+    mixer->setHighlightedTrackIndices (trackIndices);
+}
+
+void SessionComponent::clearToolPreview()
+{
+    timeline->clearPreviewSelection();
+    mixer->clearHighlightedTrackIndices();
 }

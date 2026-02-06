@@ -20,6 +20,32 @@ public:
 
     void resized() override;
 
+    // Test helpers for no-user UI coverage.
+    bool selectTrackForTesting (int trackIndex);
+    bool insertBuiltInPluginForTesting (const juce::String& pluginType);
+    bool selectChainRowForTesting (int row);
+    bool moveSelectedChainPluginForTesting (int delta);
+    bool removeSelectedChainPluginForTesting();
+    bool toggleSelectedChainPluginBypassForTesting();
+    bool isChainPluginBypassedForTesting (int row) const;
+    bool openSelectedChainPluginEditorForTesting();
+    bool closeSelectedChainPluginEditorForTesting();
+    int getChainPluginCountForTesting() const;
+    juce::StringArray getChainPluginTypeOrderForTesting() const;
+    int getAvailableInputCountForTesting() const;
+    bool selectFirstAvailableInputForTesting();
+    bool clearInputForTesting();
+    bool hasAssignedInputForTesting() const;
+    bool setArmEnabledForTesting (bool armed);
+    bool isArmEnabledForTesting() const;
+    bool setMonitorEnabledForTesting (bool monitorOn);
+    bool isMonitorEnabledForTesting() const;
+    bool setSendLevelDbForTesting (float gainDb);
+    float getAuxSendGainDbForTesting (int busNum) const;
+    void ensureReverbReturnOnMasterForTesting();
+    int getMasterAuxReturnCountForTesting (int busNum) const;
+    int getMasterReverbCountForTesting() const;
+
 private:
     void editAboutToChange() override;
     void editChanged() override;

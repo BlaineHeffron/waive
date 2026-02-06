@@ -58,6 +58,23 @@ void MixerComponent::paint (juce::Graphics& g)
     g.drawVerticalLine (masterX, 0.0f, (float) getHeight());
 }
 
+void MixerComponent::setHighlightedTrackIndices (const juce::Array<int>& trackIndices)
+{
+    highlightedTrackIndices = trackIndices;
+    applyTrackHighlights();
+}
+
+void MixerComponent::clearHighlightedTrackIndices()
+{
+    highlightedTrackIndices.clear();
+    applyTrackHighlights();
+}
+
+juce::Array<int> MixerComponent::getHighlightedTrackIndicesForTesting() const
+{
+    return highlightedTrackIndices;
+}
+
 void MixerComponent::timerCallback()
 {
     auto tracks = te::getAudioTracks (editSession.getEdit());
@@ -98,5 +115,16 @@ void MixerComponent::rebuildStrips()
     addAndMakeVisible (masterStrip.get());
 
     lastTrackCount = tracks.size();
+    applyTrackHighlights();
     resized();
+}
+
+void MixerComponent::applyTrackHighlights()
+{
+    for (int i = 0; i < (int) strips.size(); ++i)
+    {
+        auto* strip = strips[(size_t) i].get();
+        if (strip != nullptr)
+            strip->setHighlighted (highlightedTrackIndices.contains (i));
+    }
 }

@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include "TimelineComponent.h"
+#include "ToolDiff.h"
 
 class EditSession;
 class UndoableCommandHandler;
@@ -30,6 +31,10 @@ public:
     void setLoopEnabledForTesting (bool enabled);
     void setLoopRangeForTesting (double loopInSeconds, double loopOutSeconds);
     void setPunchEnabledForTesting (bool enabled);
+    juce::Array<int> getToolPreviewTracksForTesting() const;
+
+    void applyToolPreviewDiff (const juce::Array<waive::ToolDiffEntry>& changes);
+    void clearToolPreview();
 
 private:
     void timerCallback() override;

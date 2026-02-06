@@ -7,9 +7,12 @@
 #include "TimelineComponent.h"
 #include "LibraryComponent.h"
 #include "PluginBrowserComponent.h"
+#include "ToolsComponent.h"
 #include "ConsoleComponent.h"
 #include "ToolLogComponent.h"
 #include "JobQueue.h"
+#include "ModelManager.h"
+#include "ToolRegistry.h"
 
 //==============================================================================
 MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& session,
@@ -21,12 +24,17 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
     sessionComponent = std::make_unique<SessionComponent> (editSession, commandHandler);
     libraryComponent = std::make_unique<LibraryComponent> (editSession);
     pluginBrowser = std::make_unique<PluginBrowserComponent> (editSession, commandHandler);
+    modelManager = std::make_unique<waive::ModelManager>();
+    toolRegistry = std::make_unique<waive::ToolRegistry>();
+    toolsComponent = std::make_unique<ToolsComponent> (*toolRegistry, editSession, projectManager,
+                                                       *sessionComponent, *modelManager, jobQueue);
     console = std::make_unique<ConsoleComponent> (commandHandler);
     toolLog = std::make_unique<ToolLogComponent> (jobQueue);
 
     tabs.addTab ("Session", juce::Colours::darkgrey, sessionComponent.get(), false);
     tabs.addTab ("Library", juce::Colours::darkgrey, libraryComponent.get(), false);
     tabs.addTab ("Plugins", juce::Colours::darkgrey, pluginBrowser.get(), false);
+    tabs.addTab ("Tools", juce::Colours::darkgrey, toolsComponent.get(), false);
     tabs.addTab ("Console", juce::Colours::darkgrey, console.get(), false);
     tabs.addTab ("Tool Log", juce::Colours::darkgrey, toolLog.get(), false);
 
@@ -51,6 +59,21 @@ MainComponent::~MainComponent()
 SessionComponent& MainComponent::getSessionComponentForTesting()
 {
     return *sessionComponent;
+}
+
+ToolsComponent& MainComponent::getToolsComponentForTesting()
+{
+    return *toolsComponent;
+}
+
+LibraryComponent& MainComponent::getLibraryComponentForTesting()
+{
+    return *libraryComponent;
+}
+
+PluginBrowserComponent& MainComponent::getPluginBrowserForTesting()
+{
+    return *pluginBrowser;
 }
 
 bool MainComponent::invokeCommandForTesting (juce::CommandID commandID)

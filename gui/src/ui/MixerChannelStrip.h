@@ -24,6 +24,9 @@ public:
     void resized() override;
     void paint (juce::Graphics& g) override;
 
+    void setHighlighted (bool shouldHighlight);
+    bool isHighlightedForTesting() const       { return highlighted; }
+
     static constexpr int stripWidth = 80;
 
 private:
@@ -43,5 +46,6 @@ private:
     float peakL = 0.0f;
     float peakR = 0.0f;
     bool isMaster = false;
+    bool highlighted = false;
     bool suppressControlCallbacks = false;
 };

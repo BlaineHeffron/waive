@@ -16,7 +16,7 @@
 |----------------|-------------------------------------------------------|
 | `gui/src/ui/`  | JUCE `Component` subclasses (UI panels, views)       |
 | `gui/src/edit/`| Edit-layer classes (`EditSession`, `UndoableCommandHandler`) |
-| `gui/src/tools/`| Background job framework (`JobQueue`)                |
+| `gui/src/tools/`| Tool runtime/framework (`Tool*`, `JobQueue`, `ModelManager`) |
 | `gui/src/util/`| Shared helpers (`CommandHelpers`)                     |
 
 ## Naming
