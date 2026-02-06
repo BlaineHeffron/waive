@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Waive Command Protocol",
-  "description": "JSON command schema for communication between the Python AI layer and the C++ Engine.",
+  "description": "JSON command schema for Waive's in-process developer console (debug/diagnostics).",
   "type": "object",
   "required": ["action"],
   "properties": {

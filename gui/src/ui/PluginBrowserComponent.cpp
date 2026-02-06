@@ -1,0 +1,720 @@
+#include "PluginBrowserComponent.h"
+
+#include "EditSession.h"
+#include "UndoableCommandHandler.h"
+
+#include <tracktion_engine/tracktion_engine.h>
+
+namespace te = tracktion;
+
+namespace
+{
+constexpr int trackItemIdBase = 1000;
+constexpr int masterItemId = 1;
+
+bool isDefaultTrackPlugin (te::Plugin& p)
+{
+    return dynamic_cast<te::VolumeAndPanPlugin*> (&p) != nullptr
+        || dynamic_cast<te::LevelMeterPlugin*> (&p) != nullptr;
+}
+
+te::Plugin::Array getChainPlugins (te::PluginList& list)
+{
+    te::Plugin::Array filtered;
+    for (auto* p : list.getPlugins())
+        if (p != nullptr && ! isDefaultTrackPlugin (*p))
+            filtered.add (p);
+    return filtered;
+}
+
+te::Plugin::Ptr createPluginFromDescription (te::Edit& edit, const juce::PluginDescription& desc)
+{
+    // Built-in plugins use fileOrIdentifier = xmlTypeName
+    if (desc.pluginFormatName == te::PluginManager::builtInPluginFormatName)
+    {
+        auto v = te::createValueTree (te::IDs::PLUGIN,
+                                      te::IDs::type, desc.fileOrIdentifier);
+        return edit.getPluginCache().createNewPlugin (v);
+    }
+
+    return edit.getPluginCache().createNewPlugin (te::ExternalPlugin::xmlTypeName, desc);
+}
+
+te::WaveInputDevice* findWaveInputDeviceByName (te::Engine& engine, const juce::String& name)
+{
+    for (auto* d : engine.getDeviceManager().getWaveInputDevices())
+        if (d != nullptr && d->getName() == name)
+            return d;
+
+    return nullptr;
+}
+
+te::InputDeviceInstance* findWaveInputInstanceOnTrack (te::Edit& edit, te::AudioTrack& track)
+{
+    for (auto* idi : edit.getEditInputDevices().getDevicesForTargetTrack (track))
+        if (idi != nullptr && idi->getInputDevice().getDeviceType() == te::InputDevice::DeviceType::waveDevice)
+            return idi;
+
+    return nullptr;
+}
+
+te::AuxSendPlugin* findAuxSend (te::AudioTrack& track, int busNum)
+{
+    for (auto* p : track.pluginList)
+        if (auto* s = dynamic_cast<te::AuxSendPlugin*> (p))
+            if ((int) s->busNumber == busNum)
+                return s;
+    return nullptr;
+}
+
+te::AuxReturnPlugin* findAuxReturn (te::Edit& edit, int busNum)
+{
+    for (auto* p : edit.getMasterPluginList())
+        if (auto* r = dynamic_cast<te::AuxReturnPlugin*> (p))
+            if ((int) r->busNumber == busNum)
+                return r;
+    return nullptr;
+}
+
+} // namespace
+
+//==============================================================================
+struct PluginBrowserComponent::ChainModel : public juce::ListBoxModel
+{
+    explicit ChainModel (PluginBrowserComponent& o) : owner (o) {}
+
+    int getNumRows() override
+    {
+        auto& edit = owner.editSession.getEdit();
+
+        if (owner.trackCombo.getSelectedId() == masterItemId)
+            return getChainPlugins (edit.getMasterPluginList()).size();
+
+        if (auto* t = owner.getSelectedTrack())
+            return getChainPlugins (t->pluginList).size();
+
+        return 0;
+    }
+
+    void paintListBoxItem (int row, juce::Graphics& g, int width, int height, bool selected) override
+    {
+        auto& edit = owner.editSession.getEdit();
+        auto* list = owner.trackCombo.getSelectedId() == masterItemId
+                         ? &edit.getMasterPluginList()
+                         : (owner.getSelectedTrack() != nullptr ? &owner.getSelectedTrack()->pluginList : nullptr);
+
+        if (list == nullptr)
+            return;
+
+        auto plugins = getChainPlugins (*list);
+        if (! juce::isPositiveAndBelow (row, plugins.size()))
+            return;
+
+        auto* p = plugins[row].get();
+        if (p == nullptr)
+            return;
+
+        if (selected)
+            g.fillAll (juce::Colours::darkslategrey);
+
+        juce::String text = p->getName();
+        if (! p->isEnabled())
+            text = "[byp] " + text;
+
+        g.setColour (juce::Colours::white);
+        g.drawFittedText (text, 6, 0, width - 12, height, juce::Justification::centredLeft, 1);
+    }
+
+    PluginBrowserComponent& owner;
+};
+
+//==============================================================================
+PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCommandHandler& handler)
+    : editSession (session), commandHandler (handler)
+{
+    // Plugin browser
+    auto& pm = editSession.getEngine().getPluginManager();
+    auto deadMans = editSession.getEngine().getPropertyStorage()
+                        .getAppCacheFolder()
+                        .getChildFile ("waive_plugin_scan_dead_mans_pedal.txt");
+
+    deadMans.getParentDirectory().createDirectory();
+
+    pluginList = std::make_unique<juce::PluginListComponent> (
+        pm.pluginFormatManager,
+        pm.knownPluginList,
+        deadMans,
+        &editSession.getEngine().getPropertyStorage().getPropertiesFile(),
+        false);
+
+    addAndMakeVisible (pluginList.get());
+
+    insertButton.onClick = [this] { insertSelectedBrowserPlugin(); };
+    addAndMakeVisible (insertButton);
+
+    // Track picker
+    trackLabel.setJustificationType (juce::Justification::centredLeft);
+    addAndMakeVisible (trackLabel);
+    trackCombo.onChange = [this] { updateControlsFromSelection(); };
+    addAndMakeVisible (trackCombo);
+
+    // Chain list
+    chainModel = std::make_unique<ChainModel> (*this);
+    chainList.setModel (chainModel.get());
+    addAndMakeVisible (chainList);
+
+    removeButton.onClick = [this] { removeSelectedChainPlugin(); };
+    upButton.onClick = [this] { moveSelectedChainPlugin (-1); };
+    downButton.onClick = [this] { moveSelectedChainPlugin (1); };
+    bypassButton.onClick = [this] { toggleSelectedChainPluginBypass(); };
+    openEditorButton.onClick = [this] { openSelectedChainPluginEditor(); };
+    closeEditorButton.onClick = [this] { closeSelectedChainPluginEditor(); };
+
+    addAndMakeVisible (removeButton);
+    addAndMakeVisible (upButton);
+    addAndMakeVisible (downButton);
+    addAndMakeVisible (bypassButton);
+    addAndMakeVisible (openEditorButton);
+    addAndMakeVisible (closeEditorButton);
+
+    // Input + record controls (per track)
+    inputLabel.setJustificationType (juce::Justification::centredLeft);
+    addAndMakeVisible (inputLabel);
+
+    inputCombo.setTextWhenNothingSelected ("None");
+    inputCombo.onChange = [this] { applyInputSelection(); };
+    addAndMakeVisible (inputCombo);
+
+    armButton.onClick = [this] { setArmEnabled (armButton.getToggleState()); };
+    monitorButton.onClick = [this] { setMonitorEnabled (monitorButton.getToggleState()); };
+    addAndMakeVisible (armButton);
+    addAndMakeVisible (monitorButton);
+
+    // Routing: one send, one reverb return
+    sendLabel.setJustificationType (juce::Justification::centredLeft);
+    addAndMakeVisible (sendLabel);
+
+    sendSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    sendSlider.setRange (-60.0, 6.0, 0.1);
+    sendSlider.setValue (-60.0, juce::dontSendNotification);
+    sendSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 64, 18);
+    sendSlider.setTextValueSuffix (" dB");
+    sendSlider.onValueChange = [this] { updateAuxSendGainFromSlider(); };
+    addAndMakeVisible (sendSlider);
+
+    addReverbReturnButton.onClick = [this] { ensureReverbReturnOnMaster(); };
+    addAndMakeVisible (addReverbReturnButton);
+
+    rebuildTrackListIfNeeded();
+    updateControlsFromSelection();
+
+    startTimerHz (2);
+}
+
+PluginBrowserComponent::~PluginBrowserComponent()
+{
+    chainList.setModel (nullptr);
+    stopTimer();
+}
+
+void PluginBrowserComponent::resized()
+{
+    auto bounds = getLocalBounds().reduced (8);
+
+    auto topRow = bounds.removeFromTop (28);
+    trackLabel.setBounds (topRow.removeFromLeft (44));
+    trackCombo.setBounds (topRow.removeFromLeft (240));
+    topRow.removeFromLeft (8);
+    insertButton.setBounds (topRow.removeFromLeft (90));
+    topRow.removeFromLeft (8);
+    addReverbReturnButton.setBounds (topRow.removeFromLeft (160));
+
+    bounds.removeFromTop (8);
+
+    // Split: plugin browser (left), chain + routing/input (right)
+    auto left = bounds.removeFromLeft (juce::jmax (360, bounds.getWidth() / 2));
+    pluginList->setBounds (left);
+
+    bounds.removeFromLeft (8);
+
+    auto right = bounds;
+    auto ioRow = right.removeFromTop (28);
+    inputLabel.setBounds (ioRow.removeFromLeft (44));
+    inputCombo.setBounds (ioRow.removeFromLeft (220));
+    ioRow.removeFromLeft (8);
+    armButton.setBounds (ioRow.removeFromLeft (60));
+    ioRow.removeFromLeft (4);
+    monitorButton.setBounds (ioRow.removeFromLeft (84));
+
+    right.removeFromTop (6);
+
+    auto sendRow = right.removeFromTop (28);
+    sendLabel.setBounds (sendRow.removeFromLeft (52));
+    sendSlider.setBounds (sendRow);
+
+    right.removeFromTop (8);
+
+    auto buttonRow = right.removeFromTop (28);
+    removeButton.setBounds (buttonRow.removeFromLeft (80));
+    buttonRow.removeFromLeft (6);
+    upButton.setBounds (buttonRow.removeFromLeft (50));
+    buttonRow.removeFromLeft (4);
+    downButton.setBounds (buttonRow.removeFromLeft (60));
+    buttonRow.removeFromLeft (6);
+    bypassButton.setBounds (buttonRow.removeFromLeft (80));
+    buttonRow.removeFromLeft (6);
+    openEditorButton.setBounds (buttonRow.removeFromLeft (80));
+    buttonRow.removeFromLeft (6);
+    closeEditorButton.setBounds (buttonRow.removeFromLeft (80));
+
+    right.removeFromTop (8);
+    chainList.setBounds (right);
+}
+
+void PluginBrowserComponent::timerCallback()
+{
+    rebuildTrackListIfNeeded();
+}
+
+void PluginBrowserComponent::rebuildTrackListIfNeeded()
+{
+    auto& edit = editSession.getEdit();
+    auto tracks = te::getAudioTracks (edit);
+    if (tracks.size() == lastTrackCount && trackCombo.getNumItems() > 0)
+        return;
+
+    const int previous = trackCombo.getSelectedId();
+
+    trackCombo.clear (juce::dontSendNotification);
+    trackCombo.addItem ("Master", masterItemId);
+
+    int idx = 0;
+    for (auto* t : tracks)
+    {
+        if (t == nullptr)
+            continue;
+
+        const int id = trackItemIdBase + idx;
+        trackCombo.addItem (t->getName(), id);
+        ++idx;
+    }
+
+    lastTrackCount = tracks.size();
+
+    auto hasItemId = [&] (int id)
+    {
+        for (int i = 0; i < trackCombo.getNumItems(); ++i)
+            if (trackCombo.getItemId (i) == id)
+                return true;
+        return false;
+    };
+
+    if (previous != 0 && hasItemId (previous))
+        trackCombo.setSelectedId (previous, juce::dontSendNotification);
+    else
+        trackCombo.setSelectedId (tracks.isEmpty() ? masterItemId : trackItemIdBase, juce::dontSendNotification);
+
+    updateControlsFromSelection();
+}
+
+te::AudioTrack* PluginBrowserComponent::getSelectedTrack() const
+{
+    auto id = trackCombo.getSelectedId();
+    if (id < trackItemIdBase)
+        return nullptr;
+
+    const int index = id - trackItemIdBase;
+    auto tracks = te::getAudioTracks (editSession.getEdit());
+    if (! juce::isPositiveAndBelow (index, tracks.size()))
+        return nullptr;
+
+    return tracks[index];
+}
+
+te::PluginList& PluginBrowserComponent::getSelectedPluginList() const
+{
+    auto& edit = editSession.getEdit();
+    if (trackCombo.getSelectedId() == masterItemId)
+        return edit.getMasterPluginList();
+
+    if (auto* t = getSelectedTrack())
+        return t->pluginList;
+
+    return edit.getMasterPluginList();
+}
+
+void PluginBrowserComponent::updateControlsFromSelection()
+{
+    const bool isMaster = trackCombo.getSelectedId() == masterItemId;
+
+    inputLabel.setEnabled (! isMaster);
+    inputCombo.setEnabled (! isMaster);
+    armButton.setEnabled (! isMaster);
+    monitorButton.setEnabled (! isMaster);
+    sendLabel.setEnabled (! isMaster);
+    sendSlider.setEnabled (! isMaster);
+
+    chainList.updateContent();
+    chainList.repaint();
+
+    // Refresh input list for selected track
+    inputCombo.clear (juce::dontSendNotification);
+    inputCombo.addItem ("None", 1);
+
+    int nextId = 2;
+    for (auto* d : editSession.getEngine().getDeviceManager().getWaveInputDevices())
+        if (d != nullptr)
+            inputCombo.addItem (d->getName(), nextId++);
+
+    inputCombo.setSelectedId (1, juce::dontSendNotification);
+
+    armButton.setToggleState (false, juce::dontSendNotification);
+    monitorButton.setToggleState (false, juce::dontSendNotification);
+    sendSlider.setValue (-60.0, juce::dontSendNotification);
+
+    if (auto* t = getSelectedTrack())
+    {
+        auto& edit = editSession.getEdit();
+        if (auto* idi = findWaveInputInstanceOnTrack (edit, *t))
+        {
+            const auto deviceName = idi->getInputDevice().getName();
+            for (int i = 0; i < inputCombo.getNumItems(); ++i)
+            {
+                if (inputCombo.getItemText (i) == deviceName)
+                {
+                    inputCombo.setSelectedItemIndex (i, juce::dontSendNotification);
+                    break;
+                }
+            }
+
+            armButton.setToggleState (idi->isRecordingEnabled (t->itemID), juce::dontSendNotification);
+            monitorButton.setToggleState (idi->getInputDevice().getMonitorMode() == te::InputDevice::MonitorMode::on,
+                                          juce::dontSendNotification);
+        }
+
+        if (auto* send = findAuxSend (*t, 0))
+            sendSlider.setValue (send->getGainDb(), juce::dontSendNotification);
+    }
+}
+
+void PluginBrowserComponent::insertSelectedBrowserPlugin()
+{
+    auto& pm = editSession.getEngine().getPluginManager();
+    auto row = pluginList->getTableListBox().getSelectedRow();
+
+    auto types = pm.knownPluginList.getTypes();
+    if (! juce::isPositiveAndBelow (row, types.size()))
+        return;
+
+    auto desc = types[row];
+
+    editSession.performEdit ("Insert Plugin", [&] (te::Edit& edit)
+    {
+        auto plugin = createPluginFromDescription (edit, desc);
+        if (plugin == nullptr)
+            return;
+
+        auto& list = getSelectedPluginList();
+        list.insertPlugin (plugin, 0, nullptr);
+    });
+
+    chainList.updateContent();
+    chainList.repaint();
+}
+
+void PluginBrowserComponent::removeSelectedChainPlugin()
+{
+    const int row = chainList.getSelectedRow();
+    if (row < 0)
+        return;
+
+    editSession.performEdit ("Remove Plugin", [&] (te::Edit&)
+    {
+        auto& list = getSelectedPluginList();
+        auto plugins = getChainPlugins (list);
+        if (! juce::isPositiveAndBelow (row, plugins.size()))
+            return;
+
+        if (auto p = plugins[row])
+            p->deleteFromParent();
+    });
+
+    chainList.updateContent();
+    chainList.repaint();
+}
+
+void PluginBrowserComponent::moveSelectedChainPlugin (int delta)
+{
+    const int row = chainList.getSelectedRow();
+    if (row < 0 || delta == 0)
+        return;
+
+    editSession.performEdit ("Move Plugin", [&] (te::Edit& edit)
+    {
+        auto& list = getSelectedPluginList();
+        auto plugins = getChainPlugins (list);
+        if (! juce::isPositiveAndBelow (row, plugins.size()))
+            return;
+
+        const int newRow = juce::jlimit (0, plugins.size() - 1, row + delta);
+        if (newRow == row)
+            return;
+
+        auto* p = plugins[row].get();
+        if (p == nullptr)
+            return;
+
+        auto stateIndex = list.state.indexOf (p->state);
+        if (stateIndex < 0)
+            return;
+
+        // Map from chain-row to ValueTree child index by counting non-default plugins.
+        int targetStateIndex = stateIndex;
+        if (delta < 0)
+        {
+            for (int i = stateIndex - 1; i >= 0; --i)
+            {
+                if (auto v = list.state.getChild (i); v.hasType (te::IDs::PLUGIN))
+                {
+                    if (auto candidate = edit.getPluginCache().getPluginFor (v))
+                        if (! isDefaultTrackPlugin (*candidate))
+                        {
+                            targetStateIndex = i;
+                            break;
+                        }
+                }
+            }
+        }
+        else
+        {
+            for (int i = stateIndex + 1; i < list.state.getNumChildren(); ++i)
+            {
+                if (auto v = list.state.getChild (i); v.hasType (te::IDs::PLUGIN))
+                {
+                    if (auto candidate = edit.getPluginCache().getPluginFor (v))
+                        if (! isDefaultTrackPlugin (*candidate))
+                        {
+                            targetStateIndex = i;
+                            break;
+                        }
+                }
+            }
+        }
+
+        if (targetStateIndex != stateIndex)
+            list.state.moveChild (stateIndex, targetStateIndex, &edit.getUndoManager());
+    });
+
+    chainList.updateContent();
+    chainList.selectRow (juce::jlimit (0, chainModel->getNumRows() - 1, row + delta));
+    chainList.repaint();
+}
+
+void PluginBrowserComponent::toggleSelectedChainPluginBypass()
+{
+    const int row = chainList.getSelectedRow();
+    if (row < 0)
+        return;
+
+    editSession.performEdit ("Toggle Bypass", [&] (te::Edit&)
+    {
+        auto& list = getSelectedPluginList();
+        auto plugins = getChainPlugins (list);
+        if (! juce::isPositiveAndBelow (row, plugins.size()))
+            return;
+
+        if (auto p = plugins[row])
+            p->setEnabled (! p->isEnabled());
+    });
+
+    chainList.repaintRow (row);
+}
+
+void PluginBrowserComponent::openSelectedChainPluginEditor()
+{
+    const int row = chainList.getSelectedRow();
+    if (row < 0)
+        return;
+
+    auto& list = getSelectedPluginList();
+    auto plugins = getChainPlugins (list);
+    if (! juce::isPositiveAndBelow (row, plugins.size()))
+        return;
+
+    if (auto p = plugins[row])
+        p->showWindowExplicitly();
+}
+
+void PluginBrowserComponent::closeSelectedChainPluginEditor()
+{
+    const int row = chainList.getSelectedRow();
+    if (row < 0)
+        return;
+
+    auto& list = getSelectedPluginList();
+    auto plugins = getChainPlugins (list);
+    if (! juce::isPositiveAndBelow (row, plugins.size()))
+        return;
+
+    if (auto p = plugins[row])
+        p->hideWindowForShutdown();
+}
+
+void PluginBrowserComponent::applyInputSelection()
+{
+    if (trackCombo.getSelectedId() == masterItemId)
+        return;
+
+    auto* t = getSelectedTrack();
+    if (t == nullptr)
+        return;
+
+    auto deviceName = inputCombo.getText();
+    if (deviceName.isEmpty() || deviceName == "None")
+    {
+        editSession.performEdit ("Clear Input", [&] (te::Edit& edit)
+        {
+            for (auto* idi : edit.getEditInputDevices().getDevicesForTargetTrack (*t))
+                if (idi != nullptr && idi->getInputDevice().getDeviceType() == te::InputDevice::DeviceType::waveDevice)
+                    [[ maybe_unused ]] auto res = idi->removeTarget (t->itemID, &edit.getUndoManager());
+        });
+
+        updateControlsFromSelection();
+        return;
+    }
+
+    if (auto* d = findWaveInputDeviceByName (editSession.getEngine(), deviceName))
+    {
+        editSession.performEdit ("Set Input", [&] (te::Edit& edit)
+        {
+            // Remove any existing wave device assignments to this track.
+            for (auto* idi : edit.getEditInputDevices().getDevicesForTargetTrack (*t))
+                if (idi != nullptr && idi->getInputDevice().getDeviceType() == te::InputDevice::DeviceType::waveDevice)
+                    [[ maybe_unused ]] auto res = idi->removeTarget (t->itemID, &edit.getUndoManager());
+
+            edit.getTransport().ensureContextAllocated();
+            (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*d);
+
+            if (auto* epc = edit.getCurrentPlaybackContext())
+            {
+                if (auto* idi = epc->getInputFor (d))
+                {
+                    [[ maybe_unused ]] auto res = idi->setTarget (t->itemID, false, &edit.getUndoManager());
+                    idi->setRecordingEnabled (t->itemID, armButton.getToggleState());
+                }
+            }
+        });
+    }
+
+    updateControlsFromSelection();
+}
+
+void PluginBrowserComponent::setArmEnabled (bool armed)
+{
+    auto* t = getSelectedTrack();
+    if (t == nullptr)
+        return;
+
+    editSession.performEdit (armed ? "Arm Track" : "Disarm Track", [&] (te::Edit& edit)
+    {
+        if (auto* idi = findWaveInputInstanceOnTrack (edit, *t))
+            idi->setRecordingEnabled (t->itemID, armed);
+    });
+}
+
+void PluginBrowserComponent::setMonitorEnabled (bool monitorOn)
+{
+    auto* t = getSelectedTrack();
+    if (t == nullptr)
+        return;
+
+    editSession.performEdit (monitorOn ? "Monitor On" : "Monitor Auto", [&] (te::Edit& edit)
+    {
+        if (auto* idi = findWaveInputInstanceOnTrack (edit, *t))
+            idi->getInputDevice().setMonitorMode (monitorOn ? te::InputDevice::MonitorMode::on
+                                                           : te::InputDevice::MonitorMode::automatic);
+    });
+}
+
+void PluginBrowserComponent::ensureAuxSendOnSelectedTrack()
+{
+    auto* t = getSelectedTrack();
+    if (t == nullptr)
+        return;
+
+    if (findAuxSend (*t, 0) != nullptr)
+        return;
+
+    editSession.performEdit ("Add Aux Send", [&] (te::Edit& edit)
+    {
+        if (findAuxSend (*t, 0) != nullptr)
+            return;
+
+        auto v = te::AuxSendPlugin::create();
+        v.setProperty (te::IDs::busNum, 0, &edit.getUndoManager());
+        auto plugin = edit.getPluginCache().createNewPlugin (v);
+        if (plugin == nullptr)
+            return;
+
+        t->pluginList.insertPlugin (plugin, 0, nullptr);
+    });
+}
+
+void PluginBrowserComponent::updateAuxSendGainFromSlider()
+{
+    auto* t = getSelectedTrack();
+    if (t == nullptr)
+        return;
+
+    ensureAuxSendOnSelectedTrack();
+
+    const float db = (float) sendSlider.getValue();
+    editSession.performEdit ("Set Send Level", true, [&] (te::Edit&)
+    {
+        if (auto* send = findAuxSend (*t, 0))
+            send->setGainDb (db);
+    });
+}
+
+void PluginBrowserComponent::ensureReverbReturnOnMaster()
+{
+    editSession.performEdit ("Add Reverb Return", [&] (te::Edit& edit)
+    {
+        auto& master = edit.getMasterPluginList();
+
+        int returnIndex = -1;
+        if (auto* existingReturn = findAuxReturn (edit, 0))
+        {
+            returnIndex = master.state.indexOf (existingReturn->state);
+        }
+        else
+        {
+            auto v = te::createValueTree (te::IDs::PLUGIN,
+                                          te::IDs::type, te::AuxReturnPlugin::xmlTypeName,
+                                          te::IDs::busNum, 0);
+            if (auto newReturn = edit.getPluginCache().createNewPlugin (v))
+            {
+                master.insertPlugin (newReturn, 0, nullptr);
+                returnIndex = master.state.indexOf (newReturn->state);
+            }
+
+        }
+
+        // Ensure there's a reverb plugin after the return.
+        bool hasReverb = false;
+        for (auto* p : master)
+            if (dynamic_cast<te::ReverbPlugin*> (p) != nullptr)
+                hasReverb = true;
+
+        if (! hasReverb)
+        {
+            auto v = te::createValueTree (te::IDs::PLUGIN,
+                                          te::IDs::type, te::ReverbPlugin::xmlTypeName);
+            if (auto rev = edit.getPluginCache().createNewPlugin (v))
+                master.insertPlugin (rev, returnIndex >= 0 ? returnIndex + 1 : 0, nullptr);
+        }
+    });
+
+    chainList.updateContent();
+    chainList.repaint();
+}

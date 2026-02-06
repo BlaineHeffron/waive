@@ -15,12 +15,16 @@ public:
     const juce::String getApplicationVersion() override  { return "0.1.0"; }
     bool moreThanOneInstanceAllowed() override            { return false; }
 
-    void initialise (const juce::String& /*commandLine*/) override
+    void initialise (const juce::String& commandLine) override
     {
+        if (te::PluginManager::startChildProcessPluginScan (commandLine))
+            return;
+
         juce::Logger::writeToLog ("Waive Engine v0.1.0 starting...");
 
         // ── Tracktion Engine ────────────────────────────────────────────
         engine = std::make_unique<te::Engine> ("Waive");
+        engine->getPluginManager().initialise();
 
         // Create temp file for Edit
         auto editFile = juce::File::createTempFile (".tracktionedit");

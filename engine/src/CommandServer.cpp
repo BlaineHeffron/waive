@@ -25,7 +25,26 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
     auto json = message.toString();
     juce::Logger::writeToLog ("Received: " + json);
 
-    auto response = handler.handleCommand (json);
+    juce::String response;
+
+    // Marshal Edit mutations onto the message thread. This keeps behavior sane in the GUI app,
+    // and also makes the headless server thread-safe with respect to JUCE/Tracktion state.
+    if (juce::MessageManager::getInstance()->isThisTheMessageThread())
+    {
+        response = handler.handleCommand (json);
+    }
+    else
+    {
+        juce::WaitableEvent done;
+
+        juce::MessageManager::callAsync ([&]
+        {
+            response = handler.handleCommand (json);
+            done.signal();
+        });
+
+        done.wait();
+    }
 
     juce::MemoryBlock responseBlock (response.toRawUTF8(),
                                      response.getNumBytesAsUTF8());

@@ -62,10 +62,12 @@ juce::var CommandHandler::handleGetTracks()
     auto result = makeOk();
     juce::Array<juce::var> trackList;
 
+    int trackId = 0;
     for (auto* track : te::getAudioTracks (edit))
     {
         auto* trackObj = new juce::DynamicObject();
         trackObj->setProperty ("name", track->getName());
+        trackObj->setProperty ("track_id", trackId);
         trackObj->setProperty ("index", track->getIndexInEditTrackList());
 
         // Clip info
@@ -82,6 +84,7 @@ juce::var CommandHandler::handleGetTracks()
         trackObj->setProperty ("clips", clipList);
 
         trackList.add (juce::var (trackObj));
+        ++trackId;
     }
 
     if (auto* obj = result.getDynamicObject())
@@ -298,7 +301,8 @@ juce::var CommandHandler::handleLoadPlugin (const juce::var& params)
     if (plugin == nullptr)
         return makeError ("Failed to create plugin: " + pluginId);
 
-    track->pluginList.insertPlugin (plugin, -1, nullptr);
+    // Insert before default track plugins (Volume/Pan + Meter) so the effect is audible and metered.
+    track->pluginList.insertPlugin (plugin, 0, nullptr);
 
     auto result = makeOk();
     if (auto* obj = result.getDynamicObject())
