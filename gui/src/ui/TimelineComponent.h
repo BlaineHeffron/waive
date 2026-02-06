@@ -107,4 +107,7 @@ private:
     std::vector<std::unique_ptr<TrackLaneComponent>> trackLanes;
 
     int lastTrackCount = 0;
+
+public:
+    juce::Array<te::EditItemID> previewClipIDs;
 };

@@ -4,7 +4,13 @@
 #include "CommandHelpers.h"
 #include "TimelineComponent.h"
 #include "MixerComponent.h"
+#include "ToolSidebarComponent.h"
 #include "ToolDiff.h"
+#include "WaiveLookAndFeel.h"
+#include "ToolRegistry.h"
+#include "ModelManager.h"
+#include "JobQueue.h"
+#include "ProjectManager.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -14,7 +20,11 @@ using waive::runCommand;
 using waive::makeAction;
 
 //==============================================================================
-SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler& handler)
+SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler& handler,
+                                    waive::ToolRegistry* toolReg,
+                                    waive::ModelManager* modelMgr,
+                                    waive::JobQueue* jq,
+                                    ProjectManager* projectMgr)
     : editSession (session), commandHandler (handler)
 {
     playButton.setButtonText ("Play");
@@ -216,6 +226,17 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     resizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager, 1, false);
     addAndMakeVisible (resizerBar.get());
 
+    // Tool sidebar (optional — only created if all deps are provided)
+    if (toolReg != nullptr && modelMgr != nullptr && jq != nullptr && projectMgr != nullptr)
+    {
+        toolSidebar = std::make_unique<ToolSidebarComponent> (*toolReg, editSession, *projectMgr,
+                                                               *this, *modelMgr, *jq);
+        addAndMakeVisible (toolSidebar.get());
+
+        sidebarResizer = std::make_unique<juce::StretchableLayoutResizerBar> (&horizontalLayout, 1, true);
+        addAndMakeVisible (sidebarResizer.get());
+    }
+
     startTimerHz (10);
 }
 
@@ -267,15 +288,48 @@ void SessionComponent::resized()
     bottomRow.removeFromLeft (8);
     barsBeatsToggle.setBounds (bottomRow.removeFromLeft (58));
 
-    // Layout: timeline + resizer + mixer
+    // Horizontal split: content area | resizer | sidebar
+    auto contentBounds = bounds;
+
+    if (toolSidebar != nullptr && sidebarVisible)
+    {
+        auto sidebarBounds = contentBounds.removeFromRight (defaultSidebarWidth);
+        auto resizerBounds = contentBounds.removeFromRight (4);
+        if (sidebarResizer)
+            sidebarResizer->setBounds (resizerBounds);
+        toolSidebar->setBounds (sidebarBounds);
+        toolSidebar->setVisible (true);
+        if (sidebarResizer)
+            sidebarResizer->setVisible (true);
+    }
+    else
+    {
+        if (toolSidebar)
+            toolSidebar->setVisible (false);
+        if (sidebarResizer)
+            sidebarResizer->setVisible (false);
+    }
+
+    // Layout: timeline + resizer + mixer (vertical)
     juce::Component* comps[] = { timeline.get(), resizerBar.get(), mixer.get() };
-    layoutManager.layOutComponents (comps, 3, bounds.getX(), bounds.getY(),
-                                    bounds.getWidth(), bounds.getHeight(), true, true);
+    layoutManager.layOutComponents (comps, 3, contentBounds.getX(), contentBounds.getY(),
+                                    contentBounds.getWidth(), contentBounds.getHeight(), true, true);
 }
 
 TimelineComponent& SessionComponent::getTimeline()
 {
     return *timeline;
+}
+
+ToolSidebarComponent* SessionComponent::getToolSidebar()
+{
+    return toolSidebar.get();
+}
+
+void SessionComponent::toggleToolSidebar()
+{
+    sidebarVisible = ! sidebarVisible;
+    resized();
 }
 
 void SessionComponent::timerCallback()
@@ -287,9 +341,12 @@ void SessionComponent::timerCallback()
     positionLabel.setText (juce::String (mins) + ":" + juce::String (secs, 1),
                            juce::dontSendNotification);
 
-    recordButton.setColour (juce::TextButton::buttonColourId,
-                            transport.isRecording() ? juce::Colours::darkred
-                                                    : juce::Colours::darkgrey);
+    {
+        auto* pal = waive::getWaivePalette (*this);
+        recordButton.setColour (juce::TextButton::buttonColourId,
+                                transport.isRecording() ? (pal ? pal->record : juce::Colours::darkred)
+                                                        : (pal ? pal->surfaceBg : juce::Colours::darkgrey));
+    }
 
     juce::ScopedValueSetter<bool> sv (suppressControlCallbacks, true);
 

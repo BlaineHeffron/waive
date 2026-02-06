@@ -1,6 +1,7 @@
 #include "PlayheadComponent.h"
 #include "TimelineComponent.h"
 #include "EditSession.h"
+#include "WaiveLookAndFeel.h"
 
 PlayheadComponent::PlayheadComponent (EditSession& session, TimelineComponent& tl)
     : editSession (session), timeline (tl)
@@ -21,7 +22,8 @@ void PlayheadComponent::paint (juce::Graphics& g)
 
     if (x >= 0 && x < getWidth())
     {
-        g.setColour (juce::Colours::white);
+        auto* pal = waive::getWaivePalette (*this);
+        g.setColour (pal ? pal->playhead : juce::Colours::white);
         g.drawVerticalLine (x, 0.0f, (float) getHeight());
     }
 }

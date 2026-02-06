@@ -1,6 +1,7 @@
 #include "TimeRulerComponent.h"
 #include "TimelineComponent.h"
 #include "EditSession.h"
+#include "WaiveLookAndFeel.h"
 
 #include <cmath>
 
@@ -13,11 +14,13 @@ TimeRulerComponent::TimeRulerComponent (EditSession& session, TimelineComponent&
 
 void TimeRulerComponent::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff2a2a2a));
+    auto* pal = waive::getWaivePalette (*this);
+
+    g.fillAll (pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a));
 
     auto bounds = getLocalBounds();
     auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth);
-    g.setColour (juce::Colour (0xff252525));
+    g.setColour (pal ? pal->surfaceBgAlt : juce::Colour (0xff252525));
     g.fillRect (headerBounds);
 
     const double pps = timeline.getPixelsPerSecond();
@@ -25,7 +28,7 @@ void TimeRulerComponent::paint (juce::Graphics& g)
     const double startTime = scrollOffset;
     const double endTime = scrollOffset + bounds.getWidth() / pps;
 
-    g.setColour (juce::Colours::grey.withAlpha (0.45f));
+    g.setColour (pal ? pal->textMuted : juce::Colours::grey.withAlpha (0.45f));
     g.setFont (juce::FontOptions (11.0f));
 
     if (timeline.getShowBarsBeatsRuler())
@@ -33,14 +36,14 @@ void TimeRulerComponent::paint (juce::Graphics& g)
         juce::Array<double> majorLines, minorLines;
         timeline.getGridLineTimes (startTime, endTime, majorLines, minorLines);
 
-        g.setColour (juce::Colours::grey.withAlpha (0.35f));
+        g.setColour (pal ? pal->gridMinor.withAlpha (0.35f) : juce::Colours::grey.withAlpha (0.35f));
         for (auto t : minorLines)
         {
             const int x = timeline.timeToX (t);
             g.drawVerticalLine (x, (float) bounds.getHeight() * 0.6f, (float) bounds.getHeight());
         }
 
-        g.setColour (juce::Colours::lightgrey.withAlpha (0.7f));
+        g.setColour (pal ? pal->gridMajor.withAlpha (0.7f) : juce::Colours::lightgrey.withAlpha (0.7f));
         for (auto t : majorLines)
         {
             const int x = timeline.timeToX (t);

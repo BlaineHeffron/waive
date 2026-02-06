@@ -12,6 +12,13 @@ target_sources(Waive PRIVATE
     src/MainComponent.h
     src/MainComponent.cpp
 
+    # Theme
+    src/theme/WaiveColours.h
+    src/theme/WaiveColours.cpp
+    src/theme/WaiveFonts.h
+    src/theme/WaiveLookAndFeel.h
+    src/theme/WaiveLookAndFeel.cpp
+
     # UI components
     src/ui/SessionComponent.h
     src/ui/SessionComponent.cpp
@@ -23,8 +30,10 @@ target_sources(Waive PRIVATE
     src/ui/LibraryComponent.cpp
     src/ui/PluginBrowserComponent.h
     src/ui/PluginBrowserComponent.cpp
-    src/ui/ToolsComponent.h
-    src/ui/ToolsComponent.cpp
+    src/ui/SchemaFormComponent.h
+    src/ui/SchemaFormComponent.cpp
+    src/ui/ToolSidebarComponent.h
+    src/ui/ToolSidebarComponent.cpp
     src/ui/TimelineComponent.h
     src/ui/TimelineComponent.cpp
     src/ui/TrackLaneComponent.h
@@ -101,6 +110,7 @@ target_include_directories(Waive PRIVATE
     src/edit
     src/tools
     src/util
+    src/theme
 )
 
 target_link_libraries(Waive PRIVATE

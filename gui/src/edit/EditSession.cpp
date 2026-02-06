@@ -86,10 +86,12 @@ bool EditSession::performEdit (const juce::String& actionName,
     }
     catch (const std::exception& e)
     {
+        edit->getUndoManager().undo();
         juce::Logger::writeToLog ("EditSession::performEdit failed: " + juce::String (e.what()));
     }
     catch (...)
     {
+        edit->getUndoManager().undo();
         juce::Logger::writeToLog ("EditSession::performEdit failed with unknown exception");
     }
 

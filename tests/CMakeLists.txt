@@ -49,6 +49,13 @@ juce_add_console_app(WaiveUiTests
 target_sources(WaiveUiTests PRIVATE
     WaiveUiTests.cpp
 
+    # Theme
+    ../gui/src/theme/WaiveColours.h
+    ../gui/src/theme/WaiveColours.cpp
+    ../gui/src/theme/WaiveFonts.h
+    ../gui/src/theme/WaiveLookAndFeel.h
+    ../gui/src/theme/WaiveLookAndFeel.cpp
+
     # GUI and edit layer under test.
     ../gui/src/MainComponent.h
     ../gui/src/MainComponent.cpp
@@ -62,8 +69,10 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/ui/LibraryComponent.cpp
     ../gui/src/ui/PluginBrowserComponent.h
     ../gui/src/ui/PluginBrowserComponent.cpp
-    ../gui/src/ui/ToolsComponent.h
-    ../gui/src/ui/ToolsComponent.cpp
+    ../gui/src/ui/SchemaFormComponent.h
+    ../gui/src/ui/SchemaFormComponent.cpp
+    ../gui/src/ui/ToolSidebarComponent.h
+    ../gui/src/ui/ToolSidebarComponent.cpp
     ../gui/src/ui/TimelineComponent.h
     ../gui/src/ui/TimelineComponent.cpp
     ../gui/src/ui/TrackLaneComponent.h
@@ -130,6 +139,7 @@ target_include_directories(WaiveUiTests PRIVATE
     ../gui/src/edit
     ../gui/src/tools
     ../gui/src/util
+    ../gui/src/theme
 )
 
 target_link_libraries(WaiveUiTests PRIVATE

@@ -4,7 +4,7 @@
 #include "MainComponent.h"
 #include "SessionComponent.h"
 #include "TimelineComponent.h"
-#include "ToolsComponent.h"
+#include "ToolSidebarComponent.h"
 #include "LibraryComponent.h"
 #include "PluginBrowserComponent.h"
 #include "EditSession.h"
@@ -62,10 +62,10 @@ te::Clip* findClipAtStart (te::AudioTrack& track, double startSeconds)
 float getTrackVolumeDb (te::AudioTrack& track)
 {
     auto* volumePlugin = track.getVolumePlugin();
-    if (volumePlugin == nullptr)
+    if (volumePlugin == nullptr || volumePlugin->volParam == nullptr)
         return 0.0f;
 
-    return te::volumeFaderPositionToDB ((float) volumePlugin->volume.get());
+    return te::volumeFaderPositionToDB (volumePlugin->volParam->getCurrentValue());
 }
 
 float getTrackPan (te::AudioTrack& track)
@@ -140,7 +140,7 @@ juce::File createPhase4FixtureAudioFile()
     auto file = audioDir.getNonexistentChildFile ("waive_ui_phase4_", ".wav", true);
 
     juce::WavAudioFormat wavFormat;
-    auto stream = std::unique_ptr<juce::FileOutputStream> (file.createOutputStream());
+    std::unique_ptr<juce::OutputStream> stream (file.createOutputStream());
     expect (stream != nullptr, "Expected output stream for phase-4 fixture audio");
 
     constexpr double sampleRate = 44100.0;
@@ -149,10 +149,13 @@ juce::File createPhase4FixtureAudioFile()
     constexpr double durationSeconds = 1.0;
     const int totalSamples = (int) std::round (sampleRate * durationSeconds);
 
-    auto writer = std::unique_ptr<juce::AudioFormatWriter> (
-        wavFormat.createWriterFor (stream.get(), sampleRate, numChannels, bitsPerSample, {}, 0));
+    auto writerOptions = juce::AudioFormatWriterOptions()
+                             .withSampleRate (sampleRate)
+                             .withNumChannels (numChannels)
+                             .withBitsPerSample (bitsPerSample);
+
+    auto writer = wavFormat.createWriterFor (stream, writerOptions);
     expect (writer != nullptr, "Expected WAV writer for phase-4 fixture audio");
-    (void) stream.release();
 
     juce::AudioBuffer<float> buffer (numChannels, totalSamples);
     constexpr float amplitude = 0.25f;
@@ -182,7 +185,7 @@ juce::File createPhase5FixtureAudioFile (const juce::String& stemName,
     auto file = audioDir.getNonexistentChildFile (stemName, ".wav", true);
 
     juce::WavAudioFormat wavFormat;
-    auto stream = std::unique_ptr<juce::FileOutputStream> (file.createOutputStream());
+    std::unique_ptr<juce::OutputStream> stream (file.createOutputStream());
     expect (stream != nullptr, "Expected output stream for phase-5 fixture audio");
 
     constexpr double sampleRate = 44100.0;
@@ -190,10 +193,13 @@ juce::File createPhase5FixtureAudioFile (const juce::String& stemName,
     constexpr int bitsPerSample = 16;
     const int totalSamples = (int) std::round (sampleRate * durationSeconds);
 
-    auto writer = std::unique_ptr<juce::AudioFormatWriter> (
-        wavFormat.createWriterFor (stream.get(), sampleRate, numChannels, bitsPerSample, {}, 0));
+    auto writerOptions = juce::AudioFormatWriterOptions()
+                             .withSampleRate (sampleRate)
+                             .withNumChannels (numChannels)
+                             .withBitsPerSample (bitsPerSample);
+
+    auto writer = wavFormat.createWriterFor (stream, writerOptions);
     expect (writer != nullptr, "Expected WAV writer for phase-5 fixture audio");
-    (void) stream.release();
 
     juce::AudioBuffer<float> buffer (numChannels, totalSamples);
     for (int i = 0; i < totalSamples; ++i)
@@ -697,7 +703,7 @@ void runUiPhase4ToolFrameworkRegression()
 
     auto& sessionComponent = mainComponent.getSessionComponentForTesting();
     auto& timeline = sessionComponent.getTimeline();
-    auto& toolsComponent = mainComponent.getToolsComponentForTesting();
+    auto& toolsComponent = mainComponent.getToolSidebarForTesting();
     auto& edit = session.getEdit();
 
     auto* track = getFirstTrack (edit);
@@ -813,7 +819,7 @@ void runUiPhase5BuiltInToolsRegression()
 
     auto& sessionComponent = mainComponent.getSessionComponentForTesting();
     auto& timeline = sessionComponent.getTimeline();
-    auto& toolsComponent = mainComponent.getToolsComponentForTesting();
+    auto& toolsComponent = mainComponent.getToolSidebarForTesting();
     auto& edit = session.getEdit();
 
     edit.ensureNumberOfAudioTracks (2);
@@ -963,6 +969,13 @@ void runUiPhase5BuiltInToolsRegression()
     expect (toolsComponent.applyPlanForTesting(), "Expected phase-5 gain-stage apply to succeed");
 
     const auto volumeAfterGainStage = getTrackVolumeDb (*track1);
+
+    juce::String debugMsg = "Volume before: " + juce::String (volumeBeforeGainStage, 2)
+                          + " dB, after: " + juce::String (volumeAfterGainStage, 2)
+                          + " dB, delta: " + juce::String (volumeAfterGainStage - volumeBeforeGainStage, 2) + " dB";
+    DBG (debugMsg);
+    std::cerr << debugMsg << std::endl;
+
     expect (volumeAfterGainStage < volumeBeforeGainStage - 1.0f,
             "Expected gain-stage apply to lower track volume materially");
 
@@ -1079,7 +1092,7 @@ void runUiPhase5ModelBackedToolsRegression()
 
     auto& sessionComponent = mainComponent.getSessionComponentForTesting();
     auto& timeline = sessionComponent.getTimeline();
-    auto& toolsComponent = mainComponent.getToolsComponentForTesting();
+    auto& toolsComponent = mainComponent.getToolSidebarForTesting();
     auto& edit = session.getEdit();
 
     auto modelStorage = juce::File::getCurrentWorkingDirectory()

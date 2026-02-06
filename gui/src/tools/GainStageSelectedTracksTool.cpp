@@ -317,8 +317,8 @@ juce::Result GainStageSelectedTracksTool::apply (const ToolExecutionContext& con
             if (volumePlugin == nullptr)
                 continue;
 
-            volumePlugin->volume.setValue (te::decibelsToVolumeFaderPosition ((float) change.afterValue),
-                                           &edit.getUndoManager());
+            volumePlugin->volParam->setValue (te::decibelsToVolumeFaderPosition ((float) change.afterValue),
+                                              &edit.getUndoManager());
             ++appliedCount;
         }
     });

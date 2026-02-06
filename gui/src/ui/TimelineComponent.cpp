@@ -4,6 +4,7 @@
 #include "PlayheadComponent.h"
 #include "TimeRulerComponent.h"
 #include "ClipEditActions.h"
+#include "WaiveLookAndFeel.h"
 
 #include <cmath>
 
@@ -22,6 +23,7 @@ TimelineComponent::TimelineComponent (EditSession& session)
     : editSession (session)
 {
     selectionManager = std::make_unique<SelectionManager>();
+    selectionManager->setEdit (&editSession.getEdit());
     selectionManager->addListener (this);
     editSession.addListener (this);
 
@@ -74,7 +76,8 @@ void TimelineComponent::resized()
 
 void TimelineComponent::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff1e1e1e));
+    auto* pal = waive::getWaivePalette (*this);
+    g.fillAll (pal ? pal->windowBg : juce::Colour (0xff1e1e1e));
 }
 
 void TimelineComponent::mouseWheelMove (const juce::MouseEvent& e,
@@ -216,6 +219,9 @@ void TimelineComponent::getGridLineTimes (double startSeconds, double endSeconds
     auto startBeat = sequence.toBeats (te::TimePosition::fromSeconds (juce::jmax (0.0, startSeconds))).inBeats();
     auto endBeat = sequence.toBeats (te::TimePosition::fromSeconds (juce::jmax (0.0, endSeconds))).inBeats();
 
+    int lineCount = 0;
+    constexpr int maxLines = 10000;
+
     auto addLine = [&] (double beatValue)
     {
         auto timeSeconds = sequence.toTime (te::BeatPosition::fromBeats (beatValue)).inSeconds();
@@ -236,7 +242,11 @@ void TimelineComponent::getGridLineTimes (double startSeconds, double endSeconds
         constexpr double step = 0.25;
         auto first = std::floor (startBeat / step) * step;
         for (double beat = first; beat <= endBeat + step; beat += step)
+        {
+            if (++lineCount > maxLines)
+                break;
             addLine (beat);
+        }
         return;
     }
 
@@ -245,13 +255,21 @@ void TimelineComponent::getGridLineTimes (double startSeconds, double endSeconds
         constexpr double step = 0.5;
         auto first = std::floor (startBeat / step) * step;
         for (double beat = first; beat <= endBeat + step; beat += step)
+        {
+            if (++lineCount > maxLines)
+                break;
             addLine (beat);
+        }
         return;
     }
 
     auto firstWholeBeat = std::floor (startBeat);
     for (double beat = firstWholeBeat; beat <= endBeat + 1.0; beat += 1.0)
+    {
+        if (++lineCount > maxLines)
+            break;
         addLine (beat);
+    }
 }
 
 void TimelineComponent::setSnapEnabled (bool enabled)
@@ -349,24 +367,14 @@ void TimelineComponent::splitSelectedClipsAtPlayhead()
 
 void TimelineComponent::selectClipsByIDForPreview (const juce::Array<te::EditItemID>& clipIDs)
 {
-    selectionManager->deselectAll();
-
-    auto& edit = editSession.getEdit();
-    for (auto clipID : clipIDs)
-    {
-        if (! clipID.isValid())
-            continue;
-
-        if (auto* clip = te::findClipForID (edit, clipID))
-            selectionManager->selectClip (clip, true);
-    }
-
+    previewClipIDs = clipIDs;
     trackContainer.repaint();
 }
 
 void TimelineComponent::clearPreviewSelection()
 {
-    selectionManager->deselectAll();
+    previewClipIDs.clear();
+    trackContainer.repaint();
 }
 
 bool TimelineComponent::addAutomationPointForTrackParam (int trackIndex,
@@ -461,6 +469,7 @@ void TimelineComponent::editAboutToChange()
 
 void TimelineComponent::editChanged()
 {
+    selectionManager->setEdit (&editSession.getEdit());
     rebuildTracks();
     ruler->repaint();
     playhead->repaint();

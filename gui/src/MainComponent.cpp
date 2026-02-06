@@ -7,7 +7,7 @@
 #include "TimelineComponent.h"
 #include "LibraryComponent.h"
 #include "PluginBrowserComponent.h"
-#include "ToolsComponent.h"
+#include "ToolSidebarComponent.h"
 #include "ConsoleComponent.h"
 #include "ToolLogComponent.h"
 #include "JobQueue.h"
@@ -21,22 +21,22 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
       editSession (session),
       projectManager (projectMgr)
 {
-    sessionComponent = std::make_unique<SessionComponent> (editSession, commandHandler);
-    libraryComponent = std::make_unique<LibraryComponent> (editSession);
-    pluginBrowser = std::make_unique<PluginBrowserComponent> (editSession, commandHandler);
     modelManager = std::make_unique<waive::ModelManager>();
     toolRegistry = std::make_unique<waive::ToolRegistry>();
-    toolsComponent = std::make_unique<ToolsComponent> (*toolRegistry, editSession, projectManager,
-                                                       *sessionComponent, *modelManager, jobQueue);
+    sessionComponent = std::make_unique<SessionComponent> (editSession, commandHandler,
+                                                            toolRegistry.get(), modelManager.get(),
+                                                            &jobQueue, &projectManager);
+    libraryComponent = std::make_unique<LibraryComponent> (editSession);
+    pluginBrowser = std::make_unique<PluginBrowserComponent> (editSession, commandHandler);
     console = std::make_unique<ConsoleComponent> (commandHandler);
     toolLog = std::make_unique<ToolLogComponent> (jobQueue);
 
-    tabs.addTab ("Session", juce::Colours::darkgrey, sessionComponent.get(), false);
-    tabs.addTab ("Library", juce::Colours::darkgrey, libraryComponent.get(), false);
-    tabs.addTab ("Plugins", juce::Colours::darkgrey, pluginBrowser.get(), false);
-    tabs.addTab ("Tools", juce::Colours::darkgrey, toolsComponent.get(), false);
-    tabs.addTab ("Console", juce::Colours::darkgrey, console.get(), false);
-    tabs.addTab ("Tool Log", juce::Colours::darkgrey, toolLog.get(), false);
+    auto tabBg = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
+    tabs.addTab ("Session", tabBg, sessionComponent.get(), false);
+    tabs.addTab ("Library", tabBg, libraryComponent.get(), false);
+    tabs.addTab ("Plugins", tabBg, pluginBrowser.get(), false);
+    tabs.addTab ("Console", tabBg, console.get(), false);
+    tabs.addTab ("Tool Log", tabBg, toolLog.get(), false);
 
     // Set up menu bar
     commandManager.registerAllCommandsForTarget (this);
@@ -61,9 +61,9 @@ SessionComponent& MainComponent::getSessionComponentForTesting()
     return *sessionComponent;
 }
 
-ToolsComponent& MainComponent::getToolsComponentForTesting()
+ToolSidebarComponent& MainComponent::getToolSidebarForTesting()
 {
-    return *toolsComponent;
+    return *sessionComponent->getToolSidebar();
 }
 
 LibraryComponent& MainComponent::getLibraryComponentForTesting()
@@ -96,7 +96,7 @@ void MainComponent::resized()
 
 juce::StringArray MainComponent::getMenuBarNames()
 {
-    return { "File", "Edit" };
+    return { "File", "Edit", "View" };
 }
 
 juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::String&)
@@ -138,6 +138,10 @@ juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::Strin
         menu.addCommandItem (&commandManager, cmdDelete);
         menu.addCommandItem (&commandManager, cmdDuplicate);
         menu.addCommandItem (&commandManager, cmdSplit);
+    }
+    else if (menuIndex == 2) // View
+    {
+        menu.addCommandItem (&commandManager, cmdToggleToolSidebar);
     }
 
     return menu;
@@ -186,6 +190,7 @@ void MainComponent::getAllCommands (juce::Array<juce::CommandID>& commands)
     commands.add (cmdDelete);
     commands.add (cmdDuplicate);
     commands.add (cmdSplit);
+    commands.add (cmdToggleToolSidebar);
 }
 
 void MainComponent::getCommandInfo (juce::CommandID commandID, juce::ApplicationCommandInfo& result)
@@ -245,6 +250,10 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
             result.addDefaultKeypress ('s', 0);  // just 's' key
             result.setActive (sessionComponent->getTimeline().getSelectionManager().getSelectedClips().size() > 0);
             break;
+        case cmdToggleToolSidebar:
+            result.setInfo ("Toggle Tool Sidebar", "Show or hide the tool sidebar", "View", 0);
+            result.addDefaultKeypress ('t', juce::ModifierKeys::commandModifier);
+            break;
         default:
             break;
     }
@@ -280,6 +289,9 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             return true;
         case cmdSplit:
             sessionComponent->getTimeline().splitSelectedClipsAtPlayhead();
+            return true;
+        case cmdToggleToolSidebar:
+            sessionComponent->toggleToolSidebar();
             return true;
         default:
             return false;

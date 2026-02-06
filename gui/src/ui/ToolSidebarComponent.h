@@ -5,32 +5,33 @@
 
 #include "JobQueue.h"
 #include "ToolDiff.h"
+#include "SchemaFormComponent.h"
 
 class EditSession;
 class ProjectManager;
 class SessionComponent;
 
-namespace waive { class ToolRegistry; }
-namespace waive { class ModelManager; }
+namespace waive { class ToolRegistry; class ModelManager; }
 
 //==============================================================================
-/** UI panel for running in-process tools with plan/preview/apply workflow. */
-class ToolsComponent : public juce::Component,
-                       public waive::JobQueue::Listener
+/** Collapsible sidebar for tool plan/preview/apply workflow.
+    Replaces the standalone ToolsComponent tab. */
+class ToolSidebarComponent : public juce::Component,
+                             public waive::JobQueue::Listener
 {
 public:
-    ToolsComponent (waive::ToolRegistry& registry,
-                    EditSession& session,
-                    ProjectManager& projectMgr,
-                    SessionComponent& sessionComp,
-                    waive::ModelManager& modelMgr,
-                    waive::JobQueue& queue);
-    ~ToolsComponent() override;
+    ToolSidebarComponent (waive::ToolRegistry& registry,
+                          EditSession& session,
+                          ProjectManager& projectMgr,
+                          SessionComponent& sessionComp,
+                          waive::ModelManager& modelMgr,
+                          waive::JobQueue& queue);
+    ~ToolSidebarComponent() override;
 
     void resized() override;
 
     //==============================================================================
-    // Test helpers for no-user UI coverage.
+    // Test helpers — same API as the old ToolsComponent for compatibility.
     void selectToolForTesting (const juce::String& toolName);
     void setParamsForTesting (const juce::var& params);
     bool runPlanForTesting();
@@ -67,7 +68,6 @@ private:
     void rejectPlan();
     void cancelRunningPlan();
 
-    juce::Result parseParamsFromEditor (juce::var& outParams) const;
     juce::String getSelectedToolName() const;
     void updateButtonStates();
     void setStatusText (const juce::String& text);
@@ -90,8 +90,8 @@ private:
 
     juce::Label toolLabel { {}, "Tool" };
     juce::ComboBox toolCombo;
-    juce::Label paramsLabel { {}, "Params (JSON)" };
-    juce::TextEditor paramsEditor;
+    SchemaFormComponent schemaForm;
+    juce::Viewport schemaViewport;
     juce::TextButton planButton { "Plan" };
     juce::TextButton applyButton { "Apply" };
     juce::TextButton rejectButton { "Reject" };

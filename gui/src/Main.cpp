@@ -7,6 +7,7 @@
 #include "UndoableCommandHandler.h"
 #include "ProjectManager.h"
 #include "JobQueue.h"
+#include "WaiveLookAndFeel.h"
 
 namespace te = tracktion;
 
@@ -49,6 +50,9 @@ public:
         if (te::PluginManager::startChildProcessPluginScan (commandLine))
             return;
 
+        lookAndFeel = std::make_unique<waive::WaiveLookAndFeel>();
+        juce::LookAndFeel::setDefaultLookAndFeel (lookAndFeel.get());
+
         engine = std::make_unique<te::Engine> ("Waive");
         engine->getPluginManager().initialise();
         engine->getDeviceManager().initialise (2, 2);
@@ -80,6 +84,9 @@ public:
         jobQueue.reset();
         editSession.reset();
         engine.reset();
+
+        juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+        lookAndFeel.reset();
     }
 
     //==============================================================================
@@ -132,6 +139,7 @@ private:
     std::unique_ptr<CommandHandler> commandHandler;
     std::unique_ptr<UndoableCommandHandler> undoableHandler;
 
+    std::unique_ptr<waive::WaiveLookAndFeel> lookAndFeel;
     std::unique_ptr<MainWindow> mainWindow;
 };
 

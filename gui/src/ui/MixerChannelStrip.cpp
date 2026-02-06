@@ -1,5 +1,6 @@
 #include "MixerChannelStrip.h"
 #include "EditSession.h"
+#include "WaiveLookAndFeel.h"
 
 //==============================================================================
 MixerChannelStrip::MixerChannelStrip (te::AudioTrack& t, EditSession& session)
@@ -143,18 +144,19 @@ void MixerChannelStrip::setHighlighted (bool shouldHighlight)
 void MixerChannelStrip::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds().toFloat();
+    auto* pal = waive::getWaivePalette (*this);
 
     // Background
-    g.setColour (juce::Colour (0xff2a2a2a));
+    g.setColour (pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a));
     g.fillRoundedRectangle (bounds, 3.0f);
 
     // Border
-    g.setColour (juce::Colour (0xff3a3a3a));
+    g.setColour (pal ? pal->border : juce::Colour (0xff3a3a3a));
     g.drawRoundedRectangle (bounds.reduced (0.5f), 3.0f, 1.0f);
 
     if (highlighted)
     {
-        g.setColour (juce::Colour (0xfff0b429));
+        g.setColour (pal ? pal->accent : juce::Colour (0xfff0b429));
         g.drawRoundedRectangle (bounds.reduced (1.5f), 3.0f, 2.0f);
     }
 
@@ -171,11 +173,13 @@ void MixerChannelStrip::paint (juce::Graphics& g)
 
         int barW = 3;
         int barH = (int) (meterHeight * normL);
-        g.setColour (normL > 0.9f ? juce::Colours::red : juce::Colours::limegreen);
+        g.setColour (normL > 0.9f ? (pal ? pal->meterClip : juce::Colours::red)
+                                   : (pal ? pal->meterNormal : juce::Colours::limegreen));
         g.fillRect (meterBounds.getX(), meterBounds.getY() + meterHeight - barH, barW, barH);
 
         barH = (int) (meterHeight * normR);
-        g.setColour (normR > 0.9f ? juce::Colours::red : juce::Colours::limegreen);
+        g.setColour (normR > 0.9f ? (pal ? pal->meterClip : juce::Colours::red)
+                                   : (pal ? pal->meterNormal : juce::Colours::limegreen));
         g.fillRect (meterBounds.getX() + barW + 1, meterBounds.getY() + meterHeight - barH, barW, barH);
     }
 }

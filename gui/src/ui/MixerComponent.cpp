@@ -1,6 +1,7 @@
 #include "MixerComponent.h"
 #include "MixerChannelStrip.h"
 #include "EditSession.h"
+#include "WaiveLookAndFeel.h"
 
 //==============================================================================
 MixerComponent::MixerComponent (EditSession& session)
@@ -49,12 +50,14 @@ void MixerComponent::resized()
 
 void MixerComponent::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff1a1a1a));
+    auto* pal = waive::getWaivePalette (*this);
+
+    g.fillAll (pal ? pal->windowBg : juce::Colour (0xff1a1a1a));
 
     // Separator before master
     auto bounds = getLocalBounds();
     int masterX = bounds.getRight() - MixerChannelStrip::stripWidth - 4;
-    g.setColour (juce::Colour (0xff4a4a4a));
+    g.setColour (pal ? pal->border.brighter (0.15f) : juce::Colour (0xff4a4a4a));
     g.drawVerticalLine (masterX, 0.0f, (float) getHeight());
 }
 

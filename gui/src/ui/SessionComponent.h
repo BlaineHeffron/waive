@@ -7,6 +7,10 @@
 class EditSession;
 class UndoableCommandHandler;
 class MixerComponent;
+class ToolSidebarComponent;
+class ProjectManager;
+
+namespace waive { class ToolRegistry; class ModelManager; class JobQueue; }
 
 //==============================================================================
 /** Transport toolbar + timeline + mixer. */
@@ -14,12 +18,19 @@ class SessionComponent : public juce::Component,
                          private juce::Timer
 {
 public:
-    SessionComponent (EditSession& session, UndoableCommandHandler& handler);
+    SessionComponent (EditSession& session, UndoableCommandHandler& handler,
+                      waive::ToolRegistry* toolReg = nullptr,
+                      waive::ModelManager* modelMgr = nullptr,
+                      waive::JobQueue* jobQueue = nullptr,
+                      ProjectManager* projectMgr = nullptr);
     ~SessionComponent() override;
 
     void resized() override;
 
     TimelineComponent& getTimeline();
+    ToolSidebarComponent* getToolSidebar();
+
+    void toggleToolSidebar();
 
     // Test helpers for no-user UI coverage.
     void setTempoForTesting (double bpm);
@@ -75,4 +86,11 @@ private:
 
     juce::StretchableLayoutManager layoutManager;
     std::unique_ptr<juce::StretchableLayoutResizerBar> resizerBar;
+
+    // Tool sidebar
+    std::unique_ptr<ToolSidebarComponent> toolSidebar;
+    std::unique_ptr<juce::StretchableLayoutResizerBar> sidebarResizer;
+    juce::StretchableLayoutManager horizontalLayout;
+    bool sidebarVisible = true;
+    static constexpr int defaultSidebarWidth = 280;
 };

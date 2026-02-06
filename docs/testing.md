@@ -40,7 +40,7 @@ Waive has two native C++ regression test executables integrated with CTest.
       - automation point add/move on track plugin parameter curves, with undo/redo validation
       - loop range + loop enable and punch-in/out state toggles
     - Phase 4 tool framework coverage:
-      - `ToolsComponent` no-user workflow for built-in `normalize_selected_clips`:
+      - `ToolSidebarComponent` no-user workflow for built-in `normalize_selected_clips`:
         - async `plan` generation with structured preview diff
         - reject path (no mutation)
         - apply path (undo/redo safe clip gain mutation)
@@ -106,6 +106,10 @@ Run test binaries directly:
 ./build/tests/WaiveUiTests_artefacts/Release/WaiveUiTests
 ```
 
+## CI
+
+Tests run automatically on every push and PR via GitHub Actions (`.github/workflows/ci.yml`). The CI pipeline uses `xvfb-run` to provide a virtual display for JUCE's `ScopedJuceInitialiser_GUI`. See `docs/architecture.md` for pipeline details.
+
 ## Writing New Tests
 
 - Prefer deterministic tests that create/modify an in-memory `Edit`.
@@ -118,6 +122,6 @@ Run test binaries directly:
   `closeSelectedChainPluginEditorForTesting`, `selectFirstAvailableInputForTesting`,
   `setArmEnabledForTesting`, `setMonitorEnabledForTesting`, `setSendLevelDbForTesting`,
   `ensureReverbReturnOnMasterForTesting`.
-- For tool framework tests, use `ToolsComponent` test helpers (`runPlanForTesting`, `waitForIdleForTesting`, `applyPlanForTesting`, `cancelPlanForTesting`) to validate plan/apply/cancel flows without manual input.
+- For tool framework tests, use `ToolSidebarComponent` test helpers (`runPlanForTesting`, `waitForIdleForTesting`, `applyPlanForTesting`, `cancelPlanForTesting`) to validate plan/apply/cancel flows without manual input.
 - Keep tests message-thread safe; use `juce::ScopedJuceInitialiser_GUI` for UI-oriented tests.
 - Avoid requiring interactive dialogs or manual file selection.

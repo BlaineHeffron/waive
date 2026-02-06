@@ -1,4 +1,4 @@
-#include "ToolsComponent.h"
+#include "ToolSidebarComponent.h"
 
 #include <mutex>
 
@@ -20,12 +20,12 @@ struct PlanState
 }
 
 //==============================================================================
-ToolsComponent::ToolsComponent (waive::ToolRegistry& registry,
-                                EditSession& session,
-                                ProjectManager& projectMgr,
-                                SessionComponent& sessionComp,
-                                waive::ModelManager& modelMgr,
-                                waive::JobQueue& queue)
+ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
+                                            EditSession& session,
+                                            ProjectManager& projectMgr,
+                                            SessionComponent& sessionComp,
+                                            waive::ModelManager& modelMgr,
+                                            waive::JobQueue& queue)
     : toolRegistry (registry),
       editSession (session),
       projectManager (projectMgr),
@@ -34,12 +34,7 @@ ToolsComponent::ToolsComponent (waive::ToolRegistry& registry,
       jobQueue (queue)
 {
     toolLabel.setJustificationType (juce::Justification::centredLeft);
-    paramsLabel.setJustificationType (juce::Justification::centredLeft);
     previewLabel.setJustificationType (juce::Justification::centredLeft);
-
-    paramsEditor.setMultiLine (true);
-    paramsEditor.setReturnKeyStartsNewLine (true);
-    paramsEditor.setScrollbarsShown (true);
 
     previewEditor.setMultiLine (true);
     previewEditor.setReadOnly (true);
@@ -49,10 +44,12 @@ ToolsComponent::ToolsComponent (waive::ToolRegistry& registry,
     statusLabel.setJustificationType (juce::Justification::centredLeft);
     statusLabel.setText ("Idle", juce::dontSendNotification);
 
+    schemaViewport.setViewedComponent (&schemaForm, false);
+    schemaViewport.setScrollBarsShown (true, false);
+
     addAndMakeVisible (toolLabel);
     addAndMakeVisible (toolCombo);
-    addAndMakeVisible (paramsLabel);
-    addAndMakeVisible (paramsEditor);
+    addAndMakeVisible (schemaViewport);
     addAndMakeVisible (planButton);
     addAndMakeVisible (applyButton);
     addAndMakeVisible (rejectButton);
@@ -73,41 +70,48 @@ ToolsComponent::ToolsComponent (waive::ToolRegistry& registry,
     jobQueue.addListener (this);
 }
 
-ToolsComponent::~ToolsComponent()
+ToolSidebarComponent::~ToolSidebarComponent()
 {
     jobQueue.removeListener (this);
 }
 
-void ToolsComponent::resized()
+void ToolSidebarComponent::resized()
 {
-    auto bounds = getLocalBounds().reduced (12);
+    auto bounds = getLocalBounds().reduced (8);
 
-    auto toolRow = bounds.removeFromTop (26);
-    toolLabel.setBounds (toolRow.removeFromLeft (50));
-    toolCombo.setBounds (toolRow.removeFromLeft (260));
+    auto toolRow = bounds.removeFromTop (24);
+    toolLabel.setBounds (toolRow.removeFromLeft (36));
+    toolCombo.setBounds (toolRow);
 
     bounds.removeFromTop (6);
-    paramsLabel.setBounds (bounds.removeFromTop (20));
-    paramsEditor.setBounds (bounds.removeFromTop (112));
 
-    bounds.removeFromTop (8);
-    auto actionRow = bounds.removeFromTop (28);
-    planButton.setBounds (actionRow.removeFromLeft (80));
-    actionRow.removeFromLeft (6);
-    applyButton.setBounds (actionRow.removeFromLeft (80));
-    actionRow.removeFromLeft (6);
-    rejectButton.setBounds (actionRow.removeFromLeft (80));
-    actionRow.removeFromLeft (6);
-    cancelButton.setBounds (actionRow.removeFromLeft (80));
+    // Schema form in viewport
+    auto schemaHeight = juce::jmin (schemaForm.getIdealHeight(), bounds.getHeight() / 3);
+    schemaHeight = juce::jmax (schemaHeight, 60);
+    schemaViewport.setBounds (bounds.removeFromTop (schemaHeight));
+    schemaForm.setSize (schemaViewport.getWidth() - (schemaViewport.isVerticalScrollBarShown() ? 10 : 0),
+                         juce::jmax (schemaForm.getIdealHeight(), schemaHeight));
 
-    bounds.removeFromTop (8);
-    statusLabel.setBounds (bounds.removeFromTop (20));
-    bounds.removeFromTop (8);
-    previewLabel.setBounds (bounds.removeFromTop (20));
+    bounds.removeFromTop (6);
+    auto actionRow = bounds.removeFromTop (26);
+    int btnW = (actionRow.getWidth() - 12) / 4;
+    planButton.setBounds (actionRow.removeFromLeft (btnW));
+    actionRow.removeFromLeft (4);
+    applyButton.setBounds (actionRow.removeFromLeft (btnW));
+    actionRow.removeFromLeft (4);
+    rejectButton.setBounds (actionRow.removeFromLeft (btnW));
+    actionRow.removeFromLeft (4);
+    cancelButton.setBounds (actionRow);
+
+    bounds.removeFromTop (6);
+    statusLabel.setBounds (bounds.removeFromTop (18));
+    bounds.removeFromTop (4);
+    previewLabel.setBounds (bounds.removeFromTop (18));
+    bounds.removeFromTop (2);
     previewEditor.setBounds (bounds);
 }
 
-void ToolsComponent::populateToolList()
+void ToolSidebarComponent::populateToolList()
 {
     toolCombo.clear (juce::dontSendNotification);
     toolNamesByComboIndex.clear();
@@ -127,24 +131,22 @@ void ToolsComponent::populateToolList()
         toolCombo.setSelectedItemIndex (0, juce::sendNotification);
 }
 
-void ToolsComponent::loadDefaultParamsForSelectedTool()
+void ToolSidebarComponent::loadDefaultParamsForSelectedTool()
 {
     auto toolName = getSelectedToolName();
     auto* tool = toolRegistry.findTool (toolName);
     if (tool == nullptr)
         return;
 
-    const auto defaults = tool->describe().defaultParams;
-    if (! defaults.isObject())
-    {
-        paramsEditor.setText ("{}", false);
-        return;
-    }
+    const auto desc = tool->describe();
+    schemaForm.buildFromSchema (desc.inputSchema, desc.defaultParams);
 
-    paramsEditor.setText (juce::JSON::toString (defaults, true), false);
+    // Resize form within viewport
+    schemaForm.setSize (schemaViewport.getWidth() - (schemaViewport.isVerticalScrollBarShown() ? 10 : 0),
+                         juce::jmax (schemaForm.getIdealHeight(), schemaViewport.getHeight()));
 }
 
-void ToolsComponent::runPlan()
+void ToolSidebarComponent::runPlan()
 {
     if (planRunning)
         return;
@@ -158,13 +160,7 @@ void ToolsComponent::runPlan()
         return;
     }
 
-    juce::var params;
-    auto parseResult = parseParamsFromEditor (params);
-    if (parseResult.failed())
-    {
-        setStatusText ("Invalid params: " + parseResult.getErrorMessage());
-        return;
-    }
+    auto params = schemaForm.getParams();
 
     waive::ToolPlanTask task;
     waive::ToolExecutionContext context {
@@ -213,7 +209,7 @@ void ToolsComponent::runPlan()
     updateButtonStates();
 }
 
-void ToolsComponent::applyPlan()
+void ToolSidebarComponent::applyPlan()
 {
     if (planRunning || ! pendingPlan.has_value())
         return;
@@ -248,7 +244,7 @@ void ToolsComponent::applyPlan()
     updateButtonStates();
 }
 
-void ToolsComponent::rejectPlan()
+void ToolSidebarComponent::rejectPlan()
 {
     if (planRunning)
         return;
@@ -260,7 +256,7 @@ void ToolsComponent::rejectPlan()
     updateButtonStates();
 }
 
-void ToolsComponent::cancelRunningPlan()
+void ToolSidebarComponent::cancelRunningPlan()
 {
     if (! planRunning || activePlanJobID <= 0)
         return;
@@ -268,27 +264,7 @@ void ToolsComponent::cancelRunningPlan()
     jobQueue.cancelJob (activePlanJobID);
 }
 
-juce::Result ToolsComponent::parseParamsFromEditor (juce::var& outParams) const
-{
-    auto text = paramsEditor.getText().trim();
-    if (text.isEmpty())
-    {
-        outParams = juce::var (new juce::DynamicObject());
-        return juce::Result::ok();
-    }
-
-    auto parsed = juce::JSON::parse (text);
-    if (parsed.isVoid())
-        return juce::Result::fail ("JSON parse error");
-
-    if (! parsed.isObject())
-        return juce::Result::fail ("Expected a JSON object");
-
-    outParams = parsed;
-    return juce::Result::ok();
-}
-
-juce::String ToolsComponent::getSelectedToolName() const
+juce::String ToolSidebarComponent::getSelectedToolName() const
 {
     const int idx = toolCombo.getSelectedItemIndex();
     if (! juce::isPositiveAndBelow (idx, toolNamesByComboIndex.size()))
@@ -297,7 +273,7 @@ juce::String ToolsComponent::getSelectedToolName() const
     return toolNamesByComboIndex[idx];
 }
 
-void ToolsComponent::updateButtonStates()
+void ToolSidebarComponent::updateButtonStates()
 {
     planButton.setEnabled (! planRunning);
     applyButton.setEnabled (! planRunning && pendingPlan.has_value());
@@ -305,12 +281,12 @@ void ToolsComponent::updateButtonStates()
     cancelButton.setEnabled (planRunning);
 }
 
-void ToolsComponent::setStatusText (const juce::String& text)
+void ToolSidebarComponent::setStatusText (const juce::String& text)
 {
     statusLabel.setText (text, juce::dontSendNotification);
 }
 
-void ToolsComponent::handlePlanCompletion (waive::JobStatus status, std::optional<waive::ToolPlan> planResult)
+void ToolSidebarComponent::handlePlanCompletion (waive::JobStatus status, std::optional<waive::ToolPlan> planResult)
 {
     planRunning = false;
     activePlanJobID = 0;
@@ -357,7 +333,7 @@ void ToolsComponent::handlePlanCompletion (waive::JobStatus status, std::optiona
     updateButtonStates();
 }
 
-juce::File ToolsComponent::resolveProjectCacheDirectory() const
+juce::File ToolSidebarComponent::resolveProjectCacheDirectory() const
 {
     auto currentProjectFile = projectManager.getCurrentFile();
     if (currentProjectFile != juce::File())
@@ -371,7 +347,7 @@ juce::File ToolsComponent::resolveProjectCacheDirectory() const
                       .getChildFile (projectManager.getProjectName());
 }
 
-void ToolsComponent::jobEvent (const waive::JobEvent& event)
+void ToolSidebarComponent::jobEvent (const waive::JobEvent& event)
 {
     if (! planRunning || event.jobId != activePlanJobID)
         return;
@@ -386,7 +362,11 @@ void ToolsComponent::jobEvent (const waive::JobEvent& event)
     }
 }
 
-void ToolsComponent::selectToolForTesting (const juce::String& toolName)
+//==============================================================================
+// Test helpers
+//==============================================================================
+
+void ToolSidebarComponent::selectToolForTesting (const juce::String& toolName)
 {
     for (int i = 0; i < toolNamesByComboIndex.size(); ++i)
     {
@@ -398,12 +378,12 @@ void ToolsComponent::selectToolForTesting (const juce::String& toolName)
     }
 }
 
-void ToolsComponent::setParamsForTesting (const juce::var& params)
+void ToolSidebarComponent::setParamsForTesting (const juce::var& params)
 {
-    paramsEditor.setText (juce::JSON::toString (params, true), false);
+    schemaForm.setParams (params);
 }
 
-bool ToolsComponent::runPlanForTesting()
+bool ToolSidebarComponent::runPlanForTesting()
 {
     if (planRunning)
         return false;
@@ -412,7 +392,7 @@ bool ToolsComponent::runPlanForTesting()
     return planRunning;
 }
 
-bool ToolsComponent::applyPlanForTesting()
+bool ToolSidebarComponent::applyPlanForTesting()
 {
     if (! pendingPlan.has_value() || planRunning)
         return false;
@@ -421,17 +401,17 @@ bool ToolsComponent::applyPlanForTesting()
     return ! pendingPlan.has_value();
 }
 
-void ToolsComponent::rejectPlanForTesting()
+void ToolSidebarComponent::rejectPlanForTesting()
 {
     rejectPlan();
 }
 
-void ToolsComponent::cancelPlanForTesting()
+void ToolSidebarComponent::cancelPlanForTesting()
 {
     cancelRunningPlan();
 }
 
-bool ToolsComponent::waitForIdleForTesting (int timeoutMs)
+bool ToolSidebarComponent::waitForIdleForTesting (int timeoutMs)
 {
     int elapsedMs = 0;
     constexpr int stepMs = 20;
@@ -446,58 +426,58 @@ bool ToolsComponent::waitForIdleForTesting (int timeoutMs)
     return ! planRunning;
 }
 
-bool ToolsComponent::hasPendingPlanForTesting() const
+bool ToolSidebarComponent::hasPendingPlanForTesting() const
 {
     return pendingPlan.has_value();
 }
 
-juce::String ToolsComponent::getPreviewTextForTesting() const
+juce::String ToolSidebarComponent::getPreviewTextForTesting() const
 {
     return previewEditor.getText();
 }
 
-juce::File ToolsComponent::getLastPlanArtifactForTesting() const
+juce::File ToolSidebarComponent::getLastPlanArtifactForTesting() const
 {
     return lastPlanArtifact;
 }
 
-juce::Result ToolsComponent::setModelStorageDirectoryForTesting (const juce::File& directory)
+juce::Result ToolSidebarComponent::setModelStorageDirectoryForTesting (const juce::File& directory)
 {
     modelManager.setStorageDirectory (directory);
     return juce::Result::ok();
 }
 
-juce::Result ToolsComponent::setModelQuotaForTesting (int64 bytes)
+juce::Result ToolSidebarComponent::setModelQuotaForTesting (int64 bytes)
 {
     return modelManager.setQuotaBytes (bytes);
 }
 
-juce::Result ToolsComponent::installModelForTesting (const juce::String& modelID,
-                                                     const juce::String& version,
-                                                     bool pinVersion)
+juce::Result ToolSidebarComponent::installModelForTesting (const juce::String& modelID,
+                                                            const juce::String& version,
+                                                            bool pinVersion)
 {
     return modelManager.installModel (modelID, version, pinVersion);
 }
 
-juce::Result ToolsComponent::uninstallModelForTesting (const juce::String& modelID,
-                                                       const juce::String& version)
+juce::Result ToolSidebarComponent::uninstallModelForTesting (const juce::String& modelID,
+                                                              const juce::String& version)
 {
     return modelManager.uninstallModel (modelID, version);
 }
 
-juce::Result ToolsComponent::pinModelVersionForTesting (const juce::String& modelID,
-                                                        const juce::String& version)
+juce::Result ToolSidebarComponent::pinModelVersionForTesting (const juce::String& modelID,
+                                                               const juce::String& version)
 {
     return modelManager.pinModelVersion (modelID, version);
 }
 
-juce::String ToolsComponent::getPinnedModelVersionForTesting (const juce::String& modelID) const
+juce::String ToolSidebarComponent::getPinnedModelVersionForTesting (const juce::String& modelID) const
 {
     return modelManager.getPinnedVersion (modelID);
 }
 
-bool ToolsComponent::isModelInstalledForTesting (const juce::String& modelID,
-                                                 const juce::String& version) const
+bool ToolSidebarComponent::isModelInstalledForTesting (const juce::String& modelID,
+                                                        const juce::String& version) const
 {
     return modelManager.isInstalled (modelID, version);
 }

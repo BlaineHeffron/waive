@@ -10,7 +10,7 @@ class ConsoleComponent;
 class ToolLogComponent;
 class LibraryComponent;
 class PluginBrowserComponent;
-class ToolsComponent;
+class ToolSidebarComponent;
 
 namespace waive { class JobQueue; class ToolRegistry; class ModelManager; }
 
@@ -28,7 +28,7 @@ public:
 
     // Test helpers
     SessionComponent& getSessionComponentForTesting();
-    ToolsComponent& getToolsComponentForTesting();
+    ToolSidebarComponent& getToolSidebarForTesting();
     LibraryComponent& getLibraryComponentForTesting();
     PluginBrowserComponent& getPluginBrowserForTesting();
     bool invokeCommandForTesting (juce::CommandID commandID);
@@ -54,7 +54,8 @@ public:
         cmdSaveAs  = 0x2006,
         cmdDelete  = 0x2010,
         cmdDuplicate = 0x2011,
-        cmdSplit   = 0x2012
+        cmdSplit   = 0x2012,
+        cmdToggleToolSidebar = 0x2020
     };
 
 private:
@@ -67,12 +68,11 @@ private:
 
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
 
+    std::unique_ptr<waive::ModelManager> modelManager;
+    std::unique_ptr<waive::ToolRegistry> toolRegistry;
     std::unique_ptr<SessionComponent> sessionComponent;
     std::unique_ptr<LibraryComponent> libraryComponent;
     std::unique_ptr<PluginBrowserComponent> pluginBrowser;
-    std::unique_ptr<waive::ModelManager> modelManager;
-    std::unique_ptr<waive::ToolRegistry> toolRegistry;
-    std::unique_ptr<ToolsComponent> toolsComponent;
     std::unique_ptr<ConsoleComponent> console;
     std::unique_ptr<ToolLogComponent> toolLog;
 };

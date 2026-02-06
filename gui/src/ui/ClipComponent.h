@@ -25,6 +25,8 @@ public:
 
     te::Clip& getClip()  { return clip; }
 
+    friend class TimelineComponent;
+
 private:
     bool isLeftTrimZone (int x) const;
     bool isRightTrimZone (int x) const;

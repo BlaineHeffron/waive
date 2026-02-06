@@ -89,6 +89,12 @@ int JobQueue::submit (const JobDescriptor& descriptor, JobFunction jobFunction,
             capturedInfo->lastMessage = e.what();
             finalStatus = JobStatus::Failed;
         }
+        catch (...)
+        {
+            std::lock_guard<std::mutex> messageLock (capturedInfo->messageMutex);
+            capturedInfo->lastMessage = "Unknown exception";
+            finalStatus = JobStatus::Failed;
+        }
 
         capturedInfo->status.store (static_cast<int> (finalStatus));
         capturedInfo->lastProgress.store (finalStatus == JobStatus::Completed ? 1.0f

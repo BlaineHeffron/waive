@@ -12,6 +12,8 @@ class SelectionManager
 public:
     SelectionManager() = default;
 
+    void setEdit (te::Edit* edit) { currentEdit = edit; }
+
     void selectClip (te::Clip* clip, bool addToSelection = false);
     void deselectAll();
     bool isSelected (te::Clip* clip) const;
@@ -27,6 +29,7 @@ public:
     void removeListener (Listener* l)  { listeners.remove (l); }
 
 private:
-    juce::Array<te::Clip*> selectedClips;
+    juce::Array<te::EditItemID> selectedClipIDs;
+    te::Edit* currentEdit = nullptr;
     juce::ListenerList<Listener> listeners;
 };

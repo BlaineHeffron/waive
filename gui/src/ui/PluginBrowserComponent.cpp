@@ -2,6 +2,7 @@
 
 #include "EditSession.h"
 #include "UndoableCommandHandler.h"
+#include "WaiveLookAndFeel.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 #include <cmath>
@@ -117,13 +118,19 @@ struct PluginBrowserComponent::ChainModel : public juce::ListBoxModel
             return;
 
         if (selected)
-            g.fillAll (juce::Colours::darkslategrey);
+        {
+            auto* pal = waive::getWaivePalette (owner);
+            g.fillAll (pal ? pal->selection : juce::Colours::darkslategrey);
+        }
 
         juce::String text = p->getName();
         if (! p->isEnabled())
             text = "[byp] " + text;
 
-        g.setColour (juce::Colours::white);
+        {
+            auto* pal = waive::getWaivePalette (owner);
+            g.setColour (pal ? pal->textPrimary : juce::Colours::white);
+        }
         g.drawFittedText (text, 6, 0, width - 12, height, juce::Justification::centredLeft, 1);
     }
 

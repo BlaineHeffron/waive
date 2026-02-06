@@ -96,30 +96,25 @@ bool writeSeparatedStems (const juce::File& inputFile,
         return false;
 
     juce::WavAudioFormat wavFormat;
-    auto lowStream = std::unique_ptr<juce::FileOutputStream> (lowStemFile.createOutputStream());
-    auto highStream = std::unique_ptr<juce::FileOutputStream> (highStemFile.createOutputStream());
+    std::unique_ptr<juce::OutputStream> lowStream (lowStemFile.createOutputStream());
+    std::unique_ptr<juce::OutputStream> highStream (highStemFile.createOutputStream());
     if (lowStream == nullptr || highStream == nullptr)
         return false;
 
-    auto lowWriter = std::unique_ptr<juce::AudioFormatWriter> (
-        wavFormat.createWriterFor (lowStream.get(),
-                                   reader->sampleRate,
-                                   reader->numChannels,
-                                   16,
-                                   {},
-                                   0));
-    auto highWriter = std::unique_ptr<juce::AudioFormatWriter> (
-        wavFormat.createWriterFor (highStream.get(),
-                                   reader->sampleRate,
-                                   reader->numChannels,
-                                   16,
-                                   {},
-                                   0));
+    auto lowOptions = juce::AudioFormatWriterOptions()
+                          .withSampleRate (reader->sampleRate)
+                          .withNumChannels ((int) reader->numChannels)
+                          .withBitsPerSample (16);
+
+    auto highOptions = juce::AudioFormatWriterOptions()
+                           .withSampleRate (reader->sampleRate)
+                           .withNumChannels ((int) reader->numChannels)
+                           .withBitsPerSample (16);
+
+    auto lowWriter = wavFormat.createWriterFor (lowStream, lowOptions);
+    auto highWriter = wavFormat.createWriterFor (highStream, highOptions);
     if (lowWriter == nullptr || highWriter == nullptr)
         return false;
-
-    (void) lowStream.release();
-    (void) highStream.release();
 
     constexpr int blockSize = 8192;
     juce::AudioBuffer<float> input ((int) reader->numChannels, blockSize);

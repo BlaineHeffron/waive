@@ -3,29 +3,43 @@
 void SelectionManager::selectClip (te::Clip* clip, bool addToSelection)
 {
     if (! addToSelection)
-        selectedClips.clear();
+        selectedClipIDs.clear();
 
-    if (clip != nullptr && ! selectedClips.contains (clip))
-        selectedClips.add (clip);
+    if (clip != nullptr && clip->itemID.isValid() && ! selectedClipIDs.contains (clip->itemID))
+        selectedClipIDs.add (clip->itemID);
 
     listeners.call (&Listener::selectionChanged);
 }
 
 void SelectionManager::deselectAll()
 {
-    if (selectedClips.isEmpty())
+    if (selectedClipIDs.isEmpty())
         return;
 
-    selectedClips.clear();
+    selectedClipIDs.clear();
     listeners.call (&Listener::selectionChanged);
 }
 
 bool SelectionManager::isSelected (te::Clip* clip) const
 {
-    return selectedClips.contains (clip);
+    if (clip == nullptr || ! clip->itemID.isValid())
+        return false;
+
+    return selectedClipIDs.contains (clip->itemID);
 }
 
 juce::Array<te::Clip*> SelectionManager::getSelectedClips() const
 {
-    return selectedClips;
+    juce::Array<te::Clip*> clips;
+
+    if (currentEdit == nullptr)
+        return clips;
+
+    for (auto clipID : selectedClipIDs)
+    {
+        if (auto* clip = te::findClipForID (*currentEdit, clipID))
+            clips.add (clip);
+    }
+
+    return clips;
 }

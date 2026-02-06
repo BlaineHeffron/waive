@@ -12,12 +12,13 @@
 
 ## Component Conventions
 
-| Directory      | Contents                                              |
-|----------------|-------------------------------------------------------|
-| `gui/src/ui/`  | JUCE `Component` subclasses (UI panels, views)       |
-| `gui/src/edit/`| Edit-layer classes (`EditSession`, `UndoableCommandHandler`) |
-| `gui/src/tools/`| Tool runtime/framework (`Tool*`, `JobQueue`, `ModelManager`) |
-| `gui/src/util/`| Shared helpers (`CommandHelpers`)                     |
+| Directory        | Contents                                              |
+|------------------|-------------------------------------------------------|
+| `gui/src/ui/`    | JUCE `Component` subclasses (UI panels, views)       |
+| `gui/src/edit/`  | Edit-layer classes (`EditSession`, `UndoableCommandHandler`) |
+| `gui/src/tools/` | Tool runtime/framework (`Tool*`, `JobQueue`, `ModelManager`) |
+| `gui/src/util/`  | Shared helpers (`CommandHelpers`)                     |
+| `gui/src/theme/` | Centralized theme (`WaiveColours`, `WaiveFonts`, `WaiveLookAndFeel`) |
 
 ## Naming
 
@@ -25,6 +26,14 @@
 - Files: match class name (`SessionComponent.h/.cpp`)
 - Namespace helpers: `waive::` namespace for free functions
 - Member variables: `camelCase`, no prefix
+
+## Theming
+
+- **Never use hardcoded colours** in component paint methods. Use `getWaivePalette(component)` to access the semantic palette (defined in `WaiveColours.h`).
+- Use palette roles semantically: `clipDefault` for clip fills, `waveform` for waveform strokes, `primary` for active/accent elements, etc.
+- Always provide a fallback colour with `getWaivePalette()` since it may return `nullptr` in test contexts without a global LookAndFeel.
+- Use `waive::Fonts` (from `WaiveFonts.h`) for consistent font sizing across components.
+- Custom draw overrides live in `WaiveLookAndFeel.cpp` — prefer extending the LnF over per-component paint hacks.
 
 ## Edit Layer Rules
 
@@ -40,6 +49,7 @@
 ## CMake
 
 - All new source files must be listed in `gui/CMakeLists.txt` under `target_sources`.
+- Theme files live under `gui/src/theme/` and are included in the build via `gui/CMakeLists.txt`.
 - Include directories for subdirectories are set via `target_include_directories` so
   `#include "Foo.h"` works without path prefixes.
 

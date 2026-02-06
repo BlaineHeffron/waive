@@ -3,6 +3,7 @@
 #include "EditSession.h"
 #include "SelectionManager.h"
 #include "ClipEditActions.h"
+#include "WaiveLookAndFeel.h"
 
 //==============================================================================
 ClipComponent::ClipComponent (te::Clip& c, TimelineComponent& tl)
@@ -24,15 +25,34 @@ void ClipComponent::paint (juce::Graphics& g)
     auto bounds = getLocalBounds().toFloat();
     bool selected = timeline.getSelectionManager().isSelected (&clip);
 
+    // Check if this clip is in preview mode
+    bool inPreview = false;
+    if (clip.itemID.isValid())
+    {
+        for (auto previewID : timeline.previewClipIDs)
+        {
+            if (previewID == clip.itemID)
+            {
+                inPreview = true;
+                break;
+            }
+        }
+    }
+
+    // Use preview highlight if in preview mode, otherwise use selection
+    bool highlighted = inPreview || selected;
+    auto* pal = waive::getWaivePalette (*this);
+
     // Background
-    auto bgColour = selected ? juce::Colour (0xff4477aa) : juce::Colour (0xff3a5a3a);
+    auto bgColour = highlighted ? (pal ? pal->clipSelected : juce::Colour (0xff4477aa))
+                                : (pal ? pal->clipDefault : juce::Colour (0xff3a5a3a));
     g.setColour (bgColour);
     g.fillRoundedRectangle (bounds, 4.0f);
 
     // Waveform
     if (thumbnail != nullptr && thumbnail->isFullyLoaded())
     {
-        g.setColour (juce::Colours::white.withAlpha (0.8f));
+        g.setColour (pal ? pal->waveform : juce::Colours::white.withAlpha (0.8f));
         auto waveArea = bounds.reduced (2.0f, 14.0f);
         thumbnail->drawChannels (g, waveArea.toNearestInt(),
                                  { te::TimePosition(), te::TimePosition::fromSeconds (
@@ -41,19 +61,20 @@ void ClipComponent::paint (juce::Graphics& g)
     }
 
     // Clip name
-    g.setColour (juce::Colours::white);
+    g.setColour (pal ? pal->textOnPrimary : juce::Colours::white);
     g.setFont (juce::FontOptions (11.0f));
     g.drawText (clip.getName(), bounds.reduced (4.0f, 1.0f).removeFromTop (14.0f),
                 juce::Justification::centredLeft, true);
 
     // Border
-    g.setColour (selected ? juce::Colours::white : juce::Colours::grey);
+    g.setColour (highlighted ? (pal ? pal->selectionBorder : juce::Colours::white)
+                             : (pal ? pal->border : juce::Colours::grey));
     g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
 
     // Trim handles
     if (isMouseOver())
     {
-        g.setColour (juce::Colours::white.withAlpha (0.3f));
+        g.setColour (pal ? pal->trimHandle : juce::Colours::white.withAlpha (0.3f));
         g.fillRect (bounds.removeFromLeft ((float) trimZoneWidth));
         g.fillRect (getLocalBounds().toFloat().removeFromRight ((float) trimZoneWidth));
     }
@@ -166,23 +187,32 @@ void ClipComponent::showContextMenu()
     menu.addSeparator();
     menu.addItem (3, "Delete");
 
+    juce::Component::SafePointer<ClipComponent> safeThis (this);
     auto& session = timeline.getEditSession();
+    auto clipID = clip.itemID;
 
-    menu.showMenuAsync ({}, [this, &session] (int result)
+    menu.showMenuAsync ({}, [safeThis, &session, clipID] (int result)
     {
+        if (! safeThis)
+            return;
+
+        auto* resolvedClip = te::findClipForID (session.getEdit(), clipID);
+        if (resolvedClip == nullptr)
+            return;
+
         switch (result)
         {
-            case 1: waive::duplicateClip (session, clip); break;
+            case 1: waive::duplicateClip (session, *resolvedClip); break;
             case 2:
             {
-                auto playPos = clip.edit.getTransport().getPosition().inSeconds();
-                waive::splitClipAtPosition (session, clip, playPos);
+                auto playPos = resolvedClip->edit.getTransport().getPosition().inSeconds();
+                waive::splitClipAtPosition (session, *resolvedClip, playPos);
                 break;
             }
             case 3:
             {
                 juce::Array<te::Clip*> clips;
-                clips.add (&clip);
+                clips.add (resolvedClip);
                 waive::deleteClips (session, clips);
                 break;
             }
