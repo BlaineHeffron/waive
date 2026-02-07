@@ -369,23 +369,14 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                 auto outputFile = chooser.getResult();
                 auto& edit = editSession.getEdit();
 
-                te::Renderer::Parameters params (edit);
-                params.audioFormat = std::make_unique<juce::WavAudioFormat>();
-                params.destFile = outputFile;
-                params.time = te::EditTimeRange (te::TimePosition::fromSeconds (0.0),
-                                                  edit.getLength());
-                params.blockSizeForAudio = 512;
-                params.sampleRateForAudio = edit.engine.getDeviceManager().getSampleRate();
+                bool success = te::Renderer::renderToFile (edit, outputFile, true);
 
-                te::Renderer renderer (params);
-                auto renderResult = renderer.runRenderer();
-
-                if (! renderResult.wasOk())
+                if (! success)
                 {
                     juce::AlertWindow::showMessageBoxAsync (
                         juce::AlertWindow::WarningIcon,
                         "Render Failed",
-                        renderResult.getErrorMessage());
+                        "Failed to render edit to file");
                 }
             }
             return true;
