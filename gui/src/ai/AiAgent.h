@@ -41,6 +41,12 @@ public:
     void clearConversation();
     void cancelRequest();
 
+    /** Save the current conversation to a JSON file. */
+    void saveConversation (const juce::File& file);
+
+    /** Load a conversation from a JSON file, replacing current. */
+    void loadConversation (const juce::File& file);
+
     std::vector<ChatMessage> getConversation() const;
     bool isProcessing() const { return processing.load(); }
 

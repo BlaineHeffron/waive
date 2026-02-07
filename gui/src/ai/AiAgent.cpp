@@ -2,6 +2,7 @@
 #include "AiToolSchema.h"
 #include "AiProvider.h"
 #include "AiSettings.h"
+#include "ChatHistorySerializer.h"
 #include "UndoableCommandHandler.h"
 #include "ToolRegistry.h"
 #include "JobQueue.h"
@@ -80,8 +81,10 @@ void AiAgent::rejectPendingToolCalls()
 void AiAgent::clearConversation()
 {
     cancelRequest();
-    std::lock_guard<std::mutex> lock (conversationMutex);
-    conversation.clear();
+    {
+        std::lock_guard<std::mutex> lock (conversationMutex);
+        conversation.clear();
+    }
     juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
 }
 
@@ -260,6 +263,34 @@ juce::String AiAgent::executeCommand (const juce::String& action, const juce::va
 
     done.wait (10000);  // 10s timeout
     return result;
+}
+
+void AiAgent::saveConversation (const juce::File& file)
+{
+    std::lock_guard<std::mutex> lock (conversationMutex);
+    ChatHistorySerializer::saveChatHistory (conversation, file);
+}
+
+void AiAgent::loadConversation (const juce::File& file)
+{
+    auto loaded = ChatHistorySerializer::loadChatHistory (file);
+
+    if (loaded.empty())
+    {
+        // Distinguish between "file not found" vs "parse error"
+        if (file.existsAsFile())
+        {
+            DBG ("AiAgent::loadConversation - Failed to parse chat history file: " + file.getFullPathName());
+        }
+        return;
+    }
+
+    {
+        std::lock_guard<std::mutex> lock (conversationMutex);
+        conversation = std::move (loaded);
+    }
+
+    juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
 }
 
 } // namespace waive

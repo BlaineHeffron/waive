@@ -100,12 +100,19 @@ public:
                               if (engine)
                                   engine->getPluginManager().initialise();
                           });
+
+        // Restore chat history for the initial (unsaved) project
+        if (aiAgent)
+            aiAgent->loadConversation (getChatHistoryFile());
     }
 
     void shutdown() override
     {
         if (aiSettings && appProperties)
             aiSettings->saveToProperties (*appProperties);
+
+        if (aiAgent)
+            aiAgent->saveConversation (getChatHistoryFile());
 
         if (projectManager)
             projectManager->removeListener (this);
@@ -142,6 +149,12 @@ public:
         undoableHandler->setCommandHandler (*commandHandler);
 
         updateWindowTitle();
+
+        if (aiAgent)
+        {
+            aiAgent->clearConversation();
+            aiAgent->loadConversation (getChatHistoryFile());
+        }
     }
 
     void editStateChanged() override
@@ -158,6 +171,21 @@ public:
     }
 
 private:
+    juce::File getChatHistoryFile() const
+    {
+        if (projectManager && projectManager->getCurrentFile().existsAsFile())
+        {
+            auto projectDir = projectManager->getCurrentFile().getParentDirectory();
+            auto chatDir = projectDir.getChildFile (".waive_chat");
+            return chatDir.getChildFile (projectManager->getProjectName() + ".chat.json");
+        }
+
+        // Unsaved project — use app data directory
+        return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                   .getChildFile ("Waive")
+                   .getChildFile ("chat_history.json");
+    }
+
     juce::String getWindowTitle() const
     {
         juce::String title = "Waive";
