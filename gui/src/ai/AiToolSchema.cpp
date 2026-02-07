@@ -161,6 +161,68 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                       "Quick-record from microphone: creates or finds an empty track, arms it with the default input, and starts recording.",
                       makeSchema ("object") });
 
+    // split_clip
+    defs.push_back ({ "cmd_split_clip",
+                      "Split a clip at a specific time position, creating two clips.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                    { "position", prop ("number", "Time position in seconds to split at (must be within clip bounds)") } },
+                                  { "track_id", "clip_index", "position" }) });
+
+    // delete_clip
+    defs.push_back ({ "cmd_delete_clip",
+                      "Delete a clip from a track.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "clip_index", prop ("integer", "0-based clip index within the track") } },
+                                  { "track_id", "clip_index" }) });
+
+    // move_clip
+    defs.push_back ({ "cmd_move_clip",
+                      "Move a clip to a new start position in seconds.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                    { "new_start", prop ("number", "New start position in seconds") } },
+                                  { "track_id", "clip_index", "new_start" }) });
+
+    // duplicate_clip
+    defs.push_back ({ "cmd_duplicate_clip",
+                      "Duplicate a clip, placing the copy immediately after the original.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "clip_index", prop ("integer", "0-based clip index within the track") } },
+                                  { "track_id", "clip_index" }) });
+
+    // trim_clip
+    defs.push_back ({ "cmd_trim_clip",
+                      "Trim a clip by adjusting its start and/or end time. Provide at least one of new_start or new_end.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                    { "new_start", prop ("number", "New start time in seconds (trims from left)") },
+                                    { "new_end", prop ("number", "New end time in seconds (trims from right)") } },
+                                  { "track_id", "clip_index" }) });
+
+    // set_clip_gain
+    defs.push_back ({ "cmd_set_clip_gain",
+                      "Set the gain of an audio clip in dB. Only works on wave/audio clips.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                    { "gain_db", prop ("number", "Gain in decibels (0 = unity, negative = quieter)") } },
+                                  { "track_id", "clip_index", "gain_db" }) });
+
+    // rename_clip
+    defs.push_back ({ "cmd_rename_clip",
+                      "Rename a clip.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                    { "name", prop ("string", "New name for the clip") } },
+                                  { "track_id", "clip_index", "name" }) });
+
     return defs;
 }
 

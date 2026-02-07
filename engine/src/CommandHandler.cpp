@@ -46,6 +46,13 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "list_plugins")     result = handleListPlugins();
     else if (action == "arm_track")        result = handleArmTrack (parsed);
     else if (action == "record_from_mic")  result = handleRecordFromMic();
+    else if (action == "split_clip")       result = handleSplitClip (parsed);
+    else if (action == "delete_clip")      result = handleDeleteClip (parsed);
+    else if (action == "move_clip")        result = handleMoveClip (parsed);
+    else if (action == "duplicate_clip")   result = handleDuplicateClip (parsed);
+    else if (action == "trim_clip")        result = handleTrimClip (parsed);
+    else if (action == "set_clip_gain")    result = handleSetClipGain (parsed);
+    else if (action == "rename_clip")      result = handleRenameClip (parsed);
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -89,14 +96,26 @@ juce::var CommandHandler::handleGetTracks()
 
         // Clip info
         juce::Array<juce::var> clipList;
+        int clipIdx = 0;
         for (auto* clip : track->getClips())
         {
             auto* clipObj = new juce::DynamicObject();
             auto pos = clip->getPosition();
+            clipObj->setProperty ("clip_index", clipIdx);
             clipObj->setProperty ("name", clip->getName());
             clipObj->setProperty ("start", pos.getStart().inSeconds());
             clipObj->setProperty ("end",   pos.getEnd().inSeconds());
+            clipObj->setProperty ("length", (pos.getEnd() - pos.getStart()).inSeconds());
+
+            // Clip gain (wave clips only)
+            if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (clip))
+            {
+                auto gainProp = waveClip->state["gainDb"];
+                clipObj->setProperty ("gain_db", gainProp.isVoid() ? 0.0 : (double) gainProp);
+            }
+
             clipList.add (juce::var (clipObj));
+            ++clipIdx;
         }
         trackObj->setProperty ("clips", clipList);
 
@@ -580,6 +599,232 @@ juce::var CommandHandler::handleRecordFromMic()
     return result;
 }
 
+juce::var CommandHandler::handleSplitClip (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index") || ! params.hasProperty ("position"))
+        return makeError ("Missing required parameters: track_id, clip_index, position");
+
+    int trackId = params["track_id"];
+    int clipIdx = params["clip_index"];
+    double position = params["position"];
+
+    auto* clip = getClipByIndex (trackId, clipIdx);
+    if (clip == nullptr)
+        return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
+
+    auto pos = clip->getPosition();
+    if (position <= pos.getStart().inSeconds() || position >= pos.getEnd().inSeconds())
+        return makeError ("Split position must be within clip bounds ("
+                          + juce::String (pos.getStart().inSeconds()) + " - "
+                          + juce::String (pos.getEnd().inSeconds()) + ")");
+
+    auto* clipTrack = dynamic_cast<te::ClipTrack*> (clip->getTrack());
+    if (clipTrack == nullptr)
+        return makeError ("Clip is not on a clip track");
+
+    clipTrack->splitClip (*clip, te::TimePosition::fromSeconds (position));
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("split_position", position);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleDeleteClip (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index"))
+        return makeError ("Missing required parameters: track_id, clip_index");
+
+    int trackId = params["track_id"];
+    int clipIdx = params["clip_index"];
+
+    auto* clip = getClipByIndex (trackId, clipIdx);
+    if (clip == nullptr)
+        return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
+
+    auto clipName = clip->getName();
+    clip->removeFromParent();
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("deleted_clip", clipName);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleMoveClip (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index") || ! params.hasProperty ("new_start"))
+        return makeError ("Missing required parameters: track_id, clip_index, new_start");
+
+    int trackId = params["track_id"];
+    int clipIdx = params["clip_index"];
+    double newStart = params["new_start"];
+
+    auto* clip = getClipByIndex (trackId, clipIdx);
+    if (clip == nullptr)
+        return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
+
+    if (newStart < 0.0)
+        return makeError ("new_start must be >= 0");
+
+    clip->setStart (te::TimePosition::fromSeconds (newStart), true, false);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("clip_index", clipIdx);
+        obj->setProperty ("new_start", newStart);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleDuplicateClip (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index"))
+        return makeError ("Missing required parameters: track_id, clip_index");
+
+    int trackId = params["track_id"];
+    int clipIdx = params["clip_index"];
+
+    auto* clip = getClipByIndex (trackId, clipIdx);
+    if (clip == nullptr)
+        return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
+
+    auto* clipTrack = dynamic_cast<te::ClipTrack*> (clip->getTrack());
+    if (clipTrack == nullptr)
+        return makeError ("Clip is not on a clip track");
+
+    auto pos = clip->getPosition();
+    auto endTime = pos.getEnd();
+
+    auto duplicatedState = clip->state.createCopy();
+    edit.createNewItemID().writeID (duplicatedState, nullptr);
+    te::assignNewIDsToAutomationCurveModifiers (edit, duplicatedState);
+
+    juce::String newClipName;
+    if (auto* newClip = clipTrack->insertClipWithState (duplicatedState))
+    {
+        newClip->setName (clip->getName() + " copy");
+        newClip->setStart (endTime, true, false);
+        newClipName = newClip->getName();
+    }
+    else
+    {
+        return makeError ("Failed to duplicate clip");
+    }
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("original_clip_index", clipIdx);
+        obj->setProperty ("new_clip_name", newClipName);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleTrimClip (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index"))
+        return makeError ("Missing required parameters: track_id, clip_index");
+
+    bool hasNewStart = params.hasProperty ("new_start");
+    bool hasNewEnd = params.hasProperty ("new_end");
+    if (! hasNewStart && ! hasNewEnd)
+        return makeError ("At least one of new_start or new_end must be provided");
+
+    int trackId = params["track_id"];
+    int clipIdx = params["clip_index"];
+
+    auto* clip = getClipByIndex (trackId, clipIdx);
+    if (clip == nullptr)
+        return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
+
+    if (hasNewStart)
+    {
+        double newStart = params["new_start"];
+        clip->setStart (te::TimePosition::fromSeconds (newStart), false, true);
+    }
+
+    if (hasNewEnd)
+    {
+        double newEnd = params["new_end"];
+        clip->setEnd (te::TimePosition::fromSeconds (newEnd), true);
+    }
+
+    auto pos = clip->getPosition();
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("clip_index", clipIdx);
+        obj->setProperty ("start", pos.getStart().inSeconds());
+        obj->setProperty ("end", pos.getEnd().inSeconds());
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleSetClipGain (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index") || ! params.hasProperty ("gain_db"))
+        return makeError ("Missing required parameters: track_id, clip_index, gain_db");
+
+    int trackId = params["track_id"];
+    int clipIdx = params["clip_index"];
+    double gainDb = params["gain_db"];
+
+    auto* clip = getClipByIndex (trackId, clipIdx);
+    if (clip == nullptr)
+        return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
+
+    auto* waveClip = dynamic_cast<te::WaveAudioClip*> (clip);
+    if (waveClip == nullptr)
+        return makeError ("Clip is not an audio clip (gain only applies to wave clips)");
+
+    waveClip->state.setProperty ("gainDb", gainDb, &edit.getUndoManager());
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("clip_index", clipIdx);
+        obj->setProperty ("gain_db", gainDb);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleRenameClip (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index") || ! params.hasProperty ("name"))
+        return makeError ("Missing required parameters: track_id, clip_index, name");
+
+    int trackId = params["track_id"];
+    int clipIdx = params["clip_index"];
+    auto newName = params["name"].toString();
+
+    auto* clip = getClipByIndex (trackId, clipIdx);
+    if (clip == nullptr)
+        return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
+
+    clip->setName (newName);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("clip_index", clipIdx);
+        obj->setProperty ("name", newName);
+    }
+    return result;
+}
+
 //==============================================================================
 // Helpers
 //==============================================================================
@@ -589,6 +834,18 @@ te::AudioTrack* CommandHandler::getTrackById (int trackIndex)
     auto tracks = te::getAudioTracks (edit);
     if (trackIndex >= 0 && trackIndex < tracks.size())
         return tracks[trackIndex];
+    return nullptr;
+}
+
+te::Clip* CommandHandler::getClipByIndex (int trackIndex, int clipIndex)
+{
+    auto* track = getTrackById (trackIndex);
+    if (track == nullptr)
+        return nullptr;
+
+    auto clips = track->getClips();
+    if (clipIndex >= 0 && clipIndex < clips.size())
+        return clips[clipIndex];
     return nullptr;
 }
 

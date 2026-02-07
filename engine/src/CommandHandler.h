@@ -43,9 +43,17 @@ private:
     juce::var handleListPlugins();
     juce::var handleArmTrack (const juce::var& params);
     juce::var handleRecordFromMic();
+    juce::var handleSplitClip (const juce::var& params);
+    juce::var handleDeleteClip (const juce::var& params);
+    juce::var handleMoveClip (const juce::var& params);
+    juce::var handleDuplicateClip (const juce::var& params);
+    juce::var handleTrimClip (const juce::var& params);
+    juce::var handleSetClipGain (const juce::var& params);
+    juce::var handleRenameClip (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::AudioTrack* getTrackById (int trackIndex);
+    te::Clip* getClipByIndex (int trackIndex, int clipIndex);
     juce::var makeError (const juce::String& message);
     juce::var makeOk();
 };
