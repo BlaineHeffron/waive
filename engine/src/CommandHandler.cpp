@@ -44,6 +44,8 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "transport_stop")    result = handleTransportStop();
     else if (action == "transport_seek")    result = handleTransportSeek (parsed);
     else if (action == "list_plugins")     result = handleListPlugins();
+    else if (action == "arm_track")        result = handleArmTrack (parsed);
+    else if (action == "record_from_mic")  result = handleRecordFromMic();
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -451,6 +453,129 @@ juce::var CommandHandler::handleListPlugins()
     {
         obj->setProperty ("plugins", pluginList);
         obj->setProperty ("count", (int) knownTypes.size());
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleArmTrack (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("armed"))
+        return makeError ("Missing required parameters: track_id, armed");
+
+    int trackId = params["track_id"];
+    bool armed = params["armed"];
+
+    auto* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    // If input_device specified, assign it first
+    if (params.hasProperty ("input_device"))
+    {
+        auto inputDeviceName = params["input_device"].toString();
+        auto& dm = edit.engine.getDeviceManager();
+        auto waveInputs = dm.getWaveInputDevices();
+
+        te::WaveInputDevice* matchedDevice = nullptr;
+        for (auto* device : waveInputs)
+        {
+            if (device->getName() == inputDeviceName)
+            {
+                matchedDevice = device;
+                break;
+            }
+        }
+
+        if (matchedDevice == nullptr)
+            return makeError ("Input device not found: " + inputDeviceName);
+
+        edit.getTransport().ensureContextAllocated();
+        (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*matchedDevice);
+
+        if (auto* epc = edit.getCurrentPlaybackContext())
+        {
+            if (auto* idi = epc->getInputFor (matchedDevice))
+            {
+                [[maybe_unused]] auto res = idi->setTarget (track->itemID, false, nullptr);
+            }
+        }
+    }
+
+    // Toggle recording enabled state
+    auto& eid = edit.getEditInputDevices();
+    for (auto* idi : eid.getDevicesForTargetTrack (*track))
+        idi->setRecordingEnabled (track->itemID, armed);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("armed", armed);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleRecordFromMic()
+{
+    // Find first empty track or create new one
+    te::AudioTrack* targetTrack = nullptr;
+    for (auto* t : te::getAudioTracks (edit))
+    {
+        if (t->getClips().isEmpty())
+        {
+            targetTrack = t;
+            break;
+        }
+    }
+
+    if (targetTrack == nullptr)
+    {
+        auto trackCount = te::getAudioTracks (edit).size();
+        edit.ensureNumberOfAudioTracks (trackCount + 1);
+        targetTrack = te::getAudioTracks (edit).getLast();
+    }
+
+    if (targetTrack == nullptr)
+        return makeError ("Failed to create target track");
+
+    // Get first wave input device
+    auto& dm = edit.engine.getDeviceManager();
+    auto waveInputs = dm.getWaveInputDevices();
+    if (waveInputs.empty())
+        return makeError ("No wave input devices available");
+
+    auto* waveIn = waveInputs[0];
+
+    // Assign and arm the input device
+    edit.getTransport().ensureContextAllocated();
+    (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*waveIn);
+
+    if (auto* epc = edit.getCurrentPlaybackContext())
+    {
+        if (auto* idi = epc->getInputFor (waveIn))
+        {
+            if (!idi->setTarget (targetTrack->itemID, false, nullptr))
+                return makeError ("Failed to assign input device to track");
+            idi->setRecordingEnabled (targetTrack->itemID, true);
+        }
+        else
+        {
+            return makeError ("Failed to get input device instance");
+        }
+    }
+    else
+    {
+        return makeError ("Failed to get playback context");
+    }
+
+    // Start recording
+    edit.getTransport().record (false, true);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_index", targetTrack->getIndexInEditTrackList());
+        obj->setProperty ("input_device", waveIn->getName());
     }
     return result;
 }

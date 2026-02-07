@@ -147,6 +147,20 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                       "Get the full edit state as XML (verbose, use sparingly).",
                       makeSchema ("object") });
 
+    // arm_track
+    defs.push_back ({ "cmd_arm_track",
+                      "Arm or disarm a track for recording, optionally assigning an input device.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "armed", prop ("boolean", "true to arm, false to disarm") },
+                                    { "input_device", prop ("string", "Optional: wave input device name to assign") } },
+                                  { "track_id", "armed" }) });
+
+    // record_from_mic
+    defs.push_back ({ "cmd_record_from_mic",
+                      "Quick-record from microphone: creates or finds an empty track, arms it with the default input, and starts recording.",
+                      makeSchema ("object") });
+
     return defs;
 }
 

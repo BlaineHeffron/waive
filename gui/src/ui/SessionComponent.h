@@ -41,6 +41,7 @@ public:
     void stop();
     void record();
     void goToStart();
+    void recordFromMic();
 
     // Test helpers for no-user UI coverage.
     void setTempoForTesting (double bpm);
@@ -76,6 +77,7 @@ private:
     juce::TextButton playButton;
     juce::TextButton stopButton;
     juce::TextButton recordButton;
+    juce::TextButton recordFromMicButton { "Mic Rec" };
     juce::TextButton addTrackButton;
     juce::ToggleButton loopButton { "Loop" };
     juce::ToggleButton punchButton { "Punch" };

@@ -37,6 +37,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     playButton.setButtonText ("Play");
     stopButton.setButtonText ("Stop");
     recordButton.setButtonText ("Rec");
+    recordFromMicButton.setButtonText ("Mic Rec");
     addTrackButton.setButtonText ("+ Track");
     tempoSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     tempoSlider.setRange (te::TempoSetting::minBPM, te::TempoSetting::maxBPM, 0.1);
@@ -84,6 +85,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     playButton.setTooltip ("Play (Space)");
     stopButton.setTooltip ("Stop (Space)");
     recordButton.setTooltip ("Record (Ctrl+R)");
+    recordFromMicButton.setTooltip ("Record from microphone (auto-creates armed track)");
     addTrackButton.setTooltip ("Add Track (Ctrl+T)");
     loopButton.setTooltip ("Loop On/Off (L)");
     punchButton.setTooltip ("Punch In/Out");
@@ -106,6 +108,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     stopButton.setDescription ("Stop playback (Space)");
     recordButton.setTitle ("Record");
     recordButton.setDescription ("Record audio (Ctrl+R)");
+    recordFromMicButton.setTitle ("Mic Rec");
+    recordFromMicButton.setDescription ("Quick-record from microphone");
     addTrackButton.setTitle ("Add Track");
     addTrackButton.setDescription ("Add new audio track (Ctrl+T)");
     loopButton.setTitle ("Loop");
@@ -139,6 +143,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     playButton.setWantsKeyboardFocus (true);
     stopButton.setWantsKeyboardFocus (true);
     recordButton.setWantsKeyboardFocus (true);
+    recordFromMicButton.setWantsKeyboardFocus (true);
     loopButton.setWantsKeyboardFocus (true);
     punchButton.setWantsKeyboardFocus (true);
     addTrackButton.setWantsKeyboardFocus (true);
@@ -169,6 +174,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     addAndMakeVisible (playButton);
     addAndMakeVisible (stopButton);
     addAndMakeVisible (recordButton);
+    addAndMakeVisible (recordFromMicButton);
     addAndMakeVisible (addTrackButton);
     addAndMakeVisible (loopButton);
     addAndMakeVisible (punchButton);
@@ -207,6 +213,12 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
             transport.record (false, true);
         }
     };
+
+    recordFromMicButton.onClick = [this] { recordFromMic(); };
+
+    // Style recordFromMicButton with danger color
+    if (auto* pal = waive::getWaivePalette (*this))
+        recordFromMicButton.setColour (juce::TextButton::buttonColourId, pal->danger);
 
     addTrackButton.onClick = [this]
     {
@@ -388,6 +400,8 @@ void SessionComponent::resized()
     primaryFlex.items.add (juce::FlexItem (stopButton).withWidth (56));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
     primaryFlex.items.add (juce::FlexItem (recordButton).withWidth (56));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+    primaryFlex.items.add (juce::FlexItem (recordFromMicButton).withWidth (70));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
     primaryFlex.items.add (juce::FlexItem (addTrackButton).withWidth (78));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
@@ -575,6 +589,65 @@ void SessionComponent::record()
 void SessionComponent::goToStart()
 {
     editSession.getEdit().getTransport().setPosition (te::TimePosition::fromSeconds (0.0));
+}
+
+void SessionComponent::recordFromMic()
+{
+    auto& edit = editSession.getEdit();
+
+    // Find first empty track or create new one
+    te::AudioTrack* targetTrack = nullptr;
+    for (auto* t : te::getAudioTracks (edit))
+    {
+        if (t->getClips().isEmpty())
+        {
+            targetTrack = t;
+            break;
+        }
+    }
+
+    if (targetTrack == nullptr)
+    {
+        auto trackCount = te::getAudioTracks (edit).size();
+        edit.ensureNumberOfAudioTracks (trackCount + 1);
+        targetTrack = te::getAudioTracks (edit).getLast();
+    }
+
+    if (targetTrack == nullptr)
+        return;
+
+    // Get first wave input device
+    auto& dm = edit.engine.getDeviceManager();
+    auto waveInputs = dm.getWaveInputDevices();
+    if (waveInputs.empty())
+    {
+        juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                 "No Input Devices",
+                                                 "No wave input devices available. Please connect a microphone or audio interface.");
+        return;
+    }
+
+    auto* waveIn = waveInputs[0];
+
+    // Assign and arm the input device, then start recording
+    editSession.performEdit ("Record from Mic", [&edit, targetTrack, waveIn] (te::Edit&)
+    {
+        edit.getTransport().ensureContextAllocated();
+        (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*waveIn);
+
+        if (auto* epc = edit.getCurrentPlaybackContext())
+        {
+            if (auto* idi = epc->getInputFor (waveIn))
+            {
+                if (!idi->setTarget (targetTrack->itemID, false, &edit.getUndoManager()))
+                    DBG ("Failed to assign input device to track");
+                idi->setRecordingEnabled (targetTrack->itemID, true);
+            }
+        }
+
+        // Start recording after arming is complete
+        edit.getTransport().record (false, true);
+    });
 }
 
 void SessionComponent::timerCallback()

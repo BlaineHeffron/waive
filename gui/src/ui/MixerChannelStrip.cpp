@@ -142,6 +142,85 @@ void MixerChannelStrip::setupControls()
             });
         };
         addAndMakeVisible (muteButton);
+
+        // Arm button
+        armButton.setButtonText ("R");
+        armButton.setTooltip ("Arm for Recording (R)");
+        armButton.setTitle ("Arm");
+        armButton.setDescription ("Arm this track for recording");
+        armButton.setWantsKeyboardFocus (true);
+        if (auto* pal = waive::getWaivePalette (*this))
+            armButton.setColour (juce::ToggleButton::tickColourId, pal->danger);
+        armButton.onClick = [this]
+        {
+            if (suppressControlCallbacks || track == nullptr)
+                return;
+
+            bool newState = armButton.getToggleState();
+            editSession.performEdit ("Toggle Arm", [this, newState] (te::Edit& edit)
+            {
+                auto& eid = edit.getEditInputDevices();
+                for (auto* idi : eid.getDevicesForTargetTrack (*track))
+                {
+                    if (idi != nullptr)
+                        idi->setRecordingEnabled (track->itemID, newState);
+                }
+            });
+        };
+        addAndMakeVisible (armButton);
+
+        // Input combo
+        inputCombo.setTooltip ("Input Device");
+        inputCombo.setTitle ("Input Device");
+        inputCombo.setDescription ("Select input device for recording");
+        inputCombo.setWantsKeyboardFocus (true);
+        inputCombo.addItem ("(No Input)", 1);
+        auto& dm = editSession.getEdit().engine.getDeviceManager();
+        auto waveInputs = dm.getWaveInputDevices();
+        for (size_t i = 0; i < waveInputs.size(); ++i)
+            inputCombo.addItem (waveInputs[i]->getName(), (int)i + 2);
+        inputCombo.setSelectedId (1, juce::dontSendNotification);
+        inputCombo.onChange = [this]
+        {
+            if (suppressControlCallbacks || track == nullptr)
+                return;
+
+            int selectedId = inputCombo.getSelectedId();
+            editSession.performEdit ("Set Input Device", [this, selectedId] (te::Edit& edit)
+            {
+                auto& deviceMgr = edit.engine.getDeviceManager();
+                auto inputs = deviceMgr.getWaveInputDevices();
+
+                if (selectedId <= 1 || (size_t)(selectedId - 2) >= inputs.size())
+                {
+                    // Clear input assignment
+                    auto& eid = edit.getEditInputDevices();
+                    for (auto* idi : eid.getDevicesForTargetTrack (*track))
+                    {
+                        if (idi != nullptr && !idi->setTarget ({}, false, &edit.getUndoManager()))
+                            DBG ("Failed to clear input assignment for track");
+                    }
+                }
+                else
+                {
+                    // Assign wave input
+                    auto* waveIn = inputs[(size_t)(selectedId - 2)];
+                    edit.getTransport().ensureContextAllocated();
+                    (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*waveIn);
+
+                    if (auto* epc = edit.getCurrentPlaybackContext())
+                    {
+                        if (auto* idi = epc->getInputFor (waveIn))
+                        {
+                            if (!idi->setTarget (track->itemID, false, &edit.getUndoManager()))
+                                DBG ("Failed to assign input device to track");
+                        }
+                    }
+                }
+            });
+        };
+        addAndMakeVisible (inputCombo);
+
         panKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         panKnob.setRange (-1.0, 1.0, 0.01);
         panKnob.setValue (0.0, juce::dontSendNotification);
@@ -188,6 +267,13 @@ void MixerChannelStrip::resized()
         muteButton.setBounds (buttonRow.removeFromLeft (36));
         bounds.removeFromTop (waive::Spacing::xxs);
 
+        // Arm + input row
+        auto armRow = bounds.removeFromTop (24);
+        armButton.setBounds (armRow.removeFromLeft (24));
+        armRow.removeFromLeft (waive::Spacing::xxs);
+        inputCombo.setBounds (armRow);
+        bounds.removeFromTop (waive::Spacing::xxs);
+
         panKnob.setBounds (bounds.removeFromTop (36).withSizeKeepingCentre (36, 36));
         bounds.removeFromTop (waive::Spacing::xxs);
     }
@@ -226,7 +312,8 @@ void MixerChannelStrip::paint (juce::Graphics& g)
 
     // Professional meter bars (beside the fader)
     auto meterBounds = getLocalBounds().reduced (2);
-    meterBounds.removeFromTop (58);  // skip name + pan
+    // Skip name (18) + solo/mute row (20+xxs) + arm/input row (24+xxs) + pan (36+xxs) ≈ 104px
+    meterBounds.removeFromTop (isMaster ? 58 : 104);
     meterBounds = meterBounds.removeFromRight (20);  // wider for 6px bars + scale
     lastMeterBounds = meterBounds;
 
@@ -304,6 +391,39 @@ void MixerChannelStrip::pollState()
 
         soloButton.setToggleState (track->isSolo (false), juce::dontSendNotification);
         muteButton.setToggleState (track->isMuted (false), juce::dontSendNotification);
+
+        // Update arm button and input combo state
+        auto& eid = editSession.getEdit().getEditInputDevices();
+        bool isArmed = false;
+        te::InputDevice* assignedDevice = nullptr;
+
+        for (auto* idi : eid.getDevicesForTargetTrack (*track))
+        {
+            if (idi->isRecordingEnabled (track->itemID))
+                isArmed = true;
+            assignedDevice = &idi->getInputDevice();
+        }
+
+        armButton.setToggleState (isArmed, juce::dontSendNotification);
+
+        // Update input combo selection
+        if (assignedDevice != nullptr)
+        {
+            auto& deviceMgr = editSession.getEdit().engine.getDeviceManager();
+            auto inputs = deviceMgr.getWaveInputDevices();
+            for (size_t i = 0; i < inputs.size(); ++i)
+            {
+                if (inputs[i] == assignedDevice)
+                {
+                    inputCombo.setSelectedId ((int)i + 2, juce::dontSendNotification);
+                    break;
+                }
+            }
+        }
+        else
+        {
+            inputCombo.setSelectedId (1, juce::dontSendNotification);
+        }
     }
     else if (masterEdit != nullptr)
     {

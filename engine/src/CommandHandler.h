@@ -41,6 +41,8 @@ private:
     juce::var handleTransportStop();
     juce::var handleTransportSeek (const juce::var& params);
     juce::var handleListPlugins();
+    juce::var handleArmTrack (const juce::var& params);
+    juce::var handleRecordFromMic();
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::AudioTrack* getTrackById (int trackIndex);

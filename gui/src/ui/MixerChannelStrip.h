@@ -42,6 +42,8 @@ private:
     juce::Slider panKnob;
     juce::ToggleButton soloButton;
     juce::ToggleButton muteButton;
+    juce::ToggleButton armButton;
+    juce::ComboBox inputCombo;
 
     // Metering
     te::LevelMeasurer::Client meterClient;
