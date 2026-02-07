@@ -8,6 +8,7 @@
 #include "ProjectManager.h"
 #include "JobQueue.h"
 #include "ToolRegistry.h"
+#include "ExternalToolRunner.h"
 #include "WaiveLookAndFeel.h"
 #include "AiSettings.h"
 #include "AiAgent.h"
@@ -83,6 +84,22 @@ public:
         aiSettings->loadFromProperties (*appProperties);
 
         toolRegistry = std::make_unique<waive::ToolRegistry>();
+
+        // External tool runner
+        externalToolRunner = std::make_unique<waive::ExternalToolRunner>();
+
+        // Add built-in tools directory (next to executable)
+        auto builtInToolsDir = juce::File::getSpecialLocation (juce::File::currentExecutableFile)
+                                   .getParentDirectory().getParentDirectory().getChildFile ("tools");
+        if (builtInToolsDir.isDirectory())
+            externalToolRunner->addToolsDirectory (builtInToolsDir);
+
+        // Add user tools directory
+        externalToolRunner->addToolsDirectory (externalToolRunner->getToolsDirectory());
+
+        // Scan and register external tools
+        toolRegistry->scanAndRegisterExternalTools (*externalToolRunner);
+
         aiAgent = std::make_unique<waive::AiAgent> (*aiSettings, *undoableHandler,
                                                      *toolRegistry, *jobQueue);
 
@@ -120,6 +137,7 @@ public:
             editSession->removeListener (this);
         mainWindow.reset();
         aiAgent.reset();
+        externalToolRunner.reset();
         toolRegistry.reset();
         aiSettings.reset();
         appProperties.reset();
@@ -215,6 +233,7 @@ private:
     std::unique_ptr<juce::ApplicationProperties> appProperties;
     std::unique_ptr<waive::AiSettings> aiSettings;
     std::unique_ptr<waive::ToolRegistry> toolRegistry;
+    std::unique_ptr<waive::ExternalToolRunner> externalToolRunner;
     std::unique_ptr<waive::AiAgent> aiAgent;
 
     std::unique_ptr<waive::WaiveLookAndFeel> lookAndFeel;

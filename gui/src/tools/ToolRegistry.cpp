@@ -6,6 +6,9 @@
 #include "NormalizeSelectedClipsTool.h"
 #include "RenameTracksFromClipsTool.h"
 #include "StemSeparationTool.h"
+#include "ExternalToolManifest.h"
+#include "ExternalToolRunner.h"
+#include "ExternalTool.h"
 
 namespace waive
 {
@@ -45,6 +48,20 @@ const Tool* ToolRegistry::findTool (const juce::String& name) const
             return tool.get();
 
     return nullptr;
+}
+
+void ToolRegistry::scanAndRegisterExternalTools (ExternalToolRunner& runner)
+{
+    for (auto& dir : runner.getToolsDirectories())
+    {
+        auto manifests = scanToolDirectory (dir);
+        for (auto& manifest : manifests)
+        {
+            // Don't register duplicates
+            if (findTool (manifest.name) == nullptr)
+                registerTool (std::make_unique<ExternalTool> (manifest, runner));
+        }
+    }
 }
 
 } // namespace waive

@@ -79,6 +79,12 @@ target_sources(Waive PRIVATE
     src/tools/ToolDiff.cpp
     src/tools/ToolRegistry.h
     src/tools/ToolRegistry.cpp
+    src/tools/ExternalToolManifest.h
+    src/tools/ExternalToolManifest.cpp
+    src/tools/ExternalToolRunner.h
+    src/tools/ExternalToolRunner.cpp
+    src/tools/ExternalTool.h
+    src/tools/ExternalTool.cpp
     src/tools/NormalizeSelectedClipsTool.h
     src/tools/NormalizeSelectedClipsTool.cpp
     src/tools/RenameTracksFromClipsTool.h
