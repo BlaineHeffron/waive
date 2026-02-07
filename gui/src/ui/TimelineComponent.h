@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <tracktion_engine/tracktion_engine.h>
+#include <unordered_set>
 #include "EditSession.h"
 #include "SelectionManager.h"
 
@@ -109,5 +110,5 @@ private:
     int lastTrackCount = 0;
 
 public:
-    juce::Array<te::EditItemID> previewClipIDs;
+    std::unordered_set<te::EditItemID> previewClipIDs;
 };

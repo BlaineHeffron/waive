@@ -15,8 +15,15 @@ public:
     /** Process a JSON command string and return a JSON response string. */
     juce::String handleCommand (const juce::String& jsonString);
 
+    /** Set allowed media directories for file path validation. */
+    void setAllowedMediaDirectories (const juce::Array<juce::File>& directories);
+
+    /** Get current allowed media directories. */
+    const juce::Array<juce::File>& getAllowedMediaDirectories() const;
+
 private:
     te::Edit& edit;
+    juce::Array<juce::File> allowedMediaDirectories;
 
     // ── Individual command handlers ─────────────────────────────────────
     juce::var handlePing();

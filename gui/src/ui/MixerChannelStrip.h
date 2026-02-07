@@ -9,8 +9,7 @@ class EditSession;
 
 //==============================================================================
 /** Single vertical channel strip: fader + pan + meter + name. */
-class MixerChannelStrip : public juce::Component,
-                          private juce::Timer
+class MixerChannelStrip : public juce::Component
 {
 public:
     /** Track strip. */
@@ -27,10 +26,11 @@ public:
     void setHighlighted (bool shouldHighlight);
     bool isHighlightedForTesting() const       { return highlighted; }
 
+    void pollState();
+
     static constexpr int stripWidth = 80;
 
 private:
-    void timerCallback() override;
     void setupControls();
 
     EditSession& editSession;

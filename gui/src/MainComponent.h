@@ -55,6 +55,7 @@ public:
         cmdDelete  = 0x2010,
         cmdDuplicate = 0x2011,
         cmdSplit   = 0x2012,
+        cmdDeleteTrack = 0x2013,
         cmdToggleToolSidebar = 0x2020,
         cmdPlay    = 0x2030,
         cmdStop    = 0x2031,
@@ -81,4 +82,5 @@ private:
     std::unique_ptr<PluginBrowserComponent> pluginBrowser;
     std::unique_ptr<ConsoleComponent> console;
     std::unique_ptr<ToolLogComponent> toolLog;
+    std::unique_ptr<class AutoSaveManager> autoSaveManager;
 };

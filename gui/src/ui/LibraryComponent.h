@@ -13,6 +13,7 @@ public:
     explicit LibraryComponent (EditSession& session);
     ~LibraryComponent() override;
 
+    void paint (juce::Graphics& g) override;
     void resized() override;
 
     // FileBrowserListener

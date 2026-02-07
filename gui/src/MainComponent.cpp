@@ -10,6 +10,7 @@
 #include "ToolSidebarComponent.h"
 #include "ConsoleComponent.h"
 #include "ToolLogComponent.h"
+#include "AutoSaveManager.h"
 #include "JobQueue.h"
 #include "ModelManager.h"
 #include "ToolRegistry.h"
@@ -30,6 +31,7 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
     pluginBrowser = std::make_unique<PluginBrowserComponent> (editSession, commandHandler);
     console = std::make_unique<ConsoleComponent> (commandHandler);
     toolLog = std::make_unique<ToolLogComponent> (jobQueue);
+    autoSaveManager = std::make_unique<AutoSaveManager> (editSession, projectManager);
 
     auto tabBg = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
     tabs.addTab ("Session", tabBg, sessionComponent.get(), false);
@@ -141,6 +143,8 @@ juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::Strin
         menu.addCommandItem (&commandManager, cmdDelete);
         menu.addCommandItem (&commandManager, cmdDuplicate);
         menu.addCommandItem (&commandManager, cmdSplit);
+        menu.addSeparator();
+        menu.addCommandItem (&commandManager, cmdDeleteTrack);
     }
     else if (menuIndex == 2) // Transport
     {
@@ -200,6 +204,7 @@ void MainComponent::getAllCommands (juce::Array<juce::CommandID>& commands)
     commands.add (cmdDelete);
     commands.add (cmdDuplicate);
     commands.add (cmdSplit);
+    commands.add (cmdDeleteTrack);
     commands.add (cmdToggleToolSidebar);
     commands.add (cmdPlay);
     commands.add (cmdStop);
@@ -266,6 +271,10 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
             result.addDefaultKeypress ('s', juce::ModifierKeys::commandModifier);
             result.setActive (sessionComponent->getTimeline().getSelectionManager().getSelectedClips().size() > 0);
             break;
+        case cmdDeleteTrack:
+            result.setInfo ("Delete Track", "Delete the selected track", "Edit", 0);
+            result.addDefaultKeypress (juce::KeyPress::backspaceKey, juce::ModifierKeys::commandModifier);
+            break;
         case cmdToggleToolSidebar:
             result.setInfo ("Toggle Tool Sidebar", "Show or hide the tool sidebar", "View", 0);
             result.addDefaultKeypress ('t', juce::ModifierKeys::commandModifier);
@@ -307,17 +316,68 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             editSession.redo();
             return true;
         case cmdNew:
+        {
+            // Warn about unsaved changes in current project
+            if (editSession.hasChangedSinceSaved())
+            {
+                bool shouldDiscard = juce::AlertWindow::showOkCancelBox (
+                    juce::MessageBoxIconType::WarningIcon,
+                    "Unsaved Changes",
+                    "The current project has unsaved changes. Create new project anyway?",
+                    "Discard Changes", "Cancel");
+
+                if (! shouldDiscard)
+                    return true;
+            }
             projectManager.newProject();
             return true;
+        }
         case cmdOpen:
-            projectManager.openProject();
+        {
+            // Check for auto-save before opening
+            juce::FileChooser chooser ("Open Project...", juce::File(), "*.tracktionedit");
+            if (chooser.browseForFileToOpen())
+            {
+                auto file = chooser.getResult();
+                auto autoSaveFile = AutoSaveManager::checkForAutoSave (file);
+
+                if (autoSaveFile != juce::File())
+                {
+                    bool shouldRecover = juce::AlertWindow::showOkCancelBox (
+                        juce::MessageBoxIconType::QuestionIcon,
+                        "Recover Unsaved Changes?",
+                        "An auto-save file was found. Would you like to recover unsaved changes?",
+                        "Recover", "Discard");
+
+                    if (shouldRecover)
+                        projectManager.openProject (autoSaveFile);
+                    else
+                    {
+                        AutoSaveManager::deleteAutoSave (file);
+                        projectManager.openProject (file);
+                    }
+                }
+                else
+                {
+                    projectManager.openProject (file);
+                }
+            }
             return true;
+        }
         case cmdSave:
-            projectManager.save();
+        {
+            bool success = projectManager.save();
+            if (success)
+                AutoSaveManager::deleteAutoSave (projectManager.getCurrentFile());
             return true;
+        }
         case cmdSaveAs:
-            projectManager.saveAs();
+        {
+            bool success = projectManager.saveAs();
+            if (success)
+                AutoSaveManager::deleteAutoSave (projectManager.getCurrentFile());
             return true;
+        }
         case cmdDelete:
             sessionComponent->getTimeline().deleteSelectedClips();
             return true;
@@ -327,6 +387,76 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         case cmdSplit:
             sessionComponent->getTimeline().splitSelectedClipsAtPlayhead();
             return true;
+        case cmdDeleteTrack:
+        {
+            // Find first selected track via selected clips
+            auto& selMgr = sessionComponent->getTimeline().getSelectionManager();
+            auto selectedClips = selMgr.getSelectedClips();
+
+            te::AudioTrack* selectedTrack = nullptr;
+            if (selectedClips.size() > 0)
+            {
+                if (auto* clip = selectedClips.getFirst())
+                    selectedTrack = dynamic_cast<te::AudioTrack*> (clip->getTrack());
+            }
+
+            if (selectedTrack == nullptr)
+            {
+                // If no clips selected, try to find first track
+                auto& edit = editSession.getEdit();
+                for (auto* track : edit.getTrackList())
+                {
+                    if (auto* audioTrack = dynamic_cast<te::AudioTrack*> (track))
+                    {
+                        selectedTrack = audioTrack;
+                        break;
+                    }
+                }
+            }
+
+            if (selectedTrack != nullptr)
+            {
+                bool hasClips = selectedTrack->getClips().size() > 0;
+                if (hasClips)
+                {
+                    // Capture track itemID to safely locate track in async callback
+                    auto trackID = selectedTrack->itemID;
+                    juce::AlertWindow::showOkCancelBox (
+                        juce::MessageBoxIconType::WarningIcon,
+                        "Delete Track",
+                        "This track contains " + juce::String (selectedTrack->getClips().size()) + " clip(s). Are you sure?",
+                        "Delete", "Cancel",
+                        nullptr,
+                        juce::ModalCallbackFunction::create ([this, trackID] (int choice)
+                        {
+                            if (choice == 1)
+                            {
+                                auto& edit = editSession.getEdit();
+                                for (auto* track : edit.getTrackList())
+                                {
+                                    if (track->itemID == trackID)
+                                    {
+                                        editSession.performEdit ("Delete Track", [track] (te::Edit& ed)
+                                        {
+                                            ed.deleteTrack (track);
+                                        });
+                                        break;
+                                    }
+                                }
+                            }
+                        })
+                    );
+                }
+                else
+                {
+                    editSession.performEdit ("Delete Track", [selectedTrack] (te::Edit& edit)
+                    {
+                        edit.deleteTrack (selectedTrack);
+                    });
+                }
+            }
+            return true;
+        }
         case cmdToggleToolSidebar:
             sessionComponent->toggleToolSidebar();
             return true;

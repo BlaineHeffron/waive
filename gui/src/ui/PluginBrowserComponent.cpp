@@ -3,6 +3,7 @@
 #include "EditSession.h"
 #include "UndoableCommandHandler.h"
 #include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 #include <cmath>
@@ -228,6 +229,37 @@ PluginBrowserComponent::~PluginBrowserComponent()
     chainList.setModel (nullptr);
     stopTimer();
     editSession.removeListener (this);
+}
+
+void PluginBrowserComponent::paint (juce::Graphics& g)
+{
+    if (scanningInProgress)
+    {
+        g.setFont (waive::Fonts::body());
+        if (auto* pal = waive::getWaivePalette (*this))
+            g.setColour (pal->textMuted);
+        else
+            g.setColour (juce::Colours::grey);
+        g.drawText ("Scanning plugins...", getLocalBounds(), juce::Justification::centred, true);
+        return;
+    }
+
+    auto& knownPlugins = editSession.getEdit().engine.getPluginManager().knownPluginList;
+    if (knownPlugins.getNumTypes() == 0)
+    {
+        g.setFont (waive::Fonts::body());
+        if (auto* pal = waive::getWaivePalette (*this))
+            g.setColour (pal->textMuted);
+        else
+            g.setColour (juce::Colours::grey);
+        g.drawText ("Click 'Scan' to find installed plugins", getLocalBounds(), juce::Justification::centred, true);
+    }
+}
+
+void PluginBrowserComponent::setScanning (bool scanning)
+{
+    scanningInProgress = scanning;
+    repaint();
 }
 
 void PluginBrowserComponent::resized()

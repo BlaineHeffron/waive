@@ -9,6 +9,7 @@
 #include "EditSession.h"
 #include "JobQueue.h"
 #include "ModelManager.h"
+#include "PathSanitizer.h"
 #include "ProjectManager.h"
 #include "SelectionManager.h"
 #include "SessionComponent.h"
@@ -118,16 +119,26 @@ void writePlanArtifact (const juce::File& cacheDirectory,
     if (cacheDirectory == juce::File())
         return;
 
-    auto artifactDir = cacheDirectory.getChildFile ("tools").getChildFile (toolName);
-    artifactDir.createDirectory();
+    auto sanitizedToolName = waive::PathSanitizer::sanitizePathComponent (toolName);
+    auto sanitizedPlanID = waive::PathSanitizer::sanitizePathComponent (plan.planID);
+    if (sanitizedToolName.isEmpty() || sanitizedPlanID.isEmpty())
+        return;
 
-    auto artifact = artifactDir.getChildFile ("plan_" + plan.planID + ".json");
+    auto artifactDirectory = cacheDirectory.getChildFile ("tools")
+                                           .getChildFile (sanitizedToolName)
+                                           .getChildFile ("plan_" + sanitizedPlanID);
+    artifactDirectory.createDirectory();
+
+    auto planFile = artifactDirectory.getChildFile ("plan.json");
+    auto payloadFile = artifactDirectory.getChildFile ("payload.json");
+
     auto planJson = waive::toolPlanToJson (plan);
     if (auto* root = planJson.getDynamicObject())
         root->setProperty ("model_version", modelVersion);
 
-    artifact.replaceWithText (juce::JSON::toString (planJson, true));
-    plan.artifactFile = artifact;
+    (void) planFile.replaceWithText (juce::JSON::toString (planJson, true));
+    (void) payloadFile.replaceWithText (juce::JSON::toString (planJson, true));
+    plan.artifactFile = payloadFile;
 }
 }
 

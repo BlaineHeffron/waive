@@ -2,6 +2,7 @@
 #include "MixerChannelStrip.h"
 #include "EditSession.h"
 #include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
 
 //==============================================================================
 MixerComponent::MixerComponent (EditSession& session)
@@ -14,7 +15,7 @@ MixerComponent::MixerComponent (EditSession& session)
     addAndMakeVisible (stripViewport);
 
     rebuildStrips();
-    startTimerHz (5);
+    startTimerHz (30);
 }
 
 MixerComponent::~MixerComponent()
@@ -54,6 +55,14 @@ void MixerComponent::paint (juce::Graphics& g)
 
     g.fillAll (pal ? pal->windowBg : juce::Colour (0xff1a1a1a));
 
+    if (strips.empty())
+    {
+        g.setFont (waive::Fonts::body());
+        g.setColour (pal ? pal->textMuted : juce::Colours::grey);
+        g.drawText ("Add tracks to see the mixer", getLocalBounds(), juce::Justification::centred, true);
+        return;
+    }
+
     // Separator before master
     auto bounds = getLocalBounds();
     int masterX = bounds.getRight() - MixerChannelStrip::stripWidth - 4;
@@ -83,6 +92,14 @@ void MixerComponent::timerCallback()
     auto tracks = te::getAudioTracks (editSession.getEdit());
     if (tracks.size() != lastTrackCount)
         rebuildStrips();
+
+    // Poll all strips at 30Hz
+    for (auto& strip : strips)
+        if (strip != nullptr)
+            strip->pollState();
+
+    if (masterStrip != nullptr)
+        masterStrip->pollState();
 }
 
 void MixerComponent::editAboutToChange()

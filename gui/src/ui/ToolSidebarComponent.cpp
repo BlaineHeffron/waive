@@ -9,6 +9,8 @@
 #include "EditSession.h"
 #include "ProjectManager.h"
 #include "SessionComponent.h"
+#include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
 
 namespace
 {
@@ -302,6 +304,17 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
     schemaViewport.setViewedComponent (&schemaForm, false);
     schemaViewport.setScrollBarsShown (true, false);
 
+    toolCombo.setTooltip ("Select Tool");
+    planButton.setTooltip ("Plan Tool Execution");
+    applyButton.setTooltip ("Apply Planned Changes");
+    rejectButton.setTooltip ("Reject Plan");
+    cancelButton.setTooltip ("Cancel Running Tool");
+
+    planButton.setWantsKeyboardFocus (true);
+    applyButton.setWantsKeyboardFocus (true);
+    rejectButton.setWantsKeyboardFocus (true);
+    cancelButton.setWantsKeyboardFocus (true);
+
     addAndMakeVisible (toolLabel);
     addAndMakeVisible (toolCombo);
     addAndMakeVisible (schemaViewport);
@@ -335,6 +348,20 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
 ToolSidebarComponent::~ToolSidebarComponent()
 {
     jobQueue.removeListener (this);
+}
+
+void ToolSidebarComponent::paint (juce::Graphics& g)
+{
+    if (toolCombo.getSelectedId() == 0)
+    {
+        auto bounds = getLocalBounds();
+        g.setFont (waive::Fonts::body());
+        if (auto* pal = waive::getWaivePalette (*this))
+            g.setColour (pal->textMuted);
+        else
+            g.setColour (juce::Colours::grey);
+        g.drawText ("Select a tool from the dropdown above", bounds, juce::Justification::centred, true);
+    }
 }
 
 void ToolSidebarComponent::resized()

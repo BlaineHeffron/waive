@@ -28,16 +28,7 @@ void ClipComponent::paint (juce::Graphics& g)
     // Check if this clip is in preview mode
     bool inPreview = false;
     if (clip.itemID.isValid())
-    {
-        for (auto previewID : timeline.previewClipIDs)
-        {
-            if (previewID == clip.itemID)
-            {
-                inPreview = true;
-                break;
-            }
-        }
-    }
+        inPreview = timeline.previewClipIDs.count (clip.itemID) > 0;
 
     // Use preview highlight if in preview mode, otherwise use selection
     bool highlighted = inPreview || selected;
@@ -60,6 +51,38 @@ void ClipComponent::paint (juce::Graphics& g)
                                  1.0f);
     }
 
+    // Fade overlays
+    if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (&clip))
+    {
+        const double fadeInSec = waveClip->getFadeIn().inSeconds();
+        const double fadeOutSec = waveClip->getFadeOut().inSeconds();
+        const double clipLengthSec = clip.getPosition().getLength().inSeconds();
+
+        g.setColour (pal ? pal->panelBg.withAlpha (0.3f) : juce::Colours::black.withAlpha (0.3f));
+
+        // Fade-in triangle
+        if (fadeInSec > 0.001)
+        {
+            const float fadeInWidth = juce::jmin ((float) (fadeInSec / clipLengthSec * bounds.getWidth()), bounds.getWidth() * 0.5f);
+            juce::Path fadeInPath;
+            fadeInPath.addTriangle (bounds.getX(), bounds.getY(),
+                                    bounds.getX(), bounds.getBottom(),
+                                    bounds.getX() + fadeInWidth, bounds.getY());
+            g.fillPath (fadeInPath);
+        }
+
+        // Fade-out triangle
+        if (fadeOutSec > 0.001)
+        {
+            const float fadeOutWidth = juce::jmin ((float) (fadeOutSec / clipLengthSec * bounds.getWidth()), bounds.getWidth() * 0.5f);
+            juce::Path fadeOutPath;
+            fadeOutPath.addTriangle (bounds.getRight(), bounds.getY(),
+                                     bounds.getRight() - fadeOutWidth, bounds.getY(),
+                                     bounds.getRight(), bounds.getBottom());
+            g.fillPath (fadeOutPath);
+        }
+    }
+
     // Clip name
     g.setColour (pal ? pal->textOnPrimary : juce::Colours::white);
     g.setFont (juce::FontOptions (11.0f));
@@ -70,6 +93,13 @@ void ClipComponent::paint (juce::Graphics& g)
     g.setColour (highlighted ? (pal ? pal->selectionBorder : juce::Colours::white)
                              : (pal ? pal->border : juce::Colours::grey));
     g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+
+    // Hover border
+    if (isHovered && ! highlighted)
+    {
+        g.setColour (pal ? pal->primary.brighter() : juce::Colours::white.withAlpha (0.5f));
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 2.0f);
+    }
 
     // Trim handles
     if (isMouseOver())
@@ -93,7 +123,11 @@ void ClipComponent::mouseDown (const juce::MouseEvent& e)
     timeline.getSelectionManager().selectClip (&clip, e.mods.isShiftDown());
 
     // Determine drag mode
-    if (isLeftTrimZone (e.x))
+    if (isFadeInZone (e.x, e.y))
+        dragMode = FadeIn;
+    else if (isFadeOutZone (e.x, e.y))
+        dragMode = FadeOut;
+    else if (isLeftTrimZone (e.x))
         dragMode = TrimLeft;
     else if (isRightTrimZone (e.x))
         dragMode = TrimRight;
@@ -104,6 +138,13 @@ void ClipComponent::mouseDown (const juce::MouseEvent& e)
     dragOriginalStart = pos.getStart().inSeconds();
     dragOriginalEnd = pos.getEnd().inSeconds();
     dragStartTime = timeline.xToTime (e.getScreenX() - getScreenX() + getX());
+
+    // Store initial fade values
+    if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (&clip))
+    {
+        dragStartFadeIn = waveClip->getFadeIn().inSeconds();
+        dragStartFadeOut = waveClip->getFadeOut().inSeconds();
+    }
 }
 
 void ClipComponent::mouseDrag (const juce::MouseEvent& e)
@@ -143,6 +184,34 @@ void ClipComponent::mouseDrag (const juce::MouseEvent& e)
             waive::trimClipRight (session, clip, newEnd);
             break;
         }
+        case FadeIn:
+        {
+            if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (&clip))
+            {
+                double newFadeIn = juce::jmax (0.0, dragStartFadeIn + delta);
+                const double clipLength = clip.getPosition().getLength().inSeconds();
+                newFadeIn = juce::jlimit (0.0, clipLength * 0.5, newFadeIn);
+                session.performEdit ("Adjust Fade", true, [waveClip, newFadeIn] (te::Edit&)
+                {
+                    waveClip->setFadeIn (te::TimeDuration::fromSeconds (newFadeIn));
+                });
+            }
+            break;
+        }
+        case FadeOut:
+        {
+            if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (&clip))
+            {
+                double newFadeOut = juce::jmax (0.0, dragStartFadeOut - delta);
+                const double clipLength = clip.getPosition().getLength().inSeconds();
+                newFadeOut = juce::jlimit (0.0, clipLength * 0.5, newFadeOut);
+                session.performEdit ("Adjust Fade", true, [waveClip, newFadeOut] (te::Edit&)
+                {
+                    waveClip->setFadeOut (te::TimeDuration::fromSeconds (newFadeOut));
+                });
+            }
+            break;
+        }
     }
 }
 
@@ -154,10 +223,26 @@ void ClipComponent::mouseUp (const juce::MouseEvent&)
 
 void ClipComponent::mouseMove (const juce::MouseEvent& e)
 {
-    if (isLeftTrimZone (e.x) || isRightTrimZone (e.x))
+    if (isFadeInZone (e.x, e.y))
+        setMouseCursor (juce::MouseCursor::TopLeftCornerResizeCursor);
+    else if (isFadeOutZone (e.x, e.y))
+        setMouseCursor (juce::MouseCursor::TopRightCornerResizeCursor);
+    else if (isLeftTrimZone (e.x) || isRightTrimZone (e.x))
         setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
     else
         setMouseCursor (juce::MouseCursor::NormalCursor);
+}
+
+void ClipComponent::mouseEnter (const juce::MouseEvent&)
+{
+    isHovered = true;
+    repaint();
+}
+
+void ClipComponent::mouseExit (const juce::MouseEvent&)
+{
+    isHovered = false;
+    repaint();
 }
 
 void ClipComponent::updatePosition()
@@ -177,6 +262,16 @@ bool ClipComponent::isLeftTrimZone (int x) const
 bool ClipComponent::isRightTrimZone (int x) const
 {
     return x > getWidth() - trimZoneWidth;
+}
+
+bool ClipComponent::isFadeInZone (int x, int y) const
+{
+    return x < fadeZoneSize && y < fadeZoneSize;
+}
+
+bool ClipComponent::isFadeOutZone (int x, int y) const
+{
+    return x > getWidth() - fadeZoneSize && y < fadeZoneSize;
 }
 
 void ClipComponent::showContextMenu()

@@ -20,6 +20,8 @@ public:
     void mouseDrag (const juce::MouseEvent& e) override;
     void mouseUp (const juce::MouseEvent& e) override;
     void mouseMove (const juce::MouseEvent& e) override;
+    void mouseEnter (const juce::MouseEvent& e) override;
+    void mouseExit (const juce::MouseEvent& e) override;
 
     void updatePosition();
 
@@ -30,6 +32,8 @@ public:
 private:
     bool isLeftTrimZone (int x) const;
     bool isRightTrimZone (int x) const;
+    bool isFadeInZone (int x, int y) const;
+    bool isFadeOutZone (int x, int y) const;
     void showContextMenu();
 
     te::Clip& clip;
@@ -37,11 +41,15 @@ private:
 
     std::unique_ptr<te::SmartThumbnail> thumbnail;
 
-    enum DragMode { None, Move, TrimLeft, TrimRight };
+    enum DragMode { None, Move, TrimLeft, TrimRight, FadeIn, FadeOut };
     DragMode dragMode = None;
     double dragStartTime = 0.0;
     double dragOriginalStart = 0.0;
     double dragOriginalEnd = 0.0;
+    double dragStartFadeIn = 0.0;
+    double dragStartFadeOut = 0.0;
+    bool isHovered = false;
 
     static constexpr int trimZoneWidth = 8;
+    static constexpr int fadeZoneSize = 8;
 };

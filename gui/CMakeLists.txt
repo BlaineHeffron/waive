@@ -4,7 +4,6 @@ juce_add_gui_app(Waive
     PRODUCT_NAME "Waive"
     COMPANY_NAME "Waive"
     NEEDS_WEB_BROWSER FALSE
-    NEEDS_CURL FALSE
 )
 
 target_sources(Waive PRIVATE
@@ -16,6 +15,7 @@ target_sources(Waive PRIVATE
     src/theme/WaiveColours.h
     src/theme/WaiveColours.cpp
     src/theme/WaiveFonts.h
+    src/theme/WaiveSpacing.h
     src/theme/WaiveLookAndFeel.h
     src/theme/WaiveLookAndFeel.cpp
 
@@ -60,6 +60,8 @@ target_sources(Waive PRIVATE
     src/edit/UndoableCommandHandler.cpp
     src/edit/ProjectManager.h
     src/edit/ProjectManager.cpp
+    src/edit/AutoSaveManager.h
+    src/edit/AutoSaveManager.cpp
 
     # Tools
     src/tools/JobQueue.h
@@ -95,6 +97,8 @@ target_sources(Waive PRIVATE
     # Utilities
     src/util/CommandHelpers.h
     src/util/CommandHelpers.cpp
+    src/util/PathSanitizer.h
+    src/util/PathSanitizer.cpp
 
     # Reuse the command handler for the in-app console.
     ../engine/src/CommandHandler.h
@@ -105,6 +109,7 @@ target_compile_features(Waive PRIVATE cxx_std_20)
 
 juce_generate_juce_header(Waive)
 
+# CURL is not used directly by Waive but is required by JUCE's network/URL functionality
 find_package(CURL REQUIRED)
 
 target_include_directories(Waive PRIVATE

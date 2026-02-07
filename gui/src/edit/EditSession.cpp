@@ -5,7 +5,6 @@ EditSession::EditSession (te::Engine& eng)
 {
     auto editFile = juce::File::createTempFile (".tracktionedit");
     edit = te::createEmptyEdit (engine, editFile);
-    edit->ensureNumberOfAudioTracks (1);
     edit->getUndoManager().clearUndoHistory();
 }
 

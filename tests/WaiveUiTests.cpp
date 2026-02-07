@@ -1756,6 +1756,87 @@ void runPhase6SafetyArchitectureRegression()
     std::cout << "runPhase6SafetyArchitectureRegression: PASS" << std::endl;
 }
 
+void runPhase2UxFoundationsRegression()
+{
+    std::cout << "runPhase2UxFoundationsRegression: START" << std::endl;
+
+    te::Engine engine ("WaivePhase2UxTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (session);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+
+    MainComponent mainComponent (undoableHandler, session, jobQueue, projectManager);
+    mainComponent.setBounds (0, 0, 1200, 800);
+    mainComponent.resized();
+
+    auto& sessionComponent = mainComponent.getSessionComponentForTesting();
+    auto& timeline = sessionComponent.getTimeline();
+    auto& edit = session.getEdit();
+
+    // Test: Transport tooltips
+    auto playButtonTooltip = sessionComponent.getTransportTooltipForTesting ("play");
+    expect (playButtonTooltip.isNotEmpty() && playButtonTooltip.contains ("Play"),
+            "Expected play button to have tooltip containing 'Play'");
+
+    auto stopButtonTooltip = sessionComponent.getTransportTooltipForTesting ("stop");
+    expect (stopButtonTooltip.isNotEmpty() && stopButtonTooltip.contains ("Stop"),
+            "Expected stop button to have tooltip containing 'Stop'");
+
+    auto recordButtonTooltip = sessionComponent.getTransportTooltipForTesting ("record");
+    expect (recordButtonTooltip.isNotEmpty() && recordButtonTooltip.contains ("Record"),
+            "Expected record button to have tooltip containing 'Record'");
+
+    auto loopButtonTooltip = sessionComponent.getTransportTooltipForTesting ("loop");
+    expect (loopButtonTooltip.isNotEmpty() && loopButtonTooltip.contains ("Loop"),
+            "Expected loop button to have tooltip containing 'Loop'");
+
+    // Test: Selection status label
+    auto* track = getFirstTrack (edit);
+    expect (track != nullptr, "Expected phase-2 UX test track");
+
+    auto clip1 = track->insertMIDIClip (
+        "ux_clip_1",
+        te::TimeRange (te::TimePosition::fromSeconds (0.0),
+                       te::TimePosition::fromSeconds (1.0)),
+        nullptr);
+    expect (clip1 != nullptr, "Expected UX test clip insertion");
+
+    timeline.rebuildTracks();
+
+    auto statusTextEmpty = sessionComponent.getSelectionStatusTextForTesting();
+    expect (statusTextEmpty.contains ("Ready") || statusTextEmpty.isEmpty(),
+            "Expected selection status to show Ready or be empty with no selection");
+
+    timeline.getSelectionManager().selectClip (clip1.get());
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    auto statusTextOne = sessionComponent.getSelectionStatusTextForTesting();
+    expect (statusTextOne.isNotEmpty() && statusTextOne.contains (clip1->getName()),
+            "Expected selection status to show clip name when 1 clip selected");
+
+    auto clip2 = track->insertMIDIClip (
+        "ux_clip_2",
+        te::TimeRange (te::TimePosition::fromSeconds (1.5),
+                       te::TimePosition::fromSeconds (2.5)),
+        nullptr);
+    expect (clip2 != nullptr, "Expected second UX test clip insertion");
+
+    timeline.rebuildTracks();
+    timeline.getSelectionManager().selectClip (clip1.get());
+    timeline.getSelectionManager().selectClip (clip2.get(), true);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    auto statusTextMulti = sessionComponent.getSelectionStatusTextForTesting();
+    expect (statusTextMulti.contains ("2") && statusTextMulti.contains ("selected"),
+            "Expected selection status to show '2 clips selected' when multiple clips selected");
+
+    std::cout << "runPhase2UxFoundationsRegression: PASS" << std::endl;
+}
+
 } // namespace
 
 int main()
@@ -1766,6 +1847,7 @@ int main()
     {
         runPhase5PerformanceOptimizationTests();
         runPhase6SafetyArchitectureRegression();
+        runPhase2UxFoundationsRegression();
         runUiCommandRoutingRegression();
         runUiProjectLifecycleRegression();
         runUiPhase1LibraryAndPhase2PluginRoutingRegression();

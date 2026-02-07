@@ -84,11 +84,120 @@ void TimeRulerComponent::paint (juce::Graphics& g)
                         juce::Justification::centredLeft, false);
         }
     }
+
+    // Loop region visualization
+    auto& transport = editSession.getEdit().getTransport();
+    if (transport.looping)
+    {
+        auto loopRange = transport.getLoopRange();
+        const int x1 = timeline.timeToX (loopRange.getStart().inSeconds());
+        const int x2 = timeline.timeToX (loopRange.getEnd().inSeconds());
+
+        // Draw loop region bar
+        g.setColour ((pal ? pal->primary : juce::Colour (0xff4477aa)).withAlpha (0.2f));
+        g.fillRect (x1, 0, x2 - x1, getHeight());
+
+        // Draw loop markers as triangles
+        g.setColour (pal ? pal->primary : juce::Colour (0xff4477aa));
+        juce::Path startMarker, endMarker;
+        const float markerSize = 6.0f;
+        startMarker.addTriangle ((float) x1 - markerSize, 0.0f,
+                                 (float) x1 + markerSize, 0.0f,
+                                 (float) x1, markerSize);
+        endMarker.addTriangle ((float) x2 - markerSize, 0.0f,
+                               (float) x2 + markerSize, 0.0f,
+                               (float) x2, markerSize);
+        g.fillPath (startMarker);
+        g.fillPath (endMarker);
+    }
 }
 
 void TimeRulerComponent::mouseDown (const juce::MouseEvent& e)
 {
+    auto& transport = editSession.getEdit().getTransport();
+
+    // Check if clicking near loop markers
+    if (transport.looping)
+    {
+        auto loopRange = transport.getLoopRange();
+        const int x1 = timeline.timeToX (loopRange.getStart().inSeconds());
+        const int x2 = timeline.timeToX (loopRange.getEnd().inSeconds());
+        constexpr int threshold = 8;
+
+        if (std::abs (e.x - x1) <= threshold)
+        {
+            loopDragMode = DraggingStart;
+            return;
+        }
+        if (std::abs (e.x - x2) <= threshold)
+        {
+            loopDragMode = DraggingEnd;
+            return;
+        }
+    }
+
+    // Normal seek behavior
     double time = timeline.xToTime (e.x);
     if (time >= 0.0)
-        editSession.getEdit().getTransport().setPosition (te::TimePosition::fromSeconds (time));
+        transport.setPosition (te::TimePosition::fromSeconds (time));
+}
+
+void TimeRulerComponent::mouseDrag (const juce::MouseEvent& e)
+{
+    if (loopDragMode == None)
+        return;
+
+    auto& transport = editSession.getEdit().getTransport();
+    auto loopRange = transport.getLoopRange();
+    double newTime = juce::jmax (0.0, timeline.xToTime (e.x));
+
+    if (loopDragMode == DraggingStart)
+    {
+        newTime = timeline.snapTimeToGrid (newTime);
+        newTime = juce::jmin (newTime, loopRange.getEnd().inSeconds() - 0.1);
+        editSession.performEdit ("Adjust Loop Start", true, [&transport, newTime, loopRange] (te::Edit&)
+        {
+            transport.setLoopRange ({ te::TimePosition::fromSeconds (newTime), loopRange.getEnd() });
+        });
+    }
+    else if (loopDragMode == DraggingEnd)
+    {
+        newTime = timeline.snapTimeToGrid (newTime);
+        newTime = juce::jmax (newTime, loopRange.getStart().inSeconds() + 0.1);
+        editSession.performEdit ("Adjust Loop End", true, [&transport, newTime, loopRange] (te::Edit&)
+        {
+            transport.setLoopRange ({ loopRange.getStart(), te::TimePosition::fromSeconds (newTime) });
+        });
+    }
+
+    repaint();
+}
+
+void TimeRulerComponent::mouseUp (const juce::MouseEvent&)
+{
+    if (loopDragMode != None)
+        editSession.endCoalescedTransaction();
+
+    loopDragMode = None;
+}
+
+void TimeRulerComponent::mouseMove (const juce::MouseEvent& e)
+{
+    auto& transport = editSession.getEdit().getTransport();
+
+    if (transport.looping)
+    {
+        auto loopRange = transport.getLoopRange();
+        const int x1 = timeline.timeToX (loopRange.getStart().inSeconds());
+        const int x2 = timeline.timeToX (loopRange.getEnd().inSeconds());
+        constexpr int threshold = 8;
+
+        if (std::abs (e.x - x1) <= threshold || std::abs (e.x - x2) <= threshold)
+        {
+            setMouseCursor (juce::MouseCursor::LeftRightResizeCursor);
+            return;
+        }
+    }
+
+    setMouseCursor (juce::MouseCursor::NormalCursor);
 }

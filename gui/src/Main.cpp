@@ -26,6 +26,7 @@ public:
         setUsingNativeTitleBar (true);
         setContentOwned (new MainComponent (handler, session, queue, projectMgr), true);
         centreWithSize (1200, 800);
+        setResizeLimits (1024, 600, 4096, 2160);
         setVisible (true);
     }
 
@@ -54,7 +55,6 @@ public:
         juce::LookAndFeel::setDefaultLookAndFeel (lookAndFeel.get());
 
         engine = std::make_unique<te::Engine> ("Waive");
-        engine->getPluginManager().initialise();
         engine->getDeviceManager().initialise (2, 2);
 
         editSession = std::make_unique<EditSession> (*engine);
@@ -68,6 +68,14 @@ public:
 
         mainWindow = std::make_unique<MainWindow> (getWindowTitle(), *undoableHandler,
                                                    *editSession, *jobQueue, *projectManager);
+
+        // Schedule plugin scan in background after UI shown
+        jobQueue->submit ({"ScanPlugins", "System"},
+                          [this] (waive::ProgressReporter&)
+                          {
+                              if (engine)
+                                  engine->getPluginManager().initialise();
+                          });
 
         startTimerHz (4);
     }

@@ -18,6 +18,7 @@ public:
     PluginBrowserComponent (EditSession& session, UndoableCommandHandler& handler);
     ~PluginBrowserComponent() override;
 
+    void paint (juce::Graphics& g) override;
     void resized() override;
 
     // Test helpers for no-user UI coverage.
@@ -51,6 +52,7 @@ private:
     void editChanged() override;
     void timerCallback() override;
     void rebuildTrackListIfNeeded();
+    void setScanning (bool scanning);
 
     void updateControlsFromSelection();
 
@@ -103,4 +105,5 @@ private:
     std::unique_ptr<ChainModel> chainModel;
 
     int lastTrackCount = -1;
+    bool scanningInProgress = false;
 };

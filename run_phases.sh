@@ -235,7 +235,7 @@ commit_phase() {
     fi
 
     git add -A
-    git commit -m "$(cat <<EOF
+    git commit --no-gpg-sign -m "$(cat <<EOF
 Phase $phase_num: ${phase_file%.md}
 
 Automated zeroshot implementation via run_phases.sh

@@ -4,6 +4,7 @@
 #include "EditSession.h"
 #include "ClipEditActions.h"
 #include "ModelManager.h"
+#include "PathSanitizer.h"
 
 #include <cmath>
 #include <iostream>
@@ -164,6 +165,114 @@ void testModelManagerSettingsPersistence()
     (void) fixtureDir.deleteRecursively();
 }
 
+void testPathSanitizerRejectsTraversal()
+{
+    // Test path traversal attacks
+    expect (waive::PathSanitizer::sanitizePathComponent ("..").isEmpty(),
+            "Expected '..' to be rejected");
+    expect (waive::PathSanitizer::sanitizePathComponent ("../etc").isEmpty(),
+            "Expected '../etc' to be rejected");
+    expect (waive::PathSanitizer::sanitizePathComponent ("foo/bar").isEmpty(),
+            "Expected 'foo/bar' with slash to be rejected");
+    expect (waive::PathSanitizer::sanitizePathComponent ("foo\\bar").isEmpty(),
+            "Expected 'foo\\bar' with backslash to be rejected");
+
+    // Test null bytes and control characters
+    juce::String nullByte;
+    nullByte << (juce::juce_wchar) 0;
+    expect (waive::PathSanitizer::sanitizePathComponent (nullByte).isEmpty(),
+            "Expected null byte to be rejected");
+
+    juce::String controlChar;
+    controlChar << (juce::juce_wchar) 0x1F;
+    expect (waive::PathSanitizer::sanitizePathComponent (controlChar).isEmpty(),
+            "Expected control character to be rejected");
+
+    // Test valid components
+    expect (waive::PathSanitizer::sanitizePathComponent ("valid_name") == "valid_name",
+            "Expected valid alphanumeric with underscore to pass");
+    expect (waive::PathSanitizer::sanitizePathComponent ("model-1.0.0") == "model-1.0.0",
+            "Expected valid version string to pass");
+    expect (waive::PathSanitizer::sanitizePathComponent ("ABC123") == "ABC123",
+            "Expected alphanumeric uppercase to pass");
+}
+
+void testPathSanitizerValidatesDirectory()
+{
+    auto tempDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getChildFile ("waive_test_" + juce::Uuid().toString());
+    tempDir.createDirectory();
+
+    auto childDir = tempDir.getChildFile ("child");
+    childDir.createDirectory();
+
+    auto testFile = childDir.getChildFile ("test.txt");
+    testFile.create();
+
+    // Test containment validation
+    expect (waive::PathSanitizer::isWithinDirectory (childDir, tempDir),
+            "Expected child directory to be within parent");
+    expect (waive::PathSanitizer::isWithinDirectory (testFile, tempDir),
+            "Expected file in child to be within parent");
+    expect (! waive::PathSanitizer::isWithinDirectory (tempDir, childDir),
+            "Expected parent not to be within child");
+
+    auto outsideDir = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
+    expect (! waive::PathSanitizer::isWithinDirectory (outsideDir, tempDir),
+            "Expected unrelated directory not to be within temp dir");
+
+    tempDir.deleteRecursively();
+}
+
+void testPathSanitizerValidatesIdentifier()
+{
+    // Valid identifiers
+    expect (waive::PathSanitizer::isValidIdentifier ("valid_id"),
+            "Expected 'valid_id' to be valid");
+    expect (waive::PathSanitizer::isValidIdentifier ("ABC123"),
+            "Expected 'ABC123' to be valid");
+    expect (waive::PathSanitizer::isValidIdentifier ("model-1"),
+            "Expected 'model-1' to be valid");
+    expect (waive::PathSanitizer::isValidIdentifier ("a_b-c_123"),
+            "Expected 'a_b-c_123' to be valid");
+
+    // Invalid identifiers
+    expect (! waive::PathSanitizer::isValidIdentifier ("../etc"),
+            "Expected '../etc' to be invalid");
+    expect (! waive::PathSanitizer::isValidIdentifier ("foo/bar"),
+            "Expected 'foo/bar' to be invalid");
+    expect (! waive::PathSanitizer::isValidIdentifier ("foo bar"),
+            "Expected 'foo bar' with space to be invalid");
+    expect (! waive::PathSanitizer::isValidIdentifier ("model@1.0"),
+            "Expected 'model@1.0' with special char to be invalid");
+    expect (! waive::PathSanitizer::isValidIdentifier (""),
+            "Expected empty string to be invalid");
+}
+
+void testModelManagerRejectsPathTraversal()
+{
+    auto fixtureDir = juce::File::getCurrentWorkingDirectory()
+                          .getChildFile ("build")
+                          .getChildFile ("test_fixtures")
+                          .getChildFile ("path_traversal_test");
+    fixtureDir.createDirectory();
+
+    waive::ModelManager manager;
+    manager.setStorageDirectory (fixtureDir);
+
+    // Attempt path traversal attacks
+    auto result1 = manager.installModel ("../../etc", "1.0.0", false);
+    expect (result1.failed(), "Expected path traversal in modelID to fail");
+
+    auto result2 = manager.installModel ("stem_separator", "../etc", false);
+    expect (result2.failed(), "Expected path traversal in version to fail");
+
+    auto result3 = manager.uninstallModel ("../../../tmp", "");
+    expect (result3.failed(), "Expected path traversal in uninstall to fail");
+
+    fixtureDir.deleteRecursively();
+}
+
 } // namespace
 
 int main()
@@ -181,6 +290,10 @@ int main()
         testDuplicateMidiClipPreservesSequence (session);
         testPerformEditExceptionSafety (session);
         testModelManagerSettingsPersistence();
+        testPathSanitizerRejectsTraversal();
+        testPathSanitizerValidatesDirectory();
+        testPathSanitizerValidatesIdentifier();
+        testModelManagerRejectsPathTraversal();
 
         std::cout << "WaiveCoreTests: PASS" << std::endl;
         return 0;

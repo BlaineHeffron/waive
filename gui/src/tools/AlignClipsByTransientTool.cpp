@@ -8,6 +8,7 @@
 #include "ClipTrackIndexMap.h"
 #include "EditSession.h"
 #include "JobQueue.h"
+#include "PathSanitizer.h"
 #include "ProjectManager.h"
 #include "SelectionManager.h"
 #include "SessionComponent.h"
@@ -84,10 +85,15 @@ void writePlanArtifact (const juce::File& cacheDirectory, const juce::String& to
     if (cacheDirectory == juce::File())
         return;
 
-    auto artifactDir = cacheDirectory.getChildFile ("tools").getChildFile (toolName);
+    auto sanitizedToolName = waive::PathSanitizer::sanitizePathComponent (toolName);
+    auto sanitizedPlanID = waive::PathSanitizer::sanitizePathComponent (plan.planID);
+    if (sanitizedToolName.isEmpty() || sanitizedPlanID.isEmpty())
+        return;
+
+    auto artifactDir = cacheDirectory.getChildFile ("tools").getChildFile (sanitizedToolName);
     artifactDir.createDirectory();
 
-    auto artifact = artifactDir.getChildFile ("plan_" + plan.planID + ".json");
+    auto artifact = artifactDir.getChildFile ("plan_" + sanitizedPlanID + ".json");
     artifact.replaceWithText (juce::JSON::toString (waive::toolPlanToJson (plan), true));
     plan.artifactFile = artifact;
 }

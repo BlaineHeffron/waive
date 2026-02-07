@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <unordered_map>
+#include <list>
 #include "AudioAnalysis.h"
 
 namespace waive
@@ -36,7 +37,7 @@ public:
         }
     };
 
-    AudioAnalysisCache() = default;
+    explicit AudioAnalysisCache (int maxEntries = 256);
     ~AudioAnalysisCache() = default;
 
     std::optional<AudioAnalysisSummary> get (const CacheKey& key);
@@ -45,6 +46,8 @@ public:
 
 private:
     std::unordered_map<CacheKey, AudioAnalysisSummary, CacheKeyHash> cache;
+    std::list<CacheKey> accessOrder;
+    int maxEntries;
     juce::CriticalSection lock;
 };
 

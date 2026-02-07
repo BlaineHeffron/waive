@@ -5,6 +5,7 @@
 #include "TimeRulerComponent.h"
 #include "ClipEditActions.h"
 #include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
 
 #include <cmath>
 
@@ -78,6 +79,13 @@ void TimelineComponent::paint (juce::Graphics& g)
 {
     auto* pal = waive::getWaivePalette (*this);
     g.fillAll (pal ? pal->windowBg : juce::Colour (0xff1e1e1e));
+
+    if (trackLanes.empty())
+    {
+        g.setFont (waive::Fonts::body());
+        g.setColour (pal ? pal->textMuted : juce::Colours::grey);
+        g.drawText ("Click '+ Track' to add your first track", getLocalBounds(), juce::Justification::centred, true);
+    }
 }
 
 void TimelineComponent::mouseWheelMove (const juce::MouseEvent& e,
@@ -367,7 +375,9 @@ void TimelineComponent::splitSelectedClipsAtPlayhead()
 
 void TimelineComponent::selectClipsByIDForPreview (const juce::Array<te::EditItemID>& clipIDs)
 {
-    previewClipIDs = clipIDs;
+    previewClipIDs.clear();
+    for (auto id : clipIDs)
+        previewClipIDs.insert (id);
     trackContainer.repaint();
 }
 

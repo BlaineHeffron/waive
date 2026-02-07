@@ -17,6 +17,8 @@ target_sources(WaiveCoreTests PRIVATE
     ../gui/src/ui/ClipEditActions.cpp
     ../gui/src/tools/ModelManager.h
     ../gui/src/tools/ModelManager.cpp
+    ../gui/src/util/PathSanitizer.h
+    ../gui/src/util/PathSanitizer.cpp
 )
 
 target_compile_features(WaiveCoreTests PRIVATE cxx_std_20)
@@ -27,6 +29,7 @@ target_include_directories(WaiveCoreTests PRIVATE
     ../gui/src/edit
     ../gui/src/ui
     ../gui/src/tools
+    ../gui/src/util
 )
 
 target_link_libraries(WaiveCoreTests PRIVATE
@@ -40,7 +43,7 @@ target_compile_definitions(WaiveCoreTests PRIVATE
     JUCE_WEB_BROWSER=0
 )
 
-add_test(NAME WaiveCoreTests COMMAND WaiveCoreTests)
+add_test(NAME WaiveCoreTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveCoreTests_artefacts/WaiveCoreTests)
 
 juce_add_console_app(WaiveUiTests
     PRODUCT_NAME "Waive UI Tests"
@@ -58,6 +61,7 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/theme/WaiveFonts.h
     ../gui/src/theme/WaiveLookAndFeel.h
     ../gui/src/theme/WaiveLookAndFeel.cpp
+    ../gui/src/theme/WaiveSpacing.h
 
     # GUI and edit layer under test.
     ../gui/src/MainComponent.h
@@ -100,6 +104,8 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/edit/UndoableCommandHandler.cpp
     ../gui/src/edit/ProjectManager.h
     ../gui/src/edit/ProjectManager.cpp
+    ../gui/src/edit/AutoSaveManager.h
+    ../gui/src/edit/AutoSaveManager.cpp
     ../gui/src/tools/JobQueue.h
     ../gui/src/tools/JobQueue.cpp
     ../gui/src/tools/ModelManager.h
@@ -131,6 +137,8 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/tools/AutoMixSuggestionsTool.cpp
     ../gui/src/util/CommandHelpers.h
     ../gui/src/util/CommandHelpers.cpp
+    ../gui/src/util/PathSanitizer.h
+    ../gui/src/util/PathSanitizer.cpp
 
     ../engine/src/CommandHandler.h
     ../engine/src/CommandHandler.cpp
@@ -162,4 +170,4 @@ target_compile_definitions(WaiveUiTests PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1
 )
 
-add_test(NAME WaiveUiTests COMMAND WaiveUiTests)
+add_test(NAME WaiveUiTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveUiTests_artefacts/WaiveUiTests)

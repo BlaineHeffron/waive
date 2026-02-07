@@ -1,4 +1,5 @@
 #include "ModelManager.h"
+#include "PathSanitizer.h"
 
 #include <algorithm>
 
@@ -99,6 +100,14 @@ juce::Result ModelManager::installModel (const juce::String& modelID,
 {
     std::lock_guard<std::mutex> lock (mutex);
 
+    // Validate modelID against path traversal and invalid characters
+    if (! PathSanitizer::isValidIdentifier (modelID))
+        return juce::Result::fail ("Invalid model ID: must match [a-zA-Z0-9_-]+");
+
+    auto sanitizedModelID = PathSanitizer::sanitizePathComponent (modelID);
+    if (sanitizedModelID.isEmpty())
+        return juce::Result::fail ("Model ID contains invalid characters");
+
     auto* entry = findCatalogEntryLocked (modelID);
     if (entry == nullptr)
         return juce::Result::fail ("Unknown model: " + modelID);
@@ -107,13 +116,17 @@ juce::Result ModelManager::installModel (const juce::String& modelID,
     if (selectedVersion.isEmpty())
         selectedVersion = entry->defaultVersion;
 
+    auto sanitizedVersion = PathSanitizer::sanitizePathComponent (selectedVersion);
+    if (sanitizedVersion.isEmpty())
+        return juce::Result::fail ("Version string contains invalid characters");
+
     if (! entry->availableVersions.contains (selectedVersion))
     {
         return juce::Result::fail ("Model '" + modelID + "' does not provide version " + selectedVersion);
     }
 
-    auto installDirectory = storageDirectory.getChildFile (modelID)
-                                           .getChildFile (selectedVersion);
+    auto installDirectory = storageDirectory.getChildFile (sanitizedModelID)
+                                           .getChildFile (sanitizedVersion);
 
     if (! installDirectory.exists())
     {
@@ -151,16 +164,36 @@ juce::Result ModelManager::uninstallModel (const juce::String& modelID,
 {
     std::lock_guard<std::mutex> lock (mutex);
 
-    const auto baseDirectory = storageDirectory.getChildFile (modelID);
+    // Sanitize inputs to prevent path traversal
+    auto sanitizedModelID = PathSanitizer::sanitizePathComponent (modelID);
+    if (sanitizedModelID.isEmpty())
+        return juce::Result::fail ("Model ID contains invalid characters");
+
+    const auto baseDirectory = storageDirectory.getChildFile (sanitizedModelID);
     if (! baseDirectory.exists())
         return juce::Result::ok();
+
+    // Validate baseDirectory is within storageDirectory before deletion
+    if (! PathSanitizer::isWithinDirectory (baseDirectory, storageDirectory))
+        return juce::Result::fail ("Directory is outside allowed storage location");
 
     const auto targetVersion = normaliseVersionString (version);
     if (targetVersion.isNotEmpty())
     {
-        auto versionDirectory = baseDirectory.getChildFile (targetVersion);
+        auto sanitizedVersion = PathSanitizer::sanitizePathComponent (targetVersion);
+        if (sanitizedVersion.isEmpty())
+            return juce::Result::fail ("Version string contains invalid characters");
+
+        auto versionDirectory = baseDirectory.getChildFile (sanitizedVersion);
+
+        // Validate versionDirectory is within storageDirectory before deletion
         if (versionDirectory.exists())
+        {
+            if (! PathSanitizer::isWithinDirectory (versionDirectory, storageDirectory))
+                return juce::Result::fail ("Directory is outside allowed storage location");
+
             (void) versionDirectory.deleteRecursively();
+        }
 
         const auto pinned = pinnedVersions[modelID].toString();
         if (pinned == targetVersion)

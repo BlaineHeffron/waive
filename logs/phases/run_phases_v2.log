@@ -1,0 +1,814 @@
+[22:25:50] Starting from phase 1 of 6
+[22:25:50] Config: STALE_MINUTES=8 PHASE_TIMEOUT=45m POLL_INTERVAL=30s
+
+[22:25:50] ═══════════════════════════════════════════════════════════════
+[22:25:50]   PHASE 1: phase_01_security_hardening.md
+[22:25:50]   Timeout: 45m | Stale kill: 8m
+[22:25:50] ═══════════════════════════════════════════════════════════════
+✓ Preflight checks passed
+Started azure-equinox-83
+Monitor: zeroshot logs azure-equinox-83 -f
+Attach:  zeroshot attach azure-equinox-83
+[22:25:50] Cluster started: azure-equinox-83
+[22:25:50] Logs: zeroshot logs azure-equinox-83 -f
+[22:26:20]   [0m elapsed, 0m idle] cluster: running
+[22:26:50]   [1m] Activity detected, resetting stale timer
+[22:26:50]   [1m elapsed, 0m idle] cluster: running
+[22:27:20]   [1m] Activity detected, resetting stale timer
+[22:27:20]   [1m elapsed, 0m idle] cluster: running
+[22:27:50]   [2m] Activity detected, resetting stale timer
+[22:27:50]   [2m elapsed, 0m idle] cluster: running
+[22:28:20]   [2m] Activity detected, resetting stale timer
+[22:28:20]   [2m elapsed, 0m idle] cluster: running
+[22:28:51]   [3m] Activity detected, resetting stale timer
+[22:28:51]   [3m elapsed, 0m idle] cluster: running
+[22:29:21]   [3m] Activity detected, resetting stale timer
+[22:29:21]   [3m elapsed, 0m idle] cluster: running
+[22:29:51]   [4m] Activity detected, resetting stale timer
+[22:29:51]   [4m elapsed, 0m idle] cluster: running
+[22:30:21]   [4m] Activity detected, resetting stale timer
+[22:30:21]   [4m elapsed, 0m idle] cluster: running
+[22:30:51]   [5m] Activity detected, resetting stale timer
+[22:30:51]   [5m elapsed, 0m idle] cluster: running
+[22:31:21]   [5m] Activity detected, resetting stale timer
+[22:31:21]   [5m elapsed, 0m idle] cluster: running
+[22:31:51]   [6m] Activity detected, resetting stale timer
+[22:31:51]   [6m elapsed, 0m idle] cluster: running
+[22:32:21]   [6m] Activity detected, resetting stale timer
+[22:32:21]   [6m elapsed, 0m idle] cluster: running
+[22:32:51]   [7m] Activity detected, resetting stale timer
+[22:32:51]   [7m elapsed, 0m idle] cluster: running
+[22:33:21]   [7m] Activity detected, resetting stale timer
+[22:33:21]   [7m elapsed, 0m idle] cluster: running
+[22:33:52]   [8m] Activity detected, resetting stale timer
+[22:33:52]   [8m elapsed, 0m idle] cluster: running
+[22:34:22]   [8m] Activity detected, resetting stale timer
+[22:34:22]   [8m elapsed, 0m idle] cluster: running
+[22:34:52]   [9m] Activity detected, resetting stale timer
+[22:34:52]   [9m elapsed, 0m idle] cluster: running
+[22:35:22]   [9m] Activity detected, resetting stale timer
+[22:35:22]   [9m elapsed, 0m idle] cluster: running
+[22:35:52]   [10m] Activity detected, resetting stale timer
+[22:35:52]   [10m elapsed, 0m idle] cluster: running
+[22:36:22]   [10m] Activity detected, resetting stale timer
+[22:36:22]   [10m elapsed, 0m idle] cluster: running
+[22:36:52]   [11m] Activity detected, resetting stale timer
+[22:36:52]   [11m elapsed, 0m idle] cluster: running
+[22:37:22]   [11m] Activity detected, resetting stale timer
+[22:37:22]   [11m elapsed, 0m idle] cluster: running
+[22:37:52]   [12m] Activity detected, resetting stale timer
+[22:37:52]   [12m elapsed, 0m idle] cluster: running
+[22:38:22]   [12m] Activity detected, resetting stale timer
+[22:38:22]   [12m elapsed, 0m idle] cluster: running
+[22:38:52]   [13m] Activity detected, resetting stale timer
+[22:38:52]   [13m elapsed, 0m idle] cluster: running
+[22:39:23]   [13m] Activity detected, resetting stale timer
+[22:39:23]   [13m elapsed, 0m idle] cluster: running
+[22:39:53]   [14m] Activity detected, resetting stale timer
+[22:39:53]   [14m elapsed, 0m idle] cluster: running
+[22:40:23]   [14m] Activity detected, resetting stale timer
+[22:40:23]   [14m elapsed, 0m idle] cluster: running
+[22:40:53]   [15m] Activity detected, resetting stale timer
+[22:40:53]   [15m elapsed, 0m idle] cluster: running
+[22:41:23]   [15m] Activity detected, resetting stale timer
+[22:41:23]   [15m elapsed, 0m idle] cluster: running
+[22:41:53]   [16m] Activity detected, resetting stale timer
+[22:41:53]   [16m elapsed, 0m idle] cluster: running
+[22:42:23]   [16m] Activity detected, resetting stale timer
+[22:42:23]   [16m elapsed, 0m idle] cluster: running
+[22:42:53]   [17m] Activity detected, resetting stale timer
+[22:42:53]   [17m elapsed, 0m idle] cluster: running
+[22:43:23]   [17m] Activity detected, resetting stale timer
+[22:43:23]   [17m elapsed, 0m idle] cluster: running
+[22:43:53]   [18m] Activity detected, resetting stale timer
+[22:43:53]   [18m elapsed, 0m idle] cluster: running
+[22:44:23]   [18m] Activity detected, resetting stale timer
+[22:44:23]   [18m elapsed, 0m idle] cluster: running
+[22:44:54]   [19m] Activity detected, resetting stale timer
+[22:44:54]   [19m elapsed, 0m idle] cluster: running
+[22:45:24]   [19m] Activity detected, resetting stale timer
+[22:45:24]   [19m elapsed, 0m idle] cluster: running
+[22:45:54]   [20m] Activity detected, resetting stale timer
+[22:45:54]   [20m elapsed, 0m idle] cluster: running
+[22:46:24]   [20m] Activity detected, resetting stale timer
+[22:46:24]   [20m elapsed, 0m idle] cluster: running
+[22:46:54]   [21m] Activity detected, resetting stale timer
+[22:46:54]   [21m elapsed, 0m idle] cluster: running
+[22:47:24]   [21m] Activity detected, resetting stale timer
+[22:47:24]   [21m elapsed, 0m idle] cluster: running
+[22:47:54]   [22m] Activity detected, resetting stale timer
+[22:47:54]   [22m elapsed, 0m idle] cluster: running
+[22:48:24]   [22m] Activity detected, resetting stale timer
+[22:48:24]   [22m elapsed, 0m idle] cluster: running
+[22:48:54]   [23m] Activity detected, resetting stale timer
+[22:48:54]   [23m elapsed, 0m idle] cluster: running
+[22:49:24]   [23m] Activity detected, resetting stale timer
+[22:49:24]   [23m elapsed, 0m idle] cluster: running
+[22:49:54]   [24m] Activity detected, resetting stale timer
+[22:49:54]   [24m elapsed, 0m idle] cluster: running
+[22:50:25]   [24m] Activity detected, resetting stale timer
+[22:50:25]   [24m elapsed, 0m idle] cluster: running
+[22:50:55]   [25m] Activity detected, resetting stale timer
+[22:50:55]   [25m elapsed, 0m idle] cluster: running
+[22:51:25]   [25m] Activity detected, resetting stale timer
+[22:51:25]   [25m elapsed, 0m idle] cluster: running
+[22:51:55]   [26m] Activity detected, resetting stale timer
+[22:51:55]   [26m elapsed, 0m idle] cluster: running
+[22:52:25]   [26m] Activity detected, resetting stale timer
+[22:52:25]   [26m elapsed, 0m idle] cluster: running
+[22:52:55]   [27m] Activity detected, resetting stale timer
+[22:52:55]   [27m elapsed, 0m idle] cluster: running
+[22:53:25]   [27m] Activity detected, resetting stale timer
+[22:53:25]   [27m elapsed, 0m idle] cluster: running
+[22:53:55]   [28m] Activity detected, resetting stale timer
+[22:53:55]   [28m elapsed, 0m idle] cluster: running
+[22:54:25]   [28m] Activity detected, resetting stale timer
+[22:54:25]   [28m elapsed, 0m idle] cluster: running
+[22:54:55]   [29m] Activity detected, resetting stale timer
+[22:54:55]   [29m elapsed, 0m idle] cluster: running
+[22:55:25]   [29m] Activity detected, resetting stale timer
+[22:55:25]   [29m elapsed, 0m idle] cluster: running
+[22:55:56]   [30m] Activity detected, resetting stale timer
+[22:55:56]   [30m elapsed, 0m idle] cluster: running
+[22:56:26]   [30m] Activity detected, resetting stale timer
+[22:56:26]   [30m elapsed, 0m idle] cluster: running
+[22:56:56]   [31m] Activity detected, resetting stale timer
+[22:56:56]   [31m elapsed, 0m idle] cluster: running
+[22:57:26]   [31m] Activity detected, resetting stale timer
+[22:57:26]   [31m elapsed, 0m idle] cluster: running
+[22:57:56]   [32m] Activity detected, resetting stale timer
+[22:57:56]   [32m elapsed, 0m idle] cluster: running
+[22:58:26]   [32m] Activity detected, resetting stale timer
+[22:58:26]   [32m elapsed, 0m idle] cluster: running
+[22:58:56]   [33m] Activity detected, resetting stale timer
+[22:58:56]   [33m elapsed, 0m idle] cluster: running
+[22:59:26]   [33m] Activity detected, resetting stale timer
+[22:59:26]   [33m elapsed, 0m idle] cluster: running
+[22:59:56]   [34m] Activity detected, resetting stale timer
+[22:59:56]   [34m elapsed, 0m idle] cluster: running
+[23:00:26]   [34m] Activity detected, resetting stale timer
+[23:00:26]   [34m elapsed, 0m idle] cluster: running
+[23:00:56]   [35m] Activity detected, resetting stale timer
+[23:00:56]   [35m elapsed, 0m idle] cluster: running
+[23:01:27]   [35m] Activity detected, resetting stale timer
+[23:01:27]   [35m elapsed, 0m idle] cluster: running
+[23:01:57]   [36m] Activity detected, resetting stale timer
+[23:01:57]   [36m elapsed, 0m idle] cluster: running
+[23:02:27]   [36m] Activity detected, resetting stale timer
+[23:02:27]   [36m elapsed, 0m idle] cluster: running
+[23:02:57]   [37m] Activity detected, resetting stale timer
+[23:02:57]   [37m elapsed, 0m idle] cluster: running
+[23:03:27]   [37m] Activity detected, resetting stale timer
+[23:03:27]   [37m elapsed, 0m idle] cluster: running
+[23:03:57]   [38m] Activity detected, resetting stale timer
+[23:03:57]   [38m elapsed, 0m idle] cluster: running
+[23:04:27]   [38m] Activity detected, resetting stale timer
+[23:04:27]   [38m elapsed, 0m idle] cluster: running
+[23:04:57]   [39m] Activity detected, resetting stale timer
+[23:04:57]   [39m elapsed, 0m idle] cluster: running
+[23:05:27]   [39m] Activity detected, resetting stale timer
+[23:05:27]   [39m elapsed, 0m idle] cluster: running
+[23:05:57]   [40m] Activity detected, resetting stale timer
+[23:05:57]   [40m elapsed, 0m idle] cluster: running
+[23:06:27]   [40m] Activity detected, resetting stale timer
+[23:06:27]   [40m elapsed, 0m idle] cluster: running
+[23:06:58]   [41m] Activity detected, resetting stale timer
+[23:06:58]   [41m elapsed, 0m idle] cluster: running
+[23:07:28]   [41m] Activity detected, resetting stale timer
+[23:07:28]   [41m elapsed, 0m idle] cluster: running
+[23:07:58]   [42m] Activity detected, resetting stale timer
+[23:07:58]   [42m elapsed, 0m idle] cluster: running
+[23:08:28]   [42m] Activity detected, resetting stale timer
+[23:08:28]   [42m elapsed, 0m idle] cluster: running
+[23:08:58]   [43m] Activity detected, resetting stale timer
+[23:08:58]   [43m elapsed, 0m idle] cluster: running
+[23:09:28]   [43m] Activity detected, resetting stale timer
+[23:09:28]   [43m elapsed, 0m idle] cluster: running
+[23:09:58]   [44m] Activity detected, resetting stale timer
+[23:09:58]   [44m elapsed, 0m idle] cluster: running
+[23:10:28]   [44m] Activity detected, resetting stale timer
+[23:10:28]   [44m elapsed, 0m idle] cluster: running
+[23:10:58]   [45m] Activity detected, resetting stale timer
+[23:10:58] Hard timeout (45m) — stopping cluster
+Stopping cluster azure-equinox-83...
+Cluster stopped successfully
+[23:10:58] Phase 1 cluster done.
+[23:10:58] Running build + tests for phase 1...
+[23:10:58] Building with -j12 (cores: 24, max: 12)
+[100%] Built target Waive
+[23:10:59] Build: PASSED
+Test project /home/blaine/projects/waive/build
+    Start 1: WaiveCoreTests
+1/2 Test #1: WaiveCoreTests ...................   Passed    0.11 sec
+    Start 2: WaiveUiTests
+./run_phases.sh: line 207: 91549 Killed                  ctest --test-dir build --output-on-failure 2>&1
+     91550 Done                    | tail -20
+[23:15:03] Tests: SOME FAILURES (continuing)
+error: gpg failed to sign the data
+fatal: failed to write commit object
+[23:15:03] Commit failed (maybe nothing to commit)
+[23:15:03] 
+[23:15:03] Phase 1 done. Starting phase 2 in 10 seconds... (Ctrl+C to stop)
+[23:15:13] ═══════════════════════════════════════════════════════════════
+[23:15:13]   PHASE 2: phase_02_ux_foundations.md
+[23:15:13]   Timeout: 45m | Stale kill: 8m
+[23:15:13] ═══════════════════════════════════════════════════════════════
+✓ Preflight checks passed
+Started rising-falcon-60
+Monitor: zeroshot logs rising-falcon-60 -f
+Attach:  zeroshot attach rising-falcon-60
+[23:15:13] Cluster started: rising-falcon-60
+[23:15:13] Logs: zeroshot logs rising-falcon-60 -f
+[23:15:43]   [0m elapsed, 0m idle] cluster: running
+[23:16:13]   [1m] Activity detected, resetting stale timer
+[23:16:13]   [1m elapsed, 0m idle] cluster: running
+[23:16:43]   [1m] Activity detected, resetting stale timer
+[23:16:43]   [1m elapsed, 0m idle] cluster: running
+[23:17:13]   [2m] Activity detected, resetting stale timer
+[23:17:13]   [2m elapsed, 0m idle] cluster: running
+[23:17:44]   [2m] Activity detected, resetting stale timer
+[23:17:44]   [2m elapsed, 0m idle] cluster: running
+[23:18:14]   [3m] Activity detected, resetting stale timer
+[23:18:14]   [3m elapsed, 0m idle] cluster: running
+[23:18:44]   [3m] Activity detected, resetting stale timer
+[23:18:44]   [3m elapsed, 0m idle] cluster: running
+[23:19:14]   [4m] Activity detected, resetting stale timer
+[23:19:14]   [4m elapsed, 0m idle] cluster: running
+[23:19:44]   [4m] Activity detected, resetting stale timer
+[23:19:44]   [4m elapsed, 0m idle] cluster: running
+[23:20:14]   [5m] Activity detected, resetting stale timer
+[23:20:14]   [5m elapsed, 0m idle] cluster: running
+[23:20:44]   [5m] Activity detected, resetting stale timer
+[23:20:44]   [5m elapsed, 0m idle] cluster: running
+[23:21:14]   [6m] Activity detected, resetting stale timer
+[23:21:14]   [6m elapsed, 0m idle] cluster: running
+[23:21:44]   [6m] Activity detected, resetting stale timer
+[23:21:44]   [6m elapsed, 0m idle] cluster: running
+[23:22:14]   [7m] Activity detected, resetting stale timer
+[23:22:14]   [7m elapsed, 0m idle] cluster: running
+[23:22:44]   [7m] Activity detected, resetting stale timer
+[23:22:44]   [7m elapsed, 0m idle] cluster: running
+[23:23:15]   [8m] Activity detected, resetting stale timer
+[23:23:15]   [8m elapsed, 0m idle] cluster: running
+[23:23:45]   [8m] Activity detected, resetting stale timer
+[23:23:45]   [8m elapsed, 0m idle] cluster: running
+[23:24:15]   [9m] Activity detected, resetting stale timer
+[23:24:15]   [9m elapsed, 0m idle] cluster: running
+[23:24:45]   [9m] Activity detected, resetting stale timer
+[23:24:45]   [9m elapsed, 0m idle] cluster: running
+[23:25:15]   [10m] Activity detected, resetting stale timer
+[23:25:15]   [10m elapsed, 0m idle] cluster: running
+[23:25:45]   [10m] Activity detected, resetting stale timer
+[23:25:45]   [10m elapsed, 0m idle] cluster: running
+[23:26:15]   [11m] Activity detected, resetting stale timer
+[23:26:15]   [11m elapsed, 0m idle] cluster: running
+[23:26:45]   [11m] Activity detected, resetting stale timer
+[23:26:45]   [11m elapsed, 0m idle] cluster: running
+[23:27:15]   [12m] Activity detected, resetting stale timer
+[23:27:15]   [12m elapsed, 0m idle] cluster: running
+[23:27:45]   [12m] Activity detected, resetting stale timer
+[23:27:45]   [12m elapsed, 0m idle] cluster: running
+[23:28:15]   [13m] Activity detected, resetting stale timer
+[23:28:15]   [13m elapsed, 0m idle] cluster: running
+[23:28:46]   [13m] Activity detected, resetting stale timer
+[23:28:46]   [13m elapsed, 0m idle] cluster: running
+[23:29:16]   [14m] Activity detected, resetting stale timer
+[23:29:16]   [14m elapsed, 0m idle] cluster: running
+[23:29:46]   [14m] Activity detected, resetting stale timer
+[23:29:46]   [14m elapsed, 0m idle] cluster: running
+[23:30:16]   [15m] Activity detected, resetting stale timer
+[23:30:16]   [15m elapsed, 0m idle] cluster: running
+[23:30:46]   [15m] Activity detected, resetting stale timer
+[23:30:46]   [15m elapsed, 0m idle] cluster: running
+[23:31:16]   [16m] Activity detected, resetting stale timer
+[23:31:16]   [16m elapsed, 0m idle] cluster: running
+[23:31:46]   [16m] Activity detected, resetting stale timer
+[23:31:46]   [16m elapsed, 0m idle] cluster: running
+[23:32:16]   [17m] Activity detected, resetting stale timer
+[23:32:16]   [17m elapsed, 0m idle] cluster: running
+[23:32:46]   [17m] Activity detected, resetting stale timer
+[23:32:46]   [17m elapsed, 0m idle] cluster: running
+[23:33:16]   [18m] Activity detected, resetting stale timer
+[23:33:16]   [18m elapsed, 0m idle] cluster: running
+[23:33:46]   [18m] Activity detected, resetting stale timer
+[23:33:46]   [18m elapsed, 0m idle] cluster: running
+[23:34:16]   [19m] Activity detected, resetting stale timer
+[23:34:16]   [19m elapsed, 0m idle] cluster: running
+[23:34:47]   [19m] Activity detected, resetting stale timer
+[23:34:47]   [19m elapsed, 0m idle] cluster: running
+[23:35:17]   [20m] Activity detected, resetting stale timer
+[23:35:17]   [20m elapsed, 0m idle] cluster: running
+[23:35:47]   [20m] Activity detected, resetting stale timer
+[23:35:47]   [20m elapsed, 0m idle] cluster: running
+[23:36:17]   [21m] Activity detected, resetting stale timer
+[23:36:17]   [21m elapsed, 0m idle] cluster: running
+[23:36:47]   [21m] Activity detected, resetting stale timer
+[23:36:47]   [21m elapsed, 0m idle] cluster: running
+[23:37:17]   [22m] Activity detected, resetting stale timer
+[23:37:17]   [22m elapsed, 0m idle] cluster: running
+[23:37:47]   [22m] Activity detected, resetting stale timer
+[23:37:47]   [22m elapsed, 0m idle] cluster: running
+[23:38:17]   [23m] Activity detected, resetting stale timer
+[23:38:17]   [23m elapsed, 0m idle] cluster: running
+[23:38:47]   [23m] Activity detected, resetting stale timer
+[23:38:47]   [23m elapsed, 0m idle] cluster: running
+[23:39:17]   [24m] Activity detected, resetting stale timer
+[23:39:17]   [24m elapsed, 0m idle] cluster: running
+[23:39:47]   [24m] Activity detected, resetting stale timer
+[23:39:47]   [24m elapsed, 0m idle] cluster: running
+[23:40:18]   [25m] Activity detected, resetting stale timer
+[23:40:18]   [25m elapsed, 0m idle] cluster: running
+[23:40:48]   [25m] Activity detected, resetting stale timer
+[23:40:48]   [25m elapsed, 0m idle] cluster: running
+[23:41:18]   [26m] Activity detected, resetting stale timer
+[23:41:18]   [26m elapsed, 0m idle] cluster: running
+[23:41:48]   [26m] Activity detected, resetting stale timer
+[23:41:48]   [26m elapsed, 0m idle] cluster: running
+[23:42:18]   [27m] Activity detected, resetting stale timer
+[23:42:18]   [27m elapsed, 0m idle] cluster: running
+[23:42:48]   [27m] Activity detected, resetting stale timer
+[23:42:48]   [27m elapsed, 0m idle] cluster: running
+[23:43:18]   [28m] Activity detected, resetting stale timer
+[23:43:18]   [28m elapsed, 0m idle] cluster: running
+[23:43:48]   [28m] Activity detected, resetting stale timer
+[23:43:48]   [28m elapsed, 0m idle] cluster: running
+[23:44:18]   [29m] Activity detected, resetting stale timer
+[23:44:18]   [29m elapsed, 0m idle] cluster: running
+[23:44:48]   [29m] Activity detected, resetting stale timer
+[23:44:48]   [29m elapsed, 0m idle] cluster: running
+[23:45:18]   [30m] Activity detected, resetting stale timer
+[23:45:18]   [30m elapsed, 0m idle] cluster: running
+[23:45:49]   [30m] Activity detected, resetting stale timer
+[23:45:49]   [30m elapsed, 0m idle] cluster: running
+[23:46:19]   [31m] Activity detected, resetting stale timer
+[23:46:19]   [31m elapsed, 0m idle] cluster: running
+[23:46:49]   [31m] Activity detected, resetting stale timer
+[23:46:49]   [31m elapsed, 0m idle] cluster: running
+[23:47:19]   [32m] Activity detected, resetting stale timer
+[23:47:19]   [32m elapsed, 0m idle] cluster: running
+[23:47:49]   [32m] Activity detected, resetting stale timer
+[23:47:49]   [32m elapsed, 0m idle] cluster: running
+[23:48:19]   [33m] Activity detected, resetting stale timer
+[23:48:19]   [33m elapsed, 0m idle] cluster: running
+[23:48:49]   [33m] Activity detected, resetting stale timer
+[23:48:49]   [33m elapsed, 0m idle] cluster: running
+[23:49:19]   [34m] Activity detected, resetting stale timer
+[23:49:19]   [34m elapsed, 0m idle] cluster: running
+[23:49:49]   [34m] Activity detected, resetting stale timer
+[23:49:49]   [34m elapsed, 0m idle] cluster: running
+[23:50:19]   [35m] Activity detected, resetting stale timer
+[23:50:19]   [35m elapsed, 0m idle] cluster: running
+[23:50:49]   [35m] Activity detected, resetting stale timer
+[23:50:49]   [35m elapsed, 0m idle] cluster: running
+[23:51:20]   [36m] Activity detected, resetting stale timer
+[23:51:20]   [36m elapsed, 0m idle] cluster: running
+[23:51:50]   [36m] Activity detected, resetting stale timer
+[23:51:50]   [36m elapsed, 0m idle] cluster: running
+[23:52:20]   [37m] Activity detected, resetting stale timer
+[23:52:20]   [37m elapsed, 0m idle] cluster: running
+[23:52:50]   [37m] Activity detected, resetting stale timer
+[23:52:50]   [37m elapsed, 0m idle] cluster: running
+[23:53:20]   [38m] Activity detected, resetting stale timer
+[23:53:20]   [38m elapsed, 0m idle] cluster: running
+[23:53:50]   [38m] Activity detected, resetting stale timer
+[23:53:50]   [38m elapsed, 0m idle] cluster: running
+[23:54:20]   [39m] Activity detected, resetting stale timer
+[23:54:20]   [39m elapsed, 0m idle] cluster: running
+[23:54:50]   [39m] Activity detected, resetting stale timer
+[23:54:50]   [39m elapsed, 0m idle] cluster: running
+[23:55:20]   [40m] Activity detected, resetting stale timer
+[23:55:20]   [40m elapsed, 0m idle] cluster: running
+[23:55:50]   [40m] Activity detected, resetting stale timer
+[23:55:50]   [40m elapsed, 0m idle] cluster: running
+[23:56:20]   [41m] Activity detected, resetting stale timer
+[23:56:20]   [41m elapsed, 0m idle] cluster: running
+[23:56:51]   [41m] Activity detected, resetting stale timer
+[23:56:51]   [41m elapsed, 0m idle] cluster: running
+[23:57:21]   [42m] Activity detected, resetting stale timer
+[23:57:21]   [42m elapsed, 0m idle] cluster: running
+[23:57:51]   [42m] Activity detected, resetting stale timer
+[23:57:51]   [42m elapsed, 0m idle] cluster: running
+[23:58:21]   [43m] Activity detected, resetting stale timer
+[23:58:21]   [43m elapsed, 0m idle] cluster: running
+[23:58:51]   [43m] Activity detected, resetting stale timer
+[23:58:51]   [43m elapsed, 0m idle] cluster: running
+[23:59:21]   [44m] Activity detected, resetting stale timer
+[23:59:21]   [44m elapsed, 0m idle] cluster: running
+[23:59:51]   [44m] Activity detected, resetting stale timer
+[23:59:51]   [44m elapsed, 0m idle] cluster: running
+[00:00:21]   [45m] Activity detected, resetting stale timer
+[00:00:21] Hard timeout (45m) — stopping cluster
+Stopping cluster rising-falcon-60...
+Cluster stopped successfully
+[00:00:21] Phase 2 cluster done.
+[00:00:21] Running build + tests for phase 2...
+[00:00:21] Building with -j12 (cores: 24, max: 12)
+Error: not a CMake build directory (missing CMakeCache.txt)
+[00:00:21] Build: FAILED (continuing anyway — next phase may fix it)
+Test project /home/blaine/projects/waive/build
+No tests were found!!!
+[00:00:21] Tests: PASSED
+error: gpg failed to sign the data
+fatal: failed to write commit object
+[00:00:21] Commit failed (maybe nothing to commit)
+[00:00:21] 
+[00:00:21] Phase 2 done. Starting phase 3 in 10 seconds... (Ctrl+C to stop)
+[00:00:31] ═══════════════════════════════════════════════════════════════
+[00:00:31]   PHASE 3: phase_03_core_missing_features.md
+[00:00:31]   Timeout: 45m | Stale kill: 8m
+[00:00:31] ═══════════════════════════════════════════════════════════════
+✓ Preflight checks passed
+Started bronze-glyph-17
+Monitor: zeroshot logs bronze-glyph-17 -f
+Attach:  zeroshot attach bronze-glyph-17
+[00:00:32] Cluster started: bronze-glyph-17
+[00:00:32] Logs: zeroshot logs bronze-glyph-17 -f
+[00:01:02]   [0m elapsed, 0m idle] cluster: running
+[00:01:32]   [1m] Activity detected, resetting stale timer
+[00:01:32]   [1m elapsed, 0m idle] cluster: running
+[00:02:02]   [1m] Activity detected, resetting stale timer
+[00:02:02]   [1m elapsed, 0m idle] cluster: running
+[00:02:32]   [2m] Activity detected, resetting stale timer
+[00:02:32]   [2m elapsed, 0m idle] cluster: running
+[00:03:02]   [2m] Activity detected, resetting stale timer
+[00:03:02]   [2m elapsed, 0m idle] cluster: running
+[00:03:32]   [3m] Activity detected, resetting stale timer
+[00:03:32]   [3m elapsed, 0m idle] cluster: running
+[00:04:02]   [3m] Activity detected, resetting stale timer
+[00:04:02]   [3m elapsed, 0m idle] cluster: running
+[00:04:32]   [4m] Activity detected, resetting stale timer
+[00:04:32]   [4m elapsed, 0m idle] cluster: running
+[00:05:02]   [4m] Activity detected, resetting stale timer
+[00:05:02]   [4m elapsed, 0m idle] cluster: running
+[00:05:32]   [5m] Activity detected, resetting stale timer
+[00:05:32]   [5m elapsed, 0m idle] cluster: running
+[00:06:03]   [5m] Activity detected, resetting stale timer
+[00:06:03]   [5m elapsed, 0m idle] cluster: running
+[00:06:33]   [6m] Activity detected, resetting stale timer
+[00:06:33]   [6m elapsed, 0m idle] cluster: running
+[00:07:03]   [6m] Activity detected, resetting stale timer
+[00:07:03]   [6m elapsed, 0m idle] cluster: running
+[00:07:33]   [7m] Activity detected, resetting stale timer
+[00:07:33]   [7m elapsed, 0m idle] cluster: running
+[00:08:03]   [7m] Activity detected, resetting stale timer
+[00:08:03]   [7m elapsed, 0m idle] cluster: running
+[00:08:33]   [8m] Activity detected, resetting stale timer
+[00:08:33]   [8m elapsed, 0m idle] cluster: running
+[00:09:03]   [8m] Activity detected, resetting stale timer
+[00:09:03]   [8m elapsed, 0m idle] cluster: running
+[00:09:33]   [9m] Activity detected, resetting stale timer
+[00:09:33]   [9m elapsed, 0m idle] cluster: running
+[00:10:03]   [9m] Activity detected, resetting stale timer
+[00:10:03]   [9m elapsed, 0m idle] cluster: running
+[00:10:33]   [10m] Activity detected, resetting stale timer
+[00:10:33]   [10m elapsed, 0m idle] cluster: running
+[00:11:03]   [10m] Activity detected, resetting stale timer
+[00:11:03]   [10m elapsed, 0m idle] cluster: running
+[00:11:33]   [11m] Activity detected, resetting stale timer
+[00:11:33]   [11m elapsed, 0m idle] cluster: running
+[00:12:04]   [11m] Activity detected, resetting stale timer
+[00:12:04]   [11m elapsed, 0m idle] cluster: running
+[00:12:34]   [12m] Activity detected, resetting stale timer
+[00:12:34]   [12m elapsed, 0m idle] cluster: running
+[00:13:04]   [12m] Activity detected, resetting stale timer
+[00:13:04]   [12m elapsed, 0m idle] cluster: running
+[00:13:34]   [13m] Activity detected, resetting stale timer
+[00:13:34]   [13m elapsed, 0m idle] cluster: running
+[00:14:04]   [13m] Activity detected, resetting stale timer
+[00:14:04]   [13m elapsed, 0m idle] cluster: running
+[00:14:34]   [14m] Activity detected, resetting stale timer
+[00:14:34]   [14m elapsed, 0m idle] cluster: running
+[00:15:04]   [14m] Activity detected, resetting stale timer
+[00:15:04]   [14m elapsed, 0m idle] cluster: running
+[00:15:34]   [15m] Activity detected, resetting stale timer
+[00:15:34]   [15m elapsed, 0m idle] cluster: running
+[00:16:04]   [15m] Activity detected, resetting stale timer
+[00:16:04]   [15m elapsed, 0m idle] cluster: running
+[00:16:35]   [16m] Activity detected, resetting stale timer
+[00:16:35]   [16m elapsed, 0m idle] cluster: running
+[00:17:05]   [16m] Activity detected, resetting stale timer
+[00:17:05]   [16m elapsed, 0m idle] cluster: running
+[00:17:35]   [17m] Activity detected, resetting stale timer
+[00:17:35]   [17m elapsed, 0m idle] cluster: running
+[00:18:05]   [17m] Activity detected, resetting stale timer
+[00:18:05]   [17m elapsed, 0m idle] cluster: running
+[00:18:35]   [18m] Activity detected, resetting stale timer
+[00:18:35]   [18m elapsed, 0m idle] cluster: running
+[00:19:05]   [18m] Activity detected, resetting stale timer
+[00:19:05]   [18m elapsed, 0m idle] cluster: running
+[00:19:35]   [19m] Activity detected, resetting stale timer
+[00:19:35]   [19m elapsed, 0m idle] cluster: running
+[00:20:05]   [19m] Activity detected, resetting stale timer
+[00:20:05]   [19m elapsed, 0m idle] cluster: running
+[00:20:35]   [20m] Activity detected, resetting stale timer
+[00:20:35]   [20m elapsed, 0m idle] cluster: running
+[00:21:05]   [20m] Activity detected, resetting stale timer
+[00:21:05]   [20m elapsed, 0m idle] cluster: running
+[00:21:35]   [21m] Activity detected, resetting stale timer
+[00:21:35]   [21m elapsed, 0m idle] cluster: running
+[00:22:06]   [21m] Activity detected, resetting stale timer
+[00:22:06]   [21m elapsed, 0m idle] cluster: running
+[00:22:36]   [22m] Activity detected, resetting stale timer
+[00:22:36]   [22m elapsed, 0m idle] cluster: running
+[00:23:06]   [22m] Activity detected, resetting stale timer
+[00:23:06]   [22m elapsed, 0m idle] cluster: running
+[00:23:36]   [23m] Activity detected, resetting stale timer
+[00:23:36]   [23m elapsed, 0m idle] cluster: running
+[00:24:06]   [23m] Activity detected, resetting stale timer
+[00:24:06]   [23m elapsed, 0m idle] cluster: running
+[00:24:36]   [24m] Activity detected, resetting stale timer
+[00:24:36]   [24m elapsed, 0m idle] cluster: running
+[00:25:06]   [24m] Activity detected, resetting stale timer
+[00:25:06]   [24m elapsed, 0m idle] cluster: running
+[00:25:36]   [25m] Activity detected, resetting stale timer
+[00:25:36]   [25m elapsed, 0m idle] cluster: running
+[00:26:06]   [25m] Activity detected, resetting stale timer
+[00:26:06]   [25m elapsed, 0m idle] cluster: running
+[00:26:36]   [26m] Activity detected, resetting stale timer
+[00:26:36]   [26m elapsed, 0m idle] cluster: running
+[00:27:06]   [26m] Activity detected, resetting stale timer
+[00:27:06]   [26m elapsed, 0m idle] cluster: running
+[00:27:36]   [27m] Activity detected, resetting stale timer
+[00:27:36]   [27m elapsed, 0m idle] cluster: running
+[00:28:07]   [27m] Activity detected, resetting stale timer
+[00:28:07]   [27m elapsed, 0m idle] cluster: running
+[00:28:37]   [28m] Activity detected, resetting stale timer
+[00:28:37]   [28m elapsed, 0m idle] cluster: running
+[00:29:07]   [28m] Activity detected, resetting stale timer
+[00:29:07]   [28m elapsed, 0m idle] cluster: running
+[00:29:37]   [29m] Activity detected, resetting stale timer
+[00:29:37]   [29m elapsed, 0m idle] cluster: running
+[00:30:07]   [29m] Activity detected, resetting stale timer
+[00:30:07]   [29m elapsed, 0m idle] cluster: running
+[00:30:37]   [30m] Activity detected, resetting stale timer
+[00:30:37]   [30m elapsed, 0m idle] cluster: running
+[00:31:07]   [30m] Activity detected, resetting stale timer
+[00:31:07]   [30m elapsed, 0m idle] cluster: running
+[00:31:37]   [31m] Activity detected, resetting stale timer
+[00:31:37]   [31m elapsed, 0m idle] cluster: running
+[00:32:07]   [31m] Activity detected, resetting stale timer
+[00:32:07]   [31m elapsed, 0m idle] cluster: running
+[00:32:37]   [32m] Activity detected, resetting stale timer
+[00:32:37]   [32m elapsed, 0m idle] cluster: running
+[00:33:08]   [32m] Activity detected, resetting stale timer
+[00:33:08]   [32m elapsed, 0m idle] cluster: running
+[00:33:38]   [33m] Activity detected, resetting stale timer
+[00:33:38]   [33m elapsed, 0m idle] cluster: running
+[00:34:08]   [33m] Activity detected, resetting stale timer
+[00:34:08]   [33m elapsed, 0m idle] cluster: running
+[00:34:38]   [34m] Activity detected, resetting stale timer
+[00:34:38]   [34m elapsed, 0m idle] cluster: running
+[00:35:08]   [34m] Activity detected, resetting stale timer
+[00:35:08]   [34m elapsed, 0m idle] cluster: running
+[00:35:38]   [35m] Activity detected, resetting stale timer
+[00:35:38]   [35m elapsed, 0m idle] cluster: running
+[00:36:08]   [35m] Activity detected, resetting stale timer
+[00:36:08]   [35m elapsed, 0m idle] cluster: running
+[00:36:38]   [36m] Activity detected, resetting stale timer
+[00:36:38]   [36m elapsed, 0m idle] cluster: running
+[00:37:08]   [36m] Activity detected, resetting stale timer
+[00:37:08]   [36m elapsed, 0m idle] cluster: running
+[00:37:38]   [37m] Activity detected, resetting stale timer
+[00:37:38]   [37m elapsed, 0m idle] cluster: running
+[00:38:08]   [37m] Activity detected, resetting stale timer
+[00:38:08]   [37m elapsed, 0m idle] cluster: running
+[00:38:39]   [38m] Activity detected, resetting stale timer
+[00:38:39]   [38m elapsed, 0m idle] cluster: running
+[00:39:09]   [38m] Activity detected, resetting stale timer
+[00:39:09]   [38m elapsed, 0m idle] cluster: running
+[00:39:39]   [39m] Activity detected, resetting stale timer
+[00:39:39]   [39m elapsed, 0m idle] cluster: running
+[00:40:09]   [39m] Activity detected, resetting stale timer
+[00:40:09]   [39m elapsed, 0m idle] cluster: running
+[00:40:39]   [40m] Activity detected, resetting stale timer
+[00:40:39]   [40m elapsed, 0m idle] cluster: running
+[00:41:09]   [40m] Activity detected, resetting stale timer
+[00:41:09]   [40m elapsed, 0m idle] cluster: running
+[00:41:39]   [41m] Activity detected, resetting stale timer
+[00:41:39]   [41m elapsed, 0m idle] cluster: running
+[00:42:09]   [41m] Activity detected, resetting stale timer
+[00:42:09]   [41m elapsed, 0m idle] cluster: running
+[00:42:39]   [42m] Activity detected, resetting stale timer
+[00:42:39]   [42m elapsed, 0m idle] cluster: running
+[00:43:09]   [42m] Activity detected, resetting stale timer
+[00:43:09]   [42m elapsed, 0m idle] cluster: running
+[00:43:39]   [43m] Activity detected, resetting stale timer
+[00:43:39]   [43m elapsed, 0m idle] cluster: running
+[00:44:10]   [43m] Activity detected, resetting stale timer
+[00:44:10]   [43m elapsed, 0m idle] cluster: running
+[00:44:40]   [44m] Activity detected, resetting stale timer
+[00:44:40]   [44m elapsed, 0m idle] cluster: running
+[00:45:10]   [44m] Activity detected, resetting stale timer
+[00:45:10]   [44m elapsed, 0m idle] cluster: running
+[00:45:40]   [45m] Activity detected, resetting stale timer
+[00:45:40] Hard timeout (45m) — stopping cluster
+Stopping cluster bronze-glyph-17...
+Cluster stopped successfully
+[00:45:40] Phase 3 cluster done.
+[00:45:40] Running build + tests for phase 3...
+[00:45:40] Building with -j12 (cores: 24, max: 12)
+[100%] Built target Waive
+[00:45:40] Build: PASSED
+Default MIDI Out: 
+Default Wave In: channel 1
+Default MIDI In: 
+MIDI Input devices scanned in: 0
+Updating MIDI I/O devices
+Found MIDI in: midiin_170f06 ("Midi Through Port-0") (enabled)
+Found MIDI in: all_midi_in ("All MIDI Ins") (enabled)
+Found MIDI out: out_c31d4a06 ("Midi Through Port-0") (enabled)
+opening MIDI out device: out_c31d4a06 (Midi Through Port-0)
+opening MIDI in device: midiin_170f06 (Midi Through Port-0)
+
+
+0% tests passed, 2 tests failed out of 2
+
+Total Test time (real) = 1500.34 sec
+
+The following tests FAILED:
+	  1 - WaiveCoreTests (Failed)
+	  2 - WaiveUiTests (Timeout)
+Errors while running CTest
+[01:10:41] Tests: SOME FAILURES (continuing)
+error: gpg failed to sign the data
+fatal: failed to write commit object
+[01:10:41] Commit failed (maybe nothing to commit)
+[01:10:41] 
+[01:10:41] Phase 3 done. Starting phase 4 in 10 seconds... (Ctrl+C to stop)
+[01:10:51] ═══════════════════════════════════════════════════════════════
+[01:10:51]   PHASE 4: phase_04_performance_optimization.md
+[01:10:51]   Timeout: 45m | Stale kill: 8m
+[01:10:51] ═══════════════════════════════════════════════════════════════
+✓ Preflight checks passed
+Started flying-horizon-42
+Monitor: zeroshot logs flying-horizon-42 -f
+Attach:  zeroshot attach flying-horizon-42
+[01:10:51] Cluster started: flying-horizon-42
+[01:10:51] Logs: zeroshot logs flying-horizon-42 -f
+[01:11:21]   [0m elapsed, 0m idle] cluster: running
+[01:11:51]   [1m] Activity detected, resetting stale timer
+[01:11:51]   [1m elapsed, 0m idle] cluster: running
+[01:12:21]   [1m] Activity detected, resetting stale timer
+[01:12:21]   [1m elapsed, 0m idle] cluster: running
+[01:12:51]   [2m] Activity detected, resetting stale timer
+[01:12:51]   [2m elapsed, 0m idle] cluster: running
+[01:13:21]   [2m] Activity detected, resetting stale timer
+[01:13:21]   [2m elapsed, 0m idle] cluster: running
+[01:13:51]   [3m] Activity detected, resetting stale timer
+[01:13:51]   [3m elapsed, 0m idle] cluster: running
+[01:14:21]   [3m] Activity detected, resetting stale timer
+[01:14:21]   [3m elapsed, 0m idle] cluster: running
+[01:14:52]   [4m] Activity detected, resetting stale timer
+[01:14:52]   [4m elapsed, 0m idle] cluster: running
+[01:15:22]   [4m] Activity detected, resetting stale timer
+[01:15:22]   [4m elapsed, 0m idle] cluster: running
+[01:15:52]   [5m] Activity detected, resetting stale timer
+[01:15:52]   [5m elapsed, 0m idle] cluster: running
+[01:16:22]   [5m] Activity detected, resetting stale timer
+[01:16:22]   [5m elapsed, 0m idle] cluster: running
+[01:16:52]   [6m] Activity detected, resetting stale timer
+[01:16:52]   [6m elapsed, 0m idle] cluster: running
+[01:17:22]   [6m] Activity detected, resetting stale timer
+[01:17:22]   [6m elapsed, 0m idle] cluster: running
+[01:17:52]   [7m] Activity detected, resetting stale timer
+[01:17:52]   [7m elapsed, 0m idle] cluster: running
+[01:18:22]   [7m] Activity detected, resetting stale timer
+[01:18:22]   [7m elapsed, 0m idle] cluster: running
+[01:18:52]   [8m] Activity detected, resetting stale timer
+[01:18:52]   [8m elapsed, 0m idle] cluster: running
+[01:19:22]   [8m] Activity detected, resetting stale timer
+[01:19:22]   [8m elapsed, 0m idle] cluster: running
+[01:19:53]   [9m] Activity detected, resetting stale timer
+[01:19:53]   [9m elapsed, 0m idle] cluster: running
+[01:20:23]   [9m] Activity detected, resetting stale timer
+[01:20:23]   [9m elapsed, 0m idle] cluster: running
+[01:20:53]   [10m] Activity detected, resetting stale timer
+[01:20:53]   [10m elapsed, 0m idle] cluster: running
+[01:21:23]   [10m] Activity detected, resetting stale timer
+[01:21:23]   [10m elapsed, 0m idle] cluster: running
+[01:21:53]   [11m] Activity detected, resetting stale timer
+[01:21:53]   [11m elapsed, 0m idle] cluster: running
+[01:22:23]   [11m] Activity detected, resetting stale timer
+[01:22:23]   [11m elapsed, 0m idle] cluster: running
+[01:22:53]   [12m] Activity detected, resetting stale timer
+[01:22:53]   [12m elapsed, 0m idle] cluster: running
+[01:23:23]   [12m] Activity detected, resetting stale timer
+[01:23:23]   [12m elapsed, 0m idle] cluster: running
+[01:23:53]   [13m] Activity detected, resetting stale timer
+[01:23:53]   [13m elapsed, 0m idle] cluster: running
+[01:24:23]   [13m] Activity detected, resetting stale timer
+[01:24:23]   [13m elapsed, 0m idle] cluster: running
+[01:24:53]   [14m] Activity detected, resetting stale timer
+[01:24:53]   [14m elapsed, 0m idle] cluster: running
+[01:25:24]   [14m] Activity detected, resetting stale timer
+[01:25:24]   [14m elapsed, 0m idle] cluster: running
+[01:25:54]   [15m] Activity detected, resetting stale timer
+[01:25:54]   [15m elapsed, 0m idle] cluster: running
+[01:26:24]   [15m] Activity detected, resetting stale timer
+[01:26:24]   [15m elapsed, 0m idle] cluster: running
+[01:26:54]   [16m] Activity detected, resetting stale timer
+[01:26:54]   [16m elapsed, 0m idle] cluster: running
+[01:27:24]   [16m] Activity detected, resetting stale timer
+[01:27:24]   [16m elapsed, 0m idle] cluster: running
+[01:27:54]   [17m] Activity detected, resetting stale timer
+[01:27:54]   [17m elapsed, 0m idle] cluster: running
+[01:28:24]   [17m] Activity detected, resetting stale timer
+[01:28:24]   [17m elapsed, 0m idle] cluster: running
+[01:28:54]   [18m] Activity detected, resetting stale timer
+[01:28:54]   [18m elapsed, 0m idle] cluster: running
+[01:29:24]   [18m] Activity detected, resetting stale timer
+[01:29:24]   [18m elapsed, 0m idle] cluster: running
+[01:29:54]   [19m] Activity detected, resetting stale timer
+[01:29:54]   [19m elapsed, 0m idle] cluster: running
+[01:30:24]   [19m] Activity detected, resetting stale timer
+[01:30:24]   [19m elapsed, 0m idle] cluster: running
+[01:30:55]   [20m] Activity detected, resetting stale timer
+[01:30:55]   [20m elapsed, 0m idle] cluster: running
+[01:31:25]   [20m] Activity detected, resetting stale timer
+[01:31:25]   [20m elapsed, 0m idle] cluster: running
+[01:31:55]   [21m] Activity detected, resetting stale timer
+[01:31:55]   [21m elapsed, 0m idle] cluster: running
+[01:32:25]   [21m] Activity detected, resetting stale timer
+[01:32:25]   [21m elapsed, 0m idle] cluster: running
+[01:32:55]   [22m] Activity detected, resetting stale timer
+[01:32:55]   [22m elapsed, 0m idle] cluster: running
+[01:33:25]   [22m] Activity detected, resetting stale timer
+[01:33:25]   [22m elapsed, 0m idle] cluster: running
+[01:33:55]   [23m] Activity detected, resetting stale timer
+[01:33:55]   [23m elapsed, 0m idle] cluster: running
+[01:34:25]   [23m] Activity detected, resetting stale timer
+[01:34:25]   [23m elapsed, 0m idle] cluster: running
+[01:34:55]   [24m] Activity detected, resetting stale timer
+[01:34:55]   [24m elapsed, 0m idle] cluster: running
+[01:35:25]   [24m] Activity detected, resetting stale timer
+[01:35:25]   [24m elapsed, 0m idle] cluster: running
+[01:35:56]   [25m] Activity detected, resetting stale timer
+[01:35:56]   [25m elapsed, 0m idle] cluster: running
+[01:36:26]   [25m] Activity detected, resetting stale timer
+[01:36:26]   [25m elapsed, 0m idle] cluster: running
+[01:36:56]   [26m] Activity detected, resetting stale timer
+[01:36:56]   [26m elapsed, 0m idle] cluster: running
+[01:37:26]   [26m] Activity detected, resetting stale timer
+[01:37:26]   [26m elapsed, 0m idle] cluster: running
+[01:37:56]   [27m] Activity detected, resetting stale timer
+[01:37:56]   [27m elapsed, 0m idle] cluster: running
+[01:38:26]   [27m] Activity detected, resetting stale timer
+[01:38:26]   [27m elapsed, 0m idle] cluster: running
+[01:38:56]   [28m] Activity detected, resetting stale timer
+[01:38:56]   [28m elapsed, 0m idle] cluster: running
+[01:39:26]   [28m] Activity detected, resetting stale timer
+[01:39:26]   [28m elapsed, 0m idle] cluster: running
+[01:39:56]   [29m] Activity detected, resetting stale timer
+[01:39:56]   [29m elapsed, 0m idle] cluster: running
+[01:40:26]   [29m] Activity detected, resetting stale timer
+[01:40:26]   [29m elapsed, 0m idle] cluster: running
+[01:40:56]   [30m] Activity detected, resetting stale timer
+[01:40:56]   [30m elapsed, 0m idle] cluster: running
+[01:41:27]   [30m] Activity detected, resetting stale timer
+[01:41:27]   [30m elapsed, 0m idle] cluster: running
+[01:41:57]   [31m] Activity detected, resetting stale timer
+[01:41:57]   [31m elapsed, 0m idle] cluster: running
+[01:42:27]   [31m] Activity detected, resetting stale timer
+[01:42:27]   [31m elapsed, 0m idle] cluster: running
+[01:42:57]   [32m] Activity detected, resetting stale timer
+[01:42:57]   [32m elapsed, 0m idle] cluster: running
+[01:43:27]   [32m] Activity detected, resetting stale timer
+[01:43:27]   [32m elapsed, 0m idle] cluster: running
+[01:43:57]   [33m] Activity detected, resetting stale timer
+[01:43:57]   [33m elapsed, 0m idle] cluster: running
+[01:44:27]   [33m] Activity detected, resetting stale timer
+[01:44:27]   [33m elapsed, 0m idle] cluster: running
+[01:44:57]   [34m] Activity detected, resetting stale timer
+[01:44:57]   [34m elapsed, 0m idle] cluster: running
+[01:45:27]   [34m] Activity detected, resetting stale timer
+[01:45:27]   [34m elapsed, 0m idle] cluster: running
+[01:45:57]   [35m] Activity detected, resetting stale timer
+[01:45:57]   [35m elapsed, 0m idle] cluster: running
+[01:46:27]   [35m] Activity detected, resetting stale timer
+[01:46:27]   [35m elapsed, 0m idle] cluster: running
+[01:46:58]   [36m] Activity detected, resetting stale timer
+[01:46:58]   [36m elapsed, 0m idle] cluster: running
+[01:47:28]   [36m] Activity detected, resetting stale timer
+[01:47:28]   [36m elapsed, 0m idle] cluster: running
+[01:47:58]   [37m] Activity detected, resetting stale timer
+[01:47:58]   [37m elapsed, 0m idle] cluster: running
+[01:48:28]   [37m] Activity detected, resetting stale timer
+[01:48:28]   [37m elapsed, 0m idle] cluster: running
+[01:48:58]   [38m] Activity detected, resetting stale timer
+[01:48:58]   [38m elapsed, 0m idle] cluster: running
+[01:49:28]   [38m] Activity detected, resetting stale timer
+[01:49:28]   [38m elapsed, 0m idle] cluster: running
+[01:49:58]   [39m] Activity detected, resetting stale timer
+[01:49:58]   [39m elapsed, 0m idle] cluster: running
+[01:50:28]   [39m] Activity detected, resetting stale timer
+[01:50:28]   [39m elapsed, 0m idle] cluster: running
+[01:50:58]   [40m] Activity detected, resetting stale timer
+[01:50:58]   [40m elapsed, 0m idle] cluster: running
+[01:51:28]   [40m] Activity detected, resetting stale timer
+[01:51:28]   [40m elapsed, 0m idle] cluster: running
+[01:51:58]   [41m] Activity detected, resetting stale timer
+[01:51:58]   [41m elapsed, 0m idle] cluster: running
+[01:52:29]   [41m] Activity detected, resetting stale timer
+[01:52:29]   [41m elapsed, 0m idle] cluster: running
+[01:52:59]   [42m] Activity detected, resetting stale timer
+[01:52:59]   [42m elapsed, 0m idle] cluster: running

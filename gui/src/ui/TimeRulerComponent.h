@@ -14,8 +14,14 @@ public:
 
     void paint (juce::Graphics& g) override;
     void mouseDown (const juce::MouseEvent& e) override;
+    void mouseDrag (const juce::MouseEvent& e) override;
+    void mouseUp (const juce::MouseEvent& e) override;
+    void mouseMove (const juce::MouseEvent& e) override;
 
 private:
+    enum LoopDragMode { None, DraggingStart, DraggingEnd };
+    LoopDragMode loopDragMode = None;
+
     EditSession& editSession;
     TimelineComponent& timeline;
 };

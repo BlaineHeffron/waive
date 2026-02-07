@@ -1,5 +1,7 @@
 #include "LibraryComponent.h"
 #include "EditSession.h"
+#include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -45,6 +47,19 @@ LibraryComponent::~LibraryComponent()
 {
     fileTree->removeListener (this);
     scanThread.stopThread (1000);
+}
+
+void LibraryComponent::paint (juce::Graphics& g)
+{
+    if (directoryList.getNumFiles() == 0)
+    {
+        g.setFont (waive::Fonts::body());
+        if (auto* pal = waive::getWaivePalette (*this))
+            g.setColour (pal->textMuted);
+        else
+            g.setColour (juce::Colours::grey);
+        g.drawText ("Click '+ Folder' to add a media directory", getLocalBounds(), juce::Justification::centred, true);
+    }
 }
 
 void LibraryComponent::resized()

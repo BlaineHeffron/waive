@@ -28,8 +28,6 @@ MixerChannelStrip::MixerChannelStrip (te::Edit& edit, EditSession& session)
 
 MixerChannelStrip::~MixerChannelStrip()
 {
-    stopTimer();
-
     // Unregister meter client
     if (track != nullptr)
     {
@@ -66,6 +64,7 @@ void MixerChannelStrip::setupControls()
     faderSlider.setValue (0.0, juce::dontSendNotification);
     faderSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 16);
     faderSlider.setTextValueSuffix (" dB");
+    faderSlider.setTooltip ("Track Volume (dB)");
     addAndMakeVisible (faderSlider);
 
     faderSlider.onValueChange = [this]
@@ -98,6 +97,8 @@ void MixerChannelStrip::setupControls()
     if (! isMaster)
     {
         soloButton.setButtonText ("S");
+        soloButton.setTooltip ("Solo (S)");
+        soloButton.setWantsKeyboardFocus (true);
         soloButton.onClick = [this]
         {
             if (suppressControlCallbacks || track == nullptr)
@@ -112,6 +113,8 @@ void MixerChannelStrip::setupControls()
         addAndMakeVisible (soloButton);
 
         muteButton.setButtonText ("M");
+        muteButton.setTooltip ("Mute (M)");
+        muteButton.setWantsKeyboardFocus (true);
         muteButton.onClick = [this]
         {
             if (suppressControlCallbacks || track == nullptr)
@@ -128,6 +131,7 @@ void MixerChannelStrip::setupControls()
         panKnob.setRange (-1.0, 1.0, 0.01);
         panKnob.setValue (0.0, juce::dontSendNotification);
         panKnob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
+        panKnob.setTooltip ("Pan L/R");
         addAndMakeVisible (panKnob);
 
         panKnob.onValueChange = [this]
@@ -149,8 +153,6 @@ void MixerChannelStrip::setupControls()
         };
         panKnob.onDragEnd = [this] { editSession.endCoalescedTransaction(); };
     }
-
-    startTimerHz (30);
 }
 
 void MixerChannelStrip::resized()
@@ -229,7 +231,7 @@ void MixerChannelStrip::paint (juce::Graphics& g)
     }
 }
 
-void MixerChannelStrip::timerCallback()
+void MixerChannelStrip::pollState()
 {
     // Pull current engine state into controls without generating new undo transactions.
     suppressControlCallbacks = true;

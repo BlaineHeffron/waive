@@ -56,31 +56,47 @@ void TrackLaneComponent::paint (juce::Graphics& g)
 
     // Track header background
     auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth);
-    g.setColour (pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a));
+    auto headerColour = pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a);
+    if (isHeaderHovered)
+        headerColour = headerColour.brighter (0.1f);
+    g.setColour (headerColour);
     g.fillRect (headerBounds);
 
     // Lane background
     g.setColour (pal ? pal->panelBg : juce::Colour (0xff222222));
     g.fillRect (bounds);
 
-    // Grid lines (clip + automation area)
-    juce::Array<double> majorLines, minorLines;
-    const auto startTime = timeline.getScrollOffsetSeconds();
-    const auto endTime = startTime + bounds.getWidth() / timeline.getPixelsPerSecond();
-    timeline.getGridLineTimes (startTime, endTime, majorLines, minorLines);
+    // Grid lines (clip + automation area) - use cache
+    const auto currentScroll = timeline.getScrollOffsetSeconds();
+    const auto currentPPS = timeline.getPixelsPerSecond();
 
-    g.setColour (pal ? pal->gridMinor : juce::Colours::grey.withAlpha (0.12f));
-    for (auto t : minorLines)
+    if (std::abs (currentScroll - cachedScrollOffsetForGrid) > 0.001 ||
+        std::abs (currentPPS - cachedPixelsPerSecondForGrid) > 0.001)
     {
-        const int x = timeline.timeToX (t);
-        g.drawVerticalLine (x, 0.0f, (float) getHeight());
+        // Recalculate grid lines
+        juce::Array<double> majorLines, minorLines;
+        const auto startTime = currentScroll;
+        const auto endTime = startTime + bounds.getWidth() / currentPPS;
+        timeline.getGridLineTimes (startTime, endTime, majorLines, minorLines);
+
+        cachedGridLines.clear();
+        for (auto t : minorLines)
+            cachedGridLines.push_back (timeline.timeToX (t) | 0x80000000);  // Mark minor with high bit
+        for (auto t : majorLines)
+            cachedGridLines.push_back (timeline.timeToX (t));
+
+        cachedScrollOffsetForGrid = currentScroll;
+        cachedPixelsPerSecondForGrid = currentPPS;
     }
 
-    g.setColour (pal ? pal->gridMajor : juce::Colours::lightgrey.withAlpha (0.2f));
-    for (auto t : majorLines)
+    // Draw cached grid lines
+    for (auto x : cachedGridLines)
     {
-        const int x = timeline.timeToX (t);
-        g.drawVerticalLine (x, 0.0f, (float) getHeight());
+        const bool isMinor = (x & 0x80000000) != 0;
+        const int xPos = x & 0x7FFFFFFF;
+        g.setColour (isMinor ? (pal ? pal->gridMinor : juce::Colours::grey.withAlpha (0.12f))
+                              : (pal ? pal->gridMajor : juce::Colours::lightgrey.withAlpha (0.2f)));
+        g.drawVerticalLine (xPos, 0.0f, (float) getHeight());
     }
 
     // Automation lane background
@@ -188,6 +204,14 @@ void TrackLaneComponent::timerCallback()
 
 void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
 {
+    // Check for right-click on header
+    auto headerBounds = getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
+    if (e.mods.isPopupMenu() && headerBounds.contains (e.getPosition()))
+    {
+        showTrackContextMenu();
+        return;
+    }
+
     if (! getAutomationBounds().contains (e.getPosition()))
         return;
 
@@ -247,6 +271,33 @@ void TrackLaneComponent::mouseUp (const juce::MouseEvent&)
         timeline.getEditSession().endCoalescedTransaction();
 
     draggingAutomationPointIndex = -1;
+}
+
+void TrackLaneComponent::mouseMove (const juce::MouseEvent& e)
+{
+    auto headerBounds = getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
+    bool nowInHeader = headerBounds.contains (e.getPosition());
+    if (nowInHeader != isHeaderHovered)
+    {
+        isHeaderHovered = nowInHeader;
+        repaint();
+    }
+}
+
+void TrackLaneComponent::mouseEnter (const juce::MouseEvent& e)
+{
+    auto headerBounds = getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
+    isHeaderHovered = headerBounds.contains (e.getPosition());
+    repaint();
+}
+
+void TrackLaneComponent::mouseExit (const juce::MouseEvent&)
+{
+    if (isHeaderHovered)
+    {
+        isHeaderHovered = false;
+        repaint();
+    }
 }
 
 void TrackLaneComponent::refreshAutomationParams()
@@ -356,4 +407,75 @@ int TrackLaneComponent::findNearbyAutomationPoint (te::AutomationCurve& curve, t
     }
 
     return -1;
+}
+
+void TrackLaneComponent::showTrackContextMenu()
+{
+    juce::PopupMenu menu;
+    menu.addItem (1, "Rename Track");
+    menu.addSeparator();
+    menu.addItem (5, "Delete Track");
+
+    juce::Component::SafePointer<TrackLaneComponent> safeThis (this);
+
+    menu.showMenuAsync ({}, [safeThis] (int result)
+    {
+        if (! safeThis)
+            return;
+
+        auto& trk = safeThis->track;
+        auto& tl = safeThis->timeline;
+
+        switch (result)
+        {
+            case 1: // Rename
+                safeThis->headerLabel.showEditor();
+                break;
+
+            case 5: // Delete
+            {
+                bool hasClips = trk.getClips().size() > 0;
+                if (hasClips)
+                {
+                    // Capture track itemID to safely locate track in async callback
+                    auto trackID = trk.itemID;
+                    juce::AlertWindow::showOkCancelBox (
+                        juce::MessageBoxIconType::WarningIcon,
+                        "Delete Track",
+                        "This track contains " + juce::String (trk.getClips().size()) + " clip(s). Are you sure?",
+                        "Delete", "Cancel",
+                        nullptr,
+                        juce::ModalCallbackFunction::create ([safeThis, trackID] (int choice)
+                        {
+                            if (choice == 1 && safeThis)
+                            {
+                                auto& edit = safeThis->timeline.getEditSession().getEdit();
+                                for (auto* t : edit.getTrackList())
+                                {
+                                    if (t->itemID == trackID)
+                                    {
+                                        safeThis->timeline.getEditSession().performEdit ("Delete Track", [t] (te::Edit&)
+                                        {
+                                            t->edit.deleteTrack (t);
+                                        });
+                                        break;
+                                    }
+                                }
+                            }
+                        })
+                    );
+                }
+                else
+                {
+                    tl.getEditSession().performEdit ("Delete Track", [&trk] (te::Edit&)
+                    {
+                        trk.edit.deleteTrack (&trk);
+                    });
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    });
 }

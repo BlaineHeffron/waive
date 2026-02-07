@@ -8,6 +8,7 @@
 #include "EditSession.h"
 #include "JobQueue.h"
 #include "ModelManager.h"
+#include "PathSanitizer.h"
 #include "ProjectManager.h"
 #include "SelectionManager.h"
 #include "SessionComponent.h"
@@ -156,9 +157,16 @@ void writePlanArtifact (const juce::File& cacheDirectory,
     if (cacheDirectory == juce::File())
         return;
 
+    // Sanitize path components to prevent path traversal
+    auto sanitizedToolName = waive::PathSanitizer::sanitizePathComponent (toolName);
+    auto sanitizedPlanID = waive::PathSanitizer::sanitizePathComponent (plan.planID);
+
+    if (sanitizedToolName.isEmpty() || sanitizedPlanID.isEmpty())
+        return;
+
     auto artifactDirectory = cacheDirectory.getChildFile ("tools")
-                                           .getChildFile (toolName)
-                                           .getChildFile ("plan_" + plan.planID);
+                                           .getChildFile (sanitizedToolName)
+                                           .getChildFile ("plan_" + sanitizedPlanID);
     artifactDirectory.createDirectory();
 
     auto planFile = artifactDirectory.getChildFile ("plan.json");

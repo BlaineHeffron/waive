@@ -24,6 +24,9 @@ public:
     void mouseDown (const juce::MouseEvent& e) override;
     void mouseDrag (const juce::MouseEvent& e) override;
     void mouseUp (const juce::MouseEvent& e) override;
+    void mouseMove (const juce::MouseEvent& e) override;
+    void mouseEnter (const juce::MouseEvent& e) override;
+    void mouseExit (const juce::MouseEvent& e) override;
 
     void updateClips();
 
@@ -33,6 +36,7 @@ private:
     void timerCallback() override;
     void refreshAutomationParams();
     void layoutClipComponents();
+    void showTrackContextMenu();
     juce::Rectangle<int> getClipLaneBounds() const;
     juce::Rectangle<int> getAutomationBounds() const;
     te::AutomatableParameter* getSelectedAutomationParameter() const;
@@ -51,8 +55,14 @@ private:
     int lastClipCount = -1;
     int lastAutomatableParamCount = -1;
     int draggingAutomationPointIndex = -1;
+    bool isHeaderHovered = false;
 
     bool layoutDirty = true;
     double lastScrollOffset = 0.0;
     double lastPixelsPerSecond = 0.0;
+
+    // Grid line cache
+    std::vector<int> cachedGridLines;
+    double cachedScrollOffsetForGrid = -1.0;
+    double cachedPixelsPerSecondForGrid = -1.0;
 };

@@ -15,7 +15,8 @@ namespace waive { class ToolRegistry; class ModelManager; class JobQueue; }
 //==============================================================================
 /** Transport toolbar + timeline + mixer. */
 class SessionComponent : public juce::Component,
-                         private juce::Timer
+                         private juce::Timer,
+                         private SelectionManager::Listener
 {
 public:
     SessionComponent (EditSession& session, UndoableCommandHandler& handler,
@@ -47,12 +48,15 @@ public:
     void setLoopRangeForTesting (double loopInSeconds, double loopOutSeconds);
     void setPunchEnabledForTesting (bool enabled);
     juce::Array<int> getToolPreviewTracksForTesting() const;
+    juce::String getTransportTooltipForTesting (const juce::String& controlName);
+    juce::String getSelectionStatusTextForTesting() const;
 
     void applyToolPreviewDiff (const juce::Array<waive::ToolDiffEntry>& changes);
     void clearToolPreview();
 
 private:
     void timerCallback() override;
+    void selectionChanged() override;
     void runTransportAction (const juce::String& action);
     void applyTempo (double bpm, bool coalesce);
     void applyTimeSignature (int numerator, int denominator);
@@ -84,6 +88,7 @@ private:
     juce::ToggleButton barsBeatsToggle { "Bars" };
     juce::ToggleButton clickToggle { "Click" };
     juce::Label positionLabel;
+    juce::Label selectionStatusLabel;
 
     // Main areas
     std::unique_ptr<TimelineComponent> timeline;

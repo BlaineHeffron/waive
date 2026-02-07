@@ -7,6 +7,8 @@
 #include "ToolSidebarComponent.h"
 #include "ToolDiff.h"
 #include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
+#include "WaiveSpacing.h"
 #include "ToolRegistry.h"
 #include "ModelManager.h"
 #include "JobQueue.h"
@@ -68,6 +70,36 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     positionLabel.setText ("0:00.0", juce::dontSendNotification);
     positionLabel.setJustificationType (juce::Justification::centredLeft);
 
+    selectionStatusLabel.setText ("Ready", juce::dontSendNotification);
+    selectionStatusLabel.setJustificationType (juce::Justification::centredLeft);
+    selectionStatusLabel.setFont (waive::Fonts::caption());
+    if (auto* pal = waive::getWaivePalette (*this))
+        selectionStatusLabel.setColour (juce::Label::textColourId, pal->textMuted);
+
+    playButton.setTooltip ("Play (Space)");
+    stopButton.setTooltip ("Stop (Space)");
+    recordButton.setTooltip ("Record (Ctrl+R)");
+    addTrackButton.setTooltip ("Add Track (Ctrl+T)");
+    loopButton.setTooltip ("Loop On/Off (L)");
+    punchButton.setTooltip ("Punch In/Out");
+    setLoopInButton.setTooltip ("Set Loop In Point");
+    setLoopOutButton.setTooltip ("Set Loop Out Point");
+    tempoSlider.setTooltip ("Tempo (BPM)");
+    timeSigNumeratorBox.setTooltip ("Time Signature");
+    timeSigDenominatorBox.setTooltip ("Time Signature");
+    addTempoMarkerButton.setTooltip ("Insert Tempo Marker");
+    addTimeSigMarkerButton.setTooltip ("Insert Time Signature Marker");
+    snapToggle.setTooltip ("Snap to Grid");
+    snapResolutionBox.setTooltip ("Snap Resolution");
+    barsBeatsToggle.setTooltip ("Bars/Beats Ruler");
+    clickToggle.setTooltip ("Metronome Click");
+
+    playButton.setWantsKeyboardFocus (true);
+    stopButton.setWantsKeyboardFocus (true);
+    recordButton.setWantsKeyboardFocus (true);
+    loopButton.setWantsKeyboardFocus (true);
+    punchButton.setWantsKeyboardFocus (true);
+
     addAndMakeVisible (playButton);
     addAndMakeVisible (stopButton);
     addAndMakeVisible (recordButton);
@@ -88,6 +120,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     addAndMakeVisible (barsBeatsToggle);
     addAndMakeVisible (clickToggle);
     addAndMakeVisible (positionLabel);
+    addAndMakeVisible (selectionStatusLabel);
 
     playButton.onClick  = [this] { runTransportAction ("transport_play"); };
     stopButton.onClick  = [this] { runTransportAction ("transport_stop"); };
@@ -184,6 +217,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     // Timeline
     timeline = std::make_unique<TimelineComponent> (editSession);
     addAndMakeVisible (timeline.get());
+    timeline->getSelectionManager().addListener (this);
 
     snapToggle.onClick = [this]
     {
@@ -249,7 +283,11 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     startTimerHz (10);
 }
 
-SessionComponent::~SessionComponent() = default;
+SessionComponent::~SessionComponent()
+{
+    if (timeline)
+        timeline->getSelectionManager().removeListener (this);
+}
 
 void SessionComponent::resized()
 {
@@ -262,41 +300,43 @@ void SessionComponent::resized()
     auto bottomRow = toolbar.removeFromTop (28);
 
     playButton.setBounds (topRow.removeFromLeft (56));
-    topRow.removeFromLeft (4);
+    topRow.removeFromLeft (waive::Spacing::xs);
     stopButton.setBounds (topRow.removeFromLeft (56));
-    topRow.removeFromLeft (4);
+    topRow.removeFromLeft (waive::Spacing::xs);
     recordButton.setBounds (topRow.removeFromLeft (56));
-    topRow.removeFromLeft (8);
+    topRow.removeFromLeft (waive::Spacing::sm);
     addTrackButton.setBounds (topRow.removeFromLeft (78));
-    topRow.removeFromLeft (8);
+    topRow.removeFromLeft (waive::Spacing::sm);
     positionLabel.setBounds (topRow.removeFromLeft (92));
-    topRow.removeFromLeft (10);
+    topRow.removeFromLeft (waive::Spacing::md);
+    selectionStatusLabel.setBounds (topRow.removeFromLeft (150));
+    topRow.removeFromLeft (waive::Spacing::md);
     tempoLabel.setBounds (topRow.removeFromLeft (40));
     tempoSlider.setBounds (topRow.removeFromLeft (180));
-    topRow.removeFromLeft (8);
+    topRow.removeFromLeft (waive::Spacing::sm);
     timeSigLabel.setBounds (topRow.removeFromLeft (26));
     timeSigNumeratorBox.setBounds (topRow.removeFromLeft (52));
-    topRow.removeFromLeft (2);
+    topRow.removeFromLeft (waive::Spacing::xxs);
     timeSigDenominatorBox.setBounds (topRow.removeFromLeft (52));
-    topRow.removeFromLeft (6);
+    topRow.removeFromLeft (waive::Spacing::xs);
     addTempoMarkerButton.setBounds (topRow.removeFromLeft (72));
-    topRow.removeFromLeft (4);
+    topRow.removeFromLeft (waive::Spacing::xs);
     addTimeSigMarkerButton.setBounds (topRow.removeFromLeft (60));
 
     loopButton.setBounds (bottomRow.removeFromLeft (60));
-    bottomRow.removeFromLeft (4);
+    bottomRow.removeFromLeft (waive::Spacing::xs);
     punchButton.setBounds (bottomRow.removeFromLeft (68));
-    bottomRow.removeFromLeft (6);
+    bottomRow.removeFromLeft (waive::Spacing::xs);
     setLoopInButton.setBounds (bottomRow.removeFromLeft (62));
-    bottomRow.removeFromLeft (4);
+    bottomRow.removeFromLeft (waive::Spacing::xs);
     setLoopOutButton.setBounds (bottomRow.removeFromLeft (62));
-    bottomRow.removeFromLeft (6);
+    bottomRow.removeFromLeft (waive::Spacing::xs);
     clickToggle.setBounds (bottomRow.removeFromLeft (60));
-    bottomRow.removeFromLeft (8);
+    bottomRow.removeFromLeft (waive::Spacing::sm);
     snapToggle.setBounds (bottomRow.removeFromLeft (64));
-    bottomRow.removeFromLeft (4);
+    bottomRow.removeFromLeft (waive::Spacing::xs);
     snapResolutionBox.setBounds (bottomRow.removeFromLeft (84));
-    bottomRow.removeFromLeft (8);
+    bottomRow.removeFromLeft (waive::Spacing::sm);
     barsBeatsToggle.setBounds (bottomRow.removeFromLeft (58));
 
     // Horizontal split: content area | resizer | sidebar
@@ -429,6 +469,30 @@ void SessionComponent::timerCallback()
     }
 }
 
+void SessionComponent::selectionChanged()
+{
+    auto& selectionMgr = timeline->getSelectionManager();
+    auto selectedClips = selectionMgr.getSelectedClips();
+    int count = selectedClips.size();
+
+    if (count == 0)
+    {
+        selectionStatusLabel.setText ("Ready", juce::dontSendNotification);
+    }
+    else if (count == 1)
+    {
+        auto* clip = selectedClips[0];
+        if (clip)
+            selectionStatusLabel.setText (clip->getName(), juce::dontSendNotification);
+        else
+            selectionStatusLabel.setText ("1 clip selected", juce::dontSendNotification);
+    }
+    else
+    {
+        selectionStatusLabel.setText (juce::String (count) + " clips selected", juce::dontSendNotification);
+    }
+}
+
 void SessionComponent::runTransportAction (const juce::String& action)
 {
     auto cmd = makeAction (action);
@@ -538,6 +602,44 @@ juce::Array<int> SessionComponent::getToolPreviewTracksForTesting() const
         return {};
 
     return mixer->getHighlightedTrackIndicesForTesting();
+}
+
+juce::String SessionComponent::getTransportTooltipForTesting (const juce::String& controlName)
+{
+    if (controlName == "play")
+        return playButton.getTooltip();
+    if (controlName == "stop")
+        return stopButton.getTooltip();
+    if (controlName == "record")
+        return recordButton.getTooltip();
+    if (controlName == "loop")
+        return loopButton.getTooltip();
+    if (controlName == "punch")
+        return punchButton.getTooltip();
+    if (controlName == "setLoopIn")
+        return setLoopInButton.getTooltip();
+    if (controlName == "setLoopOut")
+        return setLoopOutButton.getTooltip();
+    if (controlName == "addTrack")
+        return addTrackButton.getTooltip();
+    if (controlName == "tempo")
+        return tempoSlider.getTooltip();
+    if (controlName == "timeSig")
+        return timeSigNumeratorBox.getTooltip();
+    if (controlName == "snap")
+        return snapToggle.getTooltip();
+    if (controlName == "snapResolution")
+        return snapResolutionBox.getTooltip();
+    if (controlName == "barsBeat")
+        return barsBeatsToggle.getTooltip();
+    if (controlName == "click")
+        return clickToggle.getTooltip();
+    return {};
+}
+
+juce::String SessionComponent::getSelectionStatusTextForTesting() const
+{
+    return selectionStatusLabel.getText();
 }
 
 void SessionComponent::applyToolPreviewDiff (const juce::Array<waive::ToolDiffEntry>& changes)

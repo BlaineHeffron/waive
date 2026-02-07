@@ -99,9 +99,9 @@ void WaiveLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& bu
     auto colour = backgroundColour;
 
     if (shouldDrawButtonAsDown)
-        colour = colour.darker (0.05f);
+        colour = colour.darker (0.15f);
     else if (shouldDrawButtonAsHighlighted)
-        colour = colour.brighter (0.08f);
+        colour = colour.brighter (0.15f);
 
     if (button.getToggleState())
         colour = palette.primary;
@@ -269,9 +269,16 @@ void WaiveLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height, b
     g.setColour (palette.surfaceBg);
     g.fillRoundedRectangle (bounds, 4.0f);
 
-    auto outlineColour = box.hasKeyboardFocus (true) ? palette.borderFocused : palette.borderSubtle;
-    g.setColour (outlineColour);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+    if (box.hasKeyboardFocus (true))
+    {
+        g.setColour (palette.primary);
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 2.0f, 2.0f);
+    }
+    else
+    {
+        g.setColour (palette.borderSubtle);
+        g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+    }
 
     // Chevron arrow
     auto arrowBounds = bounds.removeFromRight (24.0f).reduced (6.0f);
@@ -292,9 +299,17 @@ void WaiveLookAndFeel::fillTextEditorBackground (juce::Graphics& g, int width, i
 void WaiveLookAndFeel::drawTextEditorOutline (juce::Graphics& g, int width, int height, juce::TextEditor& editor)
 {
     auto bounds = juce::Rectangle<float> (0.0f, 0.0f, (float) width, (float) height);
-    auto colour = editor.hasKeyboardFocus (true) ? palette.borderFocused : palette.borderSubtle;
-    g.setColour (colour);
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+
+    if (editor.hasKeyboardFocus (true))
+    {
+        g.setColour (palette.primary);
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 2.0f, 2.0f);
+    }
+    else
+    {
+        g.setColour (palette.borderSubtle);
+        g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+    }
 }
 
 //==============================================================================

@@ -14,11 +14,19 @@ include(CTest)
 # populated in the build tree, don't attempt to update them.
 set(FETCHCONTENT_UPDATES_DISCONNECTED ON)
 
+# Pin Tracktion Engine to specific commit for security and reproducibility.
+# To update:
+#   1. Clone https://github.com/Tracktion/tracktion_engine.git
+#   2. Checkout desired commit from develop branch
+#   3. Test thoroughly with Waive
+#   4. Update GIT_TAG below with the tested commit hash
+#   5. Set GIT_SHALLOW to FALSE when using specific commit
+# Current: Using develop branch (TODO: pin to specific tested commit)
 FetchContent_Declare(
     tracktion_engine
     GIT_REPOSITORY https://github.com/Tracktion/tracktion_engine.git
-    GIT_TAG        develop
-    GIT_SHALLOW    TRUE
+    GIT_TAG        d1f7383ffc382b57e0ac6152d418fcc1fdf694dd
+    GIT_SHALLOW    FALSE
 )
 
 # Tracktion examples are not required by Waive and can fail in some environments.

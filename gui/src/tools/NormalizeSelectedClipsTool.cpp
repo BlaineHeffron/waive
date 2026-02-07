@@ -5,6 +5,7 @@
 
 #include "ClipTrackIndexMap.h"
 #include "EditSession.h"
+#include "PathSanitizer.h"
 #include "ProjectManager.h"
 #include "SessionComponent.h"
 #include "TimelineComponent.h"
@@ -253,12 +254,17 @@ juce::Result NormalizeSelectedClipsTool::preparePlan (const ToolExecutionContext
 
         if (cacheDirectory != juce::File())
         {
-            auto artifactDir = cacheDirectory.getChildFile ("tools").getChildFile (description.name);
-            artifactDir.createDirectory();
+            auto sanitizedToolName = PathSanitizer::sanitizePathComponent (description.name);
+            auto sanitizedPlanID = PathSanitizer::sanitizePathComponent (plan.planID);
+            if (sanitizedToolName.isNotEmpty() && sanitizedPlanID.isNotEmpty())
+            {
+                auto artifactDir = cacheDirectory.getChildFile ("tools").getChildFile (sanitizedToolName);
+                artifactDir.createDirectory();
 
-            auto artifact = artifactDir.getChildFile ("plan_" + plan.planID + ".json");
-            artifact.replaceWithText (juce::JSON::toString (toolPlanToJson (plan), true));
-            plan.artifactFile = artifact;
+                auto artifact = artifactDir.getChildFile ("plan_" + sanitizedPlanID + ".json");
+                artifact.replaceWithText (juce::JSON::toString (toolPlanToJson (plan), true));
+                plan.artifactFile = artifact;
+            }
         }
 
         return plan;

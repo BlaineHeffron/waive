@@ -1,6 +1,21 @@
 #include "CommandHandler.h"
 
-CommandHandler::CommandHandler (te::Edit& e) : edit (e) {}
+CommandHandler::CommandHandler (te::Edit& e) : edit (e)
+{
+    // Initialize with safe defaults: user home + current working directory
+    allowedMediaDirectories.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory));
+    allowedMediaDirectories.add (juce::File::getCurrentWorkingDirectory());
+}
+
+void CommandHandler::setAllowedMediaDirectories (const juce::Array<juce::File>& directories)
+{
+    allowedMediaDirectories = directories;
+}
+
+const juce::Array<juce::File>& CommandHandler::getAllowedMediaDirectories() const
+{
+    return allowedMediaDirectories;
+}
 
 //==============================================================================
 juce::String CommandHandler::handleCommand (const juce::String& jsonString)
@@ -170,6 +185,21 @@ juce::var CommandHandler::handleInsertAudioClip (const juce::var& params)
     if (! file.existsAsFile())
         return makeError ("File not found: " + filePath);
 
+    // Validate file path is within allowed directories
+    auto canonicalFile = file.getLinkedTarget();
+    bool isAllowed = false;
+    for (const auto& allowedDir : allowedMediaDirectories)
+    {
+        if (canonicalFile.isAChildOf (allowedDir) || canonicalFile == allowedDir)
+        {
+            isAllowed = true;
+            break;
+        }
+    }
+
+    if (! isAllowed)
+        return makeError ("File path is outside allowed directories: " + filePath);
+
     te::AudioFile audioFile (edit.engine, file);
     auto duration = audioFile.getLength();
 
@@ -224,6 +254,21 @@ juce::var CommandHandler::handleInsertMidiClip (const juce::var& params)
     juce::File file (filePath);
     if (! file.existsAsFile())
         return makeError ("File not found: " + filePath);
+
+    // Validate file path is within allowed directories
+    auto canonicalFile = file.getLinkedTarget();
+    bool isAllowed = false;
+    for (const auto& allowedDir : allowedMediaDirectories)
+    {
+        if (canonicalFile.isAChildOf (allowedDir) || canonicalFile == allowedDir)
+        {
+            isAllowed = true;
+            break;
+        }
+    }
+
+    if (! isAllowed)
+        return makeError ("File path is outside allowed directories: " + filePath);
 
     // Load MIDI file
     juce::MidiFile midiFile;
