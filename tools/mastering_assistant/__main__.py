@@ -124,7 +124,7 @@ def main():
             samples = samples.reshape(-1, 1)
 
         # Measure current loudness
-        current_lufs = compute_lufs(samples, sr)
+        current_lufs = float(compute_lufs(samples, sr))
 
         # Calculate gain adjustment
         gain_db = target_lufs - current_lufs
@@ -140,14 +140,13 @@ def main():
             result = soft_limit(result, ceiling_linear)
 
         # Measure final loudness
-        final_lufs = compute_lufs(result, sr)
-        final_peak_db = round(20 * np.log10(np.max(np.abs(result)) + 1e-20), 1)
+        final_lufs = float(compute_lufs(result, sr))
+        final_peak_db = float(round(20 * np.log10(np.max(np.abs(result)) + 1e-20), 1))
 
         if was_mono:
             result = result.squeeze()
 
-        base_name = os.path.splitext(os.path.basename(input_file))[0]
-        output_path = os.path.join(output_dir, base_name + "_mastered.wav")
+        output_path = os.path.join(output_dir, "output.wav")
         os.makedirs(output_dir, exist_ok=True)
         save_audio(output_path, result, sr)
 
@@ -157,7 +156,7 @@ def main():
                 "original_lufs": current_lufs,
                 "target_lufs": target_lufs,
                 "final_lufs": final_lufs,
-                "gain_applied_db": round(gain_db, 1),
+                "gain_applied_db": float(round(gain_db, 1)),
                 "peak_db": final_peak_db,
                 "limiter_applied": apply_limiter,
                 "ceiling_db": ceiling_db,

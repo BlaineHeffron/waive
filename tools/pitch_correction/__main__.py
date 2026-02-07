@@ -188,8 +188,7 @@ def main():
         nonzero = window_sum > 1e-10
         output[nonzero] /= window_sum[nonzero]
 
-        base_name = os.path.splitext(os.path.basename(input_file))[0]
-        output_path = os.path.join(output_dir, base_name + "_corrected.wav")
+        output_path = os.path.join(output_dir, "output.wav")
         os.makedirs(output_dir, exist_ok=True)
         save_audio(output_path, output, sr)
 

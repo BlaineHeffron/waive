@@ -47,7 +47,7 @@ target_compile_definitions(WaiveCoreTests PRIVATE
     JUCE_WEB_BROWSER=0
 )
 
-add_test(NAME WaiveCoreTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveCoreTests_artefacts/WaiveCoreTests)
+add_test(NAME WaiveCoreTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveCoreTests_artefacts/Release/WaiveCoreTests)
 
 juce_add_console_app(WaiveUiTests
     PRODUCT_NAME "Waive UI Tests"
@@ -102,6 +102,18 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/ui/MixerComponent.cpp
     ../gui/src/ui/MixerChannelStrip.h
     ../gui/src/ui/MixerChannelStrip.cpp
+    ../gui/src/ai/ChatPanelComponent.h
+    ../gui/src/ai/ChatPanelComponent.cpp
+    ../gui/src/ai/AiAgent.h
+    ../gui/src/ai/AiAgent.cpp
+    ../gui/src/ai/AiProvider.h
+    ../gui/src/ai/AiProvider.cpp
+    ../gui/src/ai/AiSettings.h
+    ../gui/src/ai/AiSettings.cpp
+    ../gui/src/ai/AiToolSchema.h
+    ../gui/src/ai/AiToolSchema.cpp
+    ../gui/src/ai/ChatHistorySerializer.h
+    ../gui/src/ai/ChatHistorySerializer.cpp
     ../gui/src/edit/EditSession.h
     ../gui/src/edit/EditSession.cpp
     ../gui/src/edit/UndoableCommandHandler.h
@@ -125,6 +137,12 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/tools/ToolDiff.cpp
     ../gui/src/tools/ToolRegistry.h
     ../gui/src/tools/ToolRegistry.cpp
+    ../gui/src/tools/ExternalTool.h
+    ../gui/src/tools/ExternalTool.cpp
+    ../gui/src/tools/ExternalToolManifest.h
+    ../gui/src/tools/ExternalToolManifest.cpp
+    ../gui/src/tools/ExternalToolRunner.h
+    ../gui/src/tools/ExternalToolRunner.cpp
     ../gui/src/tools/NormalizeSelectedClipsTool.h
     ../gui/src/tools/NormalizeSelectedClipsTool.cpp
     ../gui/src/tools/RenameTracksFromClipsTool.h
@@ -155,6 +173,7 @@ target_include_directories(WaiveUiTests PRIVATE
     ../engine/src
     ../gui/src
     ../gui/src/ui
+    ../gui/src/ai
     ../gui/src/edit
     ../gui/src/tools
     ../gui/src/util
@@ -174,7 +193,7 @@ target_compile_definitions(WaiveUiTests PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1
 )
 
-add_test(NAME WaiveUiTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveUiTests_artefacts/WaiveUiTests)
+add_test(NAME WaiveUiTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveUiTests_artefacts/Release/WaiveUiTests)
 
 # ── Waive Tool Tests ─────────────────────────────────────────────────────────
 # Tests audio analysis engine and built-in tool logic against synthetic WAV files.
@@ -333,4 +352,4 @@ target_compile_definitions(WaiveToolTests PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1
 )
 
-add_test(NAME WaiveToolTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveToolTests_artefacts/WaiveToolTests)
+add_test(NAME WaiveToolTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveToolTests_artefacts/Release/WaiveToolTests)

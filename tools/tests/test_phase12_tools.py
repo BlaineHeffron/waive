@@ -61,9 +61,10 @@ class TestNoiseReduction:
 
         from scipy.io import wavfile
         _, denoised = wavfile.read(output_wav)
-        denoised = denoised.astype(np.float32)
         if denoised.dtype == np.int16:
-            denoised = denoised / 32767.0
+            denoised = denoised.astype(np.float32) / 32767.0
+        else:
+            denoised = denoised.astype(np.float32)
 
         # Trim to matching length
         min_len = min(len(clean), len(denoised))
@@ -121,9 +122,10 @@ class TestMasteringAssistant:
             from scipy.io import wavfile
 
             sr_out, data = wavfile.read(os.path.join(output_dir, "output.wav"))
-            data = data.astype(np.float64)
             if data.dtype == np.int16:
-                data = data / 32767.0
+                data = data.astype(np.float64) / 32767.0
+            else:
+                data = data.astype(np.float64)
             if data.ndim == 1:
                 data = data.reshape(-1, 1)
 

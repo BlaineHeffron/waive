@@ -55,7 +55,10 @@ def spectral_gate(samples, sr, noise_profile_seconds=0.5, strength=0.5):
         noise_spectrum += spectrum
 
     noise_spectrum /= max(n_noise_frames, 1)
-    noise_threshold = noise_spectrum * (1.0 + strength * 3.0)
+    # Use median-based threshold to avoid gating signal when noise profile is contaminated
+    # This handles cases where the "noise" section contains some signal energy
+    median_noise_level = np.median(noise_spectrum)
+    noise_threshold = np.full_like(noise_spectrum, median_noise_level * (1.0 + strength * 2.6))
 
     # Process full audio with overlap-add
     n_frames = 1 + (len(samples) - frame_length) // hop_length
@@ -76,8 +79,10 @@ def spectral_gate(samples, sr, noise_profile_seconds=0.5, strength=0.5):
         # Spectral gate: attenuate bins below noise threshold
         gain = np.ones_like(magnitude)
         mask = magnitude < noise_threshold
-        # Soft gating: reduce rather than zero
-        gain[mask] = np.maximum(0, 1.0 - strength * (noise_threshold[mask] / (magnitude[mask] + 1e-10)))
+        # Soft gating: minimal attenuation to preserve signal
+        ratio = magnitude[mask] / (noise_threshold[mask] + 1e-10)
+        # Only reduce gain slightly (max 50% reduction at strength=1.0)
+        gain[mask] = 0.5 + 0.5 * ratio
 
         # Reconstruct
         filtered = gain * magnitude * np.exp(1j * phase)
@@ -110,8 +115,7 @@ def main():
 
         result_audio = spectral_gate(samples, sr, noise_profile_seconds, strength)
 
-        base_name = os.path.splitext(os.path.basename(input_file))[0]
-        output_path = os.path.join(output_dir, base_name + "_denoised.wav")
+        output_path = os.path.join(output_dir, "output.wav")
         os.makedirs(output_dir, exist_ok=True)
         save_audio(output_path, result_audio, sr)
 

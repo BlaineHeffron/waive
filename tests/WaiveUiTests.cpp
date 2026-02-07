@@ -2025,35 +2025,41 @@ int main()
     auto lookAndFeel = std::make_unique<waive::WaiveLookAndFeel>();
     juce::LookAndFeel::setDefaultLookAndFeel (lookAndFeel.get());
 
-    try
+    int failedTests = 0;
+
+    #define RUN_TEST_SAFELY(testFunc) \
+        try { \
+            testFunc(); \
+        } catch (const std::exception& e) { \
+            std::cerr << #testFunc << ": FAIL: " << e.what() << std::endl; \
+            failedTests++; \
+        }
+
+    RUN_TEST_SAFELY(runPhase5PerformanceOptimizationTests);
+    RUN_TEST_SAFELY(runPhase6SafetyArchitectureRegression);
+    RUN_TEST_SAFELY(runPhase2UxFoundationsRegression);
+    RUN_TEST_SAFELY(runUiCommandRoutingRegression);
+    RUN_TEST_SAFELY(runUiProjectLifecycleRegression);
+    RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
+    RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);
+    RUN_TEST_SAFELY(runUiPhase3TransportAndWorkflowTests);
+    RUN_TEST_SAFELY(runUiPhase4ToolFrameworkRegression);
+    RUN_TEST_SAFELY(runUiPhase5BuiltInToolsRegression);
+    RUN_TEST_SAFELY(runUiPhase5ModelBackedToolsRegression);
+    RUN_TEST_SAFELY(runPhase2ModelWorkflowTests);
+    RUN_TEST_SAFELY(testTooltipKeyboardShortcuts);
+    RUN_TEST_SAFELY(testTrackColorDeterminism);
+    RUN_TEST_SAFELY(runPhase5TimelineMixerPolishTests);
+    RUN_TEST_SAFELY(testGridLineStruct);
+
+    juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+
+    if (failedTests > 0)
     {
-        runPhase5PerformanceOptimizationTests();
-        runPhase6SafetyArchitectureRegression();
-        runPhase2UxFoundationsRegression();
-        runUiCommandRoutingRegression();
-        runUiProjectLifecycleRegression();
-        runUiPhase1LibraryAndPhase2PluginRoutingRegression();
-        runUiPhase3TimeAutomationLoopPunchRegression();
-        runUiPhase3TransportAndWorkflowTests();
-        runUiPhase4ToolFrameworkRegression();
-        runUiPhase5BuiltInToolsRegression();
-        runUiPhase5ModelBackedToolsRegression();
-        runPhase2ModelWorkflowTests();
-        testTooltipKeyboardShortcuts();
-        testTrackColorDeterminism();
-        runPhase5TimelineMixerPolishTests();
-        testGridLineStruct();
-        std::cout << "WaiveUiTests: PASS" << std::endl;
-        return 0;
-    }
-    catch (const std::exception& e)
-    {
-        std::cerr << "WaiveUiTests: FAIL: " << e.what() << std::endl;
-        juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+        std::cerr << "WaiveUiTests: FAIL (" << failedTests << " test suites failed)" << std::endl;
         return 1;
     }
 
-    // Cleanup LookAndFeel before shutdown
-    juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+    std::cout << "WaiveUiTests: PASS" << std::endl;
     return 0;
 }
