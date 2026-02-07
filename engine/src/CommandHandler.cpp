@@ -72,6 +72,11 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "remove_automation_point")  result = handleRemoveAutomationPoint (parsed);
     else if (action == "clear_automation")         result = handleClearAutomation (parsed);
     else if (action == "set_clip_fade")            result = handleSetClipFade (parsed);
+    else if (action == "set_time_signature")       result = handleSetTimeSignature (parsed);
+    else if (action == "add_marker")               result = handleAddMarker (parsed);
+    else if (action == "remove_marker")            result = handleRemoveMarker (parsed);
+    else if (action == "list_markers")             result = handleListMarkers();
+    else if (action == "reorder_track")            result = handleReorderTrack (parsed);
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -1612,6 +1617,151 @@ te::Clip* CommandHandler::getClipByIndex (int trackIndex, int clipIndex)
     if (clipIndex >= 0 && clipIndex < clips.size())
         return clips[clipIndex];
     return nullptr;
+}
+
+juce::var CommandHandler::handleSetTimeSignature (const juce::var& params)
+{
+    auto numerator = (int) params["numerator"];
+    auto denominator = (int) params["denominator"];
+
+    if (numerator < 1 || numerator > 32)
+        return makeError ("Numerator must be 1-32");
+    if (denominator != 2 && denominator != 4 && denominator != 8 && denominator != 16)
+        return makeError ("Denominator must be 2, 4, 8, or 16");
+
+    auto& tempoSeq = edit.tempoSequence;
+    if (auto* timeSig = tempoSeq.getTimeSig (0))
+    {
+        timeSig->numerator = numerator;
+        timeSig->denominator = denominator;
+    }
+    else
+    {
+        // No existing time signature - insert a new one at time 0
+        tempoSeq.insertTimeSig (te::TimePosition::fromSeconds (0.0));
+        if (auto* newTimeSig = tempoSeq.getTimeSig (0))
+        {
+            newTimeSig->numerator = numerator;
+            newTimeSig->denominator = denominator;
+        }
+        else
+        {
+            return makeError ("Failed to create time signature");
+        }
+    }
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("numerator", numerator);
+    result->setProperty ("denominator", denominator);
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleAddMarker (const juce::var& params)
+{
+    auto timeSec = (double) params["time"];
+    auto name = params["name"].toString();
+
+    if (name.isEmpty())
+        return makeError ("Marker name is required");
+    if (timeSec < 0.0)
+        return makeError ("Time must be >= 0");
+
+    auto* markerTrack = edit.getMarkerTrack();
+    if (! markerTrack)
+        return makeError ("Could not access marker track");
+
+    auto tp = te::TimePosition::fromSeconds (timeSec);
+    auto markerClip = dynamic_cast<te::MarkerClip*> (
+        markerTrack->insertNewClip (te::TrackItem::Type::marker, name,
+                                     te::TimeRange (tp, tp + te::TimeDuration::fromSeconds (0.1)),
+                                     nullptr));
+
+    if (! markerClip)
+        return makeError ("Failed to create marker");
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("name", name);
+    result->setProperty ("time", timeSec);
+    result->setProperty ("marker_id", markerClip->getMarkerID());
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleRemoveMarker (const juce::var& params)
+{
+    auto markerId = (int) params["marker_id"];
+
+    auto* markerTrack = edit.getMarkerTrack();
+    if (! markerTrack)
+        return makeError ("Could not access marker track");
+
+    for (auto* clip : markerTrack->getClips())
+    {
+        if (auto* mc = dynamic_cast<te::MarkerClip*> (clip))
+        {
+            if (mc->getMarkerID() == markerId)
+            {
+                mc->removeFromParent();
+                return makeOk();
+            }
+        }
+    }
+
+    return makeError ("Marker not found with ID: " + juce::String (markerId));
+}
+
+juce::var CommandHandler::handleListMarkers()
+{
+    auto* markerTrack = edit.getMarkerTrack();
+
+    juce::Array<juce::var> markerList;
+    if (markerTrack)
+    {
+        for (auto* clip : markerTrack->getClips())
+        {
+            if (auto* mc = dynamic_cast<te::MarkerClip*> (clip))
+            {
+                auto* m = new juce::DynamicObject();
+                m->setProperty ("marker_id", mc->getMarkerID());
+                m->setProperty ("name", mc->getName());
+                m->setProperty ("time", mc->getPosition().getStart().inSeconds());
+                markerList.add (juce::var (m));
+            }
+        }
+    }
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("markers", markerList);
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleReorderTrack (const juce::var& params)
+{
+    auto trackId = (int) params["track_id"];
+    auto newPosition = (int) params["new_position"];
+
+    auto* track = getTrackById (trackId);
+    if (! track)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    auto audioTracks = te::getAudioTracks (edit);
+    if (newPosition < 0 || newPosition >= audioTracks.size())
+        return makeError ("new_position out of range (0-" + juce::String (audioTracks.size() - 1) + ")");
+
+    auto trackState = track->state;
+    auto parentTree = trackState.getParent();
+
+    auto* destTrack = audioTracks[newPosition];
+    auto destIndex = parentTree.indexOf (destTrack->state);
+    parentTree.moveChild (parentTree.indexOf (trackState), destIndex, &edit.getUndoManager());
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("track_id", trackId);
+    result->setProperty ("new_position", newPosition);
+    return juce::var (result);
 }
 
 juce::var CommandHandler::makeError (const juce::String& message)

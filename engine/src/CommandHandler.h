@@ -69,6 +69,11 @@ private:
     juce::var handleRemoveAutomationPoint (const juce::var& params);
     juce::var handleClearAutomation (const juce::var& params);
     juce::var handleSetClipFade (const juce::var& params);
+    juce::var handleSetTimeSignature (const juce::var& params);
+    juce::var handleAddMarker (const juce::var& params);
+    juce::var handleRemoveMarker (const juce::var& params);
+    juce::var handleListMarkers();
+    juce::var handleReorderTrack (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::AudioTrack* getTrackById (int trackIndex);

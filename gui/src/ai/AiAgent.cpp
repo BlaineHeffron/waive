@@ -4,6 +4,7 @@
 #include "AiSettings.h"
 #include "ChatHistorySerializer.h"
 #include "UndoableCommandHandler.h"
+#include "EditSession.h"
 #include "ToolRegistry.h"
 #include "JobQueue.h"
 #include "Tool.h"
@@ -231,6 +232,31 @@ void AiAgent::runConversationLoop()
 
 juce::String AiAgent::executeToolCall (const ChatMessage::ToolCall& call)
 {
+    // Handle undo/redo specially — these need EditSession, not CommandHandler
+    if (call.name == "cmd_undo")
+    {
+        auto& editSession = commandHandler.getEditSession();
+        if (editSession.getUndoDescription().isNotEmpty())
+        {
+            auto desc = editSession.getUndoDescription();
+            editSession.undo();
+            return "{\"status\":\"ok\",\"undone\":\"" + desc.replace ("\"", "\\\"") + "\"}";
+        }
+        return "{\"status\":\"ok\",\"message\":\"Nothing to undo\"}";
+    }
+
+    if (call.name == "cmd_redo")
+    {
+        auto& editSession = commandHandler.getEditSession();
+        if (editSession.getRedoDescription().isNotEmpty())
+        {
+            auto desc = editSession.getRedoDescription();
+            editSession.redo();
+            return "{\"status\":\"ok\",\"redone\":\"" + desc.replace ("\"", "\\\"") + "\"}";
+        }
+        return "{\"status\":\"ok\",\"message\":\"Nothing to redo\"}";
+    }
+
     // Handle search_tools specially — it returns schemas and adds them to the active set
     if (call.name == "cmd_search_tools")
     {

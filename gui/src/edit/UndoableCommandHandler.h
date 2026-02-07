@@ -25,6 +25,9 @@ public:
         previous transaction had the same action name. */
     juce::String handleCommandCoalesced (const juce::String& jsonString);
 
+    /** Get access to the EditSession (for undo/redo handling in AiAgent). */
+    EditSession& getEditSession() { return editSession; }
+
 private:
     juce::String handleInternal (const juce::String& jsonString, bool coalesce);
 

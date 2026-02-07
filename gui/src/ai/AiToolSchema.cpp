@@ -429,6 +429,59 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                                   { "track_id", "clip_index" }),
                       "mixing" });
 
+    // undo
+    defs.push_back ({ "cmd_undo",
+                      "Undo the last edit operation. Returns the description of what was undone.",
+                      makeSchema ("object"),
+                      "session" });
+
+    // redo
+    defs.push_back ({ "cmd_redo",
+                      "Redo the last undone operation. Returns the description of what was redone.",
+                      makeSchema ("object"),
+                      "session" });
+
+    // set_time_signature
+    defs.push_back ({ "cmd_set_time_signature",
+                      "Set the project time signature. Numerator 1-32, denominator must be 2, 4, 8, or 16.",
+                      makeSchema ("object",
+                                  { { "numerator", prop ("integer", "Beats per bar (1-32)") },
+                                    { "denominator", prop ("integer", "Note value per beat (2, 4, 8, or 16)") } },
+                                  { "numerator", "denominator" }),
+                      "session" });
+
+    // add_marker
+    defs.push_back ({ "cmd_add_marker",
+                      "Add a named marker at a specific time position. Useful for marking song sections (verse, chorus, bridge, etc.).",
+                      makeSchema ("object",
+                                  { { "name", prop ("string", "Marker name (e.g. 'Verse 1', 'Chorus', 'Bridge')") },
+                                    { "time", prop ("number", "Time position in seconds") } },
+                                  { "name", "time" }),
+                      "session" });
+
+    // remove_marker
+    defs.push_back ({ "cmd_remove_marker",
+                      "Remove a marker by its marker_id. Use list_markers to find marker IDs.",
+                      makeSchema ("object",
+                                  { { "marker_id", prop ("integer", "Marker ID to remove") } },
+                                  { "marker_id" }),
+                      "session" });
+
+    // list_markers
+    defs.push_back ({ "cmd_list_markers",
+                      "List all markers in the project with their names, times, and IDs.",
+                      makeSchema ("object"),
+                      "query" });
+
+    // reorder_track
+    defs.push_back ({ "cmd_reorder_track",
+                      "Move a track to a new position in the track list. 0-based indices.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based index of track to move") },
+                                    { "new_position", prop ("integer", "0-based target position") } },
+                                  { "track_id", "new_position" }),
+                      "track" });
+
     return defs;
 }
 
