@@ -49,6 +49,7 @@ private:
     double dragStartFadeIn = 0.0;
     double dragStartFadeOut = 0.0;
     bool isHovered = false;
+    std::optional<juce::Rectangle<float>> ghostDragBounds;
 
     static constexpr int trimZoneWidth = 8;
     static constexpr int fadeZoneSize = 8;

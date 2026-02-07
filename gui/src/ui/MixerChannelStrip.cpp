@@ -206,28 +206,60 @@ void MixerChannelStrip::paint (juce::Graphics& g)
         g.drawRoundedRectangle (bounds.reduced (1.5f), 3.0f, 2.0f);
     }
 
-    // Meter bars (beside the fader)
+    // Professional meter bars (beside the fader)
     auto meterBounds = getLocalBounds().reduced (2);
     meterBounds.removeFromTop (58);  // skip name + pan
-    meterBounds = meterBounds.removeFromRight (8);
+    meterBounds = meterBounds.removeFromRight (20);  // wider for 6px bars + scale
     lastMeterBounds = meterBounds;
 
     int meterHeight = meterBounds.getHeight() - 20;
     if (meterHeight > 0)
     {
-        float normL = juce::jlimit (0.0f, 1.0f, (peakL + 60.0f) / 66.0f);
-        float normR = juce::jlimit (0.0f, 1.0f, (peakR + 60.0f) / 66.0f);
+        // dB scale markings
+        const float dbMarks[] = {-60.0f, -40.0f, -20.0f, -10.0f, -6.0f, -3.0f, 0.0f, 6.0f};
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff777777));
+        g.setFont (juce::FontOptions (8.0f));
 
-        int barW = 3;
-        int barH = (int) (meterHeight * normL);
-        g.setColour (normL > 0.9f ? (pal ? pal->meterClip : juce::Colours::red)
-                                   : (pal ? pal->meterNormal : juce::Colours::limegreen));
-        g.fillRect (meterBounds.getX(), meterBounds.getY() + meterHeight - barH, barW, barH);
+        for (float db : dbMarks)
+        {
+            float norm = juce::jlimit (0.0f, 1.0f, (db + 60.0f) / 66.0f);
+            int y = meterBounds.getY() + (int) (meterHeight * (1.0f - norm));
+            g.drawLine (meterBounds.getX() + 13, (float) y, meterBounds.getX() + 16, (float) y, 1.0f);
+        }
 
-        barH = (int) (meterHeight * normR);
-        g.setColour (normR > 0.9f ? (pal ? pal->meterClip : juce::Colours::red)
-                                   : (pal ? pal->meterNormal : juce::Colours::limegreen));
-        g.fillRect (meterBounds.getX() + barW + 1, meterBounds.getY() + meterHeight - barH, barW, barH);
+        // Draw meter bars with gradient
+        auto drawMeterBar = [&] (float peakDB, float peakHoldDB, int xOffset)
+        {
+            float norm = juce::jlimit (0.0f, 1.0f, (peakDB + 60.0f) / 66.0f);
+            int barH = (int) (meterHeight * norm);
+            int barY = meterBounds.getY() + meterHeight - barH;
+
+            // Draw gradient segments
+            for (int i = 0; i < barH; ++i)
+            {
+                float currentDB = ((float) (barH - i) / meterHeight) * 66.0f - 60.0f;
+                juce::Colour barColor;
+
+                if (currentDB > -3.0f)
+                    barColor = pal ? pal->meterClip : juce::Colours::red;
+                else if (currentDB > -12.0f)
+                    barColor = pal ? pal->meterWarning : juce::Colours::yellow;
+                else
+                    barColor = pal ? pal->meterNormal : juce::Colours::limegreen;
+
+                g.setColour (barColor);
+                g.fillRect (meterBounds.getX() + xOffset, barY + i, 6, 1);
+            }
+
+            // Peak hold line
+            float peakHoldNorm = juce::jlimit (0.0f, 1.0f, (peakHoldDB + 60.0f) / 66.0f);
+            int peakHoldY = meterBounds.getY() + (int) (meterHeight * (1.0f - peakHoldNorm));
+            g.setColour (juce::Colours::white);
+            g.fillRect (meterBounds.getX() + xOffset, peakHoldY, 6, 2);
+        };
+
+        drawMeterBar (peakL, peakHoldL, 0);
+        drawMeterBar (peakR, peakHoldR, 7);
     }
 }
 
@@ -264,6 +296,30 @@ void MixerChannelStrip::pollState()
     // Decay
     peakL = juce::jmax (levelL.dB, peakL - 1.5f);
     peakR = juce::jmax (levelR.dB, peakR - 1.5f);
+
+    // Peak hold tracking
+    if (peakL > peakHoldL)
+    {
+        peakHoldL = peakL;
+        peakHoldDecayCounterL = 0;
+    }
+    if (peakR > peakHoldR)
+    {
+        peakHoldR = peakR;
+        peakHoldDecayCounterR = 0;
+    }
+
+    // Peak hold decay (2 seconds = ~100 poll cycles at ~50Hz)
+    if (++peakHoldDecayCounterL > 100)
+    {
+        peakHoldL = juce::jmax (peakHoldL - 1.0f, -60.0f);
+        peakHoldDecayCounterL = 100;  // keep decaying
+    }
+    if (++peakHoldDecayCounterR > 100)
+    {
+        peakHoldR = juce::jmax (peakHoldR - 1.0f, -60.0f);
+        peakHoldDecayCounterR = 100;  // keep decaying
+    }
 
     // Repaint only meter region if levels changed meaningfully (>0.5 dB)
     constexpr float threshold = 0.5f;

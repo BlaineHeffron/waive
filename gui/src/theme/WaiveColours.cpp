@@ -56,8 +56,23 @@ ColourPalette makeDarkPalette()
     p.gridMajor     = juce::Colours::lightgrey.withAlpha (0.2f);
     p.gridMinor     = juce::Colours::grey.withAlpha (0.12f);
     p.meterNormal   = juce::Colours::limegreen;
+    p.meterWarning  = juce::Colours::yellow;
     p.meterClip     = juce::Colours::red;
     p.trimHandle    = juce::Colours::white.withAlpha (0.3f);
+
+    // 12 distinct track colors (hue-distributed palette)
+    p.trackColor1   = juce::Colour::fromHSV (0.00f, 0.6f, 0.7f, 1.0f);  // Red
+    p.trackColor2   = juce::Colour::fromHSV (0.08f, 0.6f, 0.7f, 1.0f);  // Orange
+    p.trackColor3   = juce::Colour::fromHSV (0.17f, 0.6f, 0.7f, 1.0f);  // Yellow
+    p.trackColor4   = juce::Colour::fromHSV (0.25f, 0.6f, 0.7f, 1.0f);  // Lime
+    p.trackColor5   = juce::Colour::fromHSV (0.33f, 0.6f, 0.7f, 1.0f);  // Green
+    p.trackColor6   = juce::Colour::fromHSV (0.42f, 0.6f, 0.7f, 1.0f);  // Cyan
+    p.trackColor7   = juce::Colour::fromHSV (0.50f, 0.6f, 0.7f, 1.0f);  // Light blue
+    p.trackColor8   = juce::Colour::fromHSV (0.58f, 0.6f, 0.7f, 1.0f);  // Blue
+    p.trackColor9   = juce::Colour::fromHSV (0.67f, 0.6f, 0.7f, 1.0f);  // Purple
+    p.trackColor10  = juce::Colour::fromHSV (0.75f, 0.6f, 0.7f, 1.0f);  // Magenta
+    p.trackColor11  = juce::Colour::fromHSV (0.83f, 0.6f, 0.7f, 1.0f);  // Pink
+    p.trackColor12  = juce::Colour::fromHSV (0.92f, 0.6f, 0.7f, 1.0f);  // Rose
 
     return p;
 }

@@ -56,8 +56,23 @@ struct ColourPalette
     juce::Colour gridMajor;
     juce::Colour gridMinor;
     juce::Colour meterNormal;
+    juce::Colour meterWarning;
     juce::Colour meterClip;
     juce::Colour trimHandle;
+
+    // Track colors (12-color palette)
+    juce::Colour trackColor1;
+    juce::Colour trackColor2;
+    juce::Colour trackColor3;
+    juce::Colour trackColor4;
+    juce::Colour trackColor5;
+    juce::Colour trackColor6;
+    juce::Colour trackColor7;
+    juce::Colour trackColor8;
+    juce::Colour trackColor9;
+    juce::Colour trackColor10;
+    juce::Colour trackColor11;
+    juce::Colour trackColor12;
 };
 
 ColourPalette makeDarkPalette();

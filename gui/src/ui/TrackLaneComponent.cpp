@@ -18,8 +18,8 @@ float toNormalised (float value, const juce::Range<float>& range)
 }
 
 //==============================================================================
-TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl)
-    : track (t), timeline (tl)
+TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl, int trackIdx)
+    : track (t), timeline (tl), trackIndex (trackIdx)
 {
     headerLabel.setText (track.getName(), juce::dontSendNotification);
     headerLabel.setJustificationType (juce::Justification::centredLeft);
@@ -61,6 +61,19 @@ void TrackLaneComponent::paint (juce::Graphics& g)
         headerColour = headerColour.brighter (0.1f);
     g.setColour (headerColour);
     g.fillRect (headerBounds);
+
+    // Draw 4px track color strip on left edge
+    if (pal)
+    {
+        const juce::Colour* trackColors[] = {
+            &pal->trackColor1, &pal->trackColor2, &pal->trackColor3, &pal->trackColor4,
+            &pal->trackColor5, &pal->trackColor6, &pal->trackColor7, &pal->trackColor8,
+            &pal->trackColor9, &pal->trackColor10, &pal->trackColor11, &pal->trackColor12
+        };
+        juce::Colour trackColor = *trackColors[trackIndex % 12];
+        g.setColour (trackColor);
+        g.fillRect (0, 0, 4, getHeight());
+    }
 
     // Lane background
     g.setColour (pal ? pal->panelBg : juce::Colour (0xff222222));

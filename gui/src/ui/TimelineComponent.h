@@ -19,7 +19,8 @@ class TimelineComponent : public juce::Component,
                           public juce::DragAndDropTarget,
                           private SelectionManager::Listener,
                           private EditSession::Listener,
-                          private juce::Timer
+                          private juce::Timer,
+                          private juce::ScrollBar::Listener
 {
 public:
     enum class SnapResolution
@@ -55,14 +56,15 @@ public:
     bool isSnapEnabled() const          { return snapEnabled; }
     SnapResolution getSnapResolution() const { return snapResolution; }
     bool getShowBarsBeatsRuler() const  { return showBarsBeatsRuler; }
+    int getTrackLaneHeight() const      { return trackLaneHeight; }
 
     void setSnapEnabled (bool enabled);
     void setSnapResolution (SnapResolution resolution);
     void setShowBarsBeatsRuler (bool shouldShow);
+    void setTrackLaneHeight (int height);
 
     static constexpr int rulerHeight = 30;
     static constexpr int trackHeaderWidth = 120;
-    static constexpr int trackLaneHeight = 108;
 
     SelectionManager& getSelectionManager()  { return *selectionManager; }
     EditSession& getEditSession()            { return editSession; }
@@ -90,6 +92,7 @@ private:
     void editAboutToChange() override;
     void editChanged() override;
     void timerCallback() override;
+    void scrollBarMoved (juce::ScrollBar* scrollBarThatHasMoved, double newRangeStart) override;
 
     EditSession& editSession;
 
@@ -98,6 +101,7 @@ private:
     bool snapEnabled = true;
     SnapResolution snapResolution = SnapResolution::beat;
     bool showBarsBeatsRuler = true;
+    int trackLaneHeight = 108;
 
     std::unique_ptr<SelectionManager> selectionManager;
     std::unique_ptr<TimeRulerComponent> ruler;
@@ -106,6 +110,7 @@ private:
     juce::Viewport trackViewport;
     juce::Component trackContainer;
     std::vector<std::unique_ptr<TrackLaneComponent>> trackLanes;
+    juce::ScrollBar horizontalScrollbar {false};
 
     int lastTrackCount = 0;
 

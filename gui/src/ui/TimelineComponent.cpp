@@ -38,6 +38,11 @@ TimelineComponent::TimelineComponent (EditSession& session)
     playhead = std::make_unique<PlayheadComponent> (editSession, *this);
     addAndMakeVisible (playhead.get());
 
+    // Horizontal scrollbar
+    horizontalScrollbar.setOrientation (false);
+    horizontalScrollbar.addListener (this);
+    addAndMakeVisible (horizontalScrollbar);
+
     rebuildTracks();
 
     // 5Hz for structural changes
@@ -47,6 +52,7 @@ TimelineComponent::TimelineComponent (EditSession& session)
 TimelineComponent::~TimelineComponent()
 {
     stopTimer();
+    horizontalScrollbar.removeListener (this);
     editSession.removeListener (this);
     selectionManager->removeListener (this);
 }
@@ -56,6 +62,11 @@ void TimelineComponent::resized()
     auto bounds = getLocalBounds();
 
     ruler->setBounds (bounds.removeFromTop (rulerHeight));
+
+    // Reserve space for horizontal scrollbar
+    auto scrollbarArea = bounds.removeFromBottom (14);
+    horizontalScrollbar.setBounds (scrollbarArea);
+
     trackViewport.setBounds (bounds);
 
     // Playhead overlay covers entire component
@@ -73,6 +84,23 @@ void TimelineComponent::resized()
         lane->setBounds (0, y, contentWidth, trackLaneHeight);
         y += trackLaneHeight;
     }
+
+    // Update scrollbar range based on edit length
+    double maxTime = 60.0;  // default
+    auto& edit = editSession.getEdit();
+    for (auto* track : te::getAudioTracks (edit))
+    {
+        for (auto* clip : track->getClips())
+        {
+            double clipEnd = clip->getPosition().getEnd().inSeconds();
+            maxTime = juce::jmax (maxTime, clipEnd);
+        }
+    }
+    maxTime += 10.0;  // padding
+
+    double viewportWidthSecs = bounds.getWidth() / pixelsPerSecond;
+    horizontalScrollbar.setRangeLimits (0.0, maxTime);
+    horizontalScrollbar.setCurrentRange (scrollOffsetSeconds, viewportWidthSecs, juce::dontSendNotification);
 }
 
 void TimelineComponent::paint (juce::Graphics& g)
@@ -93,7 +121,16 @@ void TimelineComponent::mouseWheelMove (const juce::MouseEvent& e,
 {
     if (e.mods.isCommandDown())
     {
-        // Zoom
+        // Check if over track area for track height zoom
+        if (e.y > rulerHeight && e.x < trackHeaderWidth)
+        {
+            // Track height zoom
+            int delta = wheel.deltaY > 0 ? 10 : -10;
+            setTrackLaneHeight (trackLaneHeight + delta);
+            return;
+        }
+
+        // Horizontal zoom
         double zoomFactor = 1.0 + wheel.deltaY * 0.3;
         double mouseTime = xToTime (e.x);
 
@@ -111,6 +148,11 @@ void TimelineComponent::mouseWheelMove (const juce::MouseEvent& e,
         // Horizontal scroll
         scrollOffsetSeconds -= wheel.deltaY * 2.0;
         scrollOffsetSeconds = juce::jmax (0.0, scrollOffsetSeconds);
+
+        // Update scrollbar position
+        double viewportWidthSecs = getWidth() / pixelsPerSecond;
+        horizontalScrollbar.setCurrentRange (scrollOffsetSeconds, viewportWidthSecs, juce::dontSendNotification);
+
         resized();
         repaint();
     }
@@ -307,7 +349,18 @@ void TimelineComponent::setShowBarsBeatsRuler (bool shouldShow)
     ruler->repaint();
 }
 
-//==============================================================================
+void TimelineComponent::setTrackLaneHeight (int height)
+{
+    int newHeight = juce::jlimit (60, 300, height);
+    if (trackLaneHeight == newHeight)
+        return;
+
+    trackLaneHeight = newHeight;
+    resized();
+    repaint();
+}
+
+
 void TimelineComponent::rebuildTracks()
 {
     selectionManager->deselectAll();
@@ -317,11 +370,13 @@ void TimelineComponent::rebuildTracks()
 
     auto tracks = te::getAudioTracks (editSession.getEdit());
 
+    int trackIndex = 0;
     for (auto* track : tracks)
     {
-        auto lane = std::make_unique<TrackLaneComponent> (*track, *this);
+        auto lane = std::make_unique<TrackLaneComponent> (*track, *this, trackIndex);
         trackContainer.addAndMakeVisible (lane.get());
         trackLanes.push_back (std::move (lane));
+        ++trackIndex;
     }
 
     lastTrackCount = tracks.size();
@@ -333,6 +388,19 @@ void TimelineComponent::timerCallback()
     auto tracks = te::getAudioTracks (editSession.getEdit());
     if (tracks.size() != lastTrackCount)
         rebuildTracks();
+}
+
+void TimelineComponent::scrollBarMoved (juce::ScrollBar* scrollBarThatHasMoved, double newRangeStart)
+{
+    if (scrollBarThatHasMoved == &horizontalScrollbar)
+    {
+        if (std::abs (newRangeStart - scrollOffsetSeconds) > 0.001)
+        {
+            scrollOffsetSeconds = newRangeStart;
+            resized();
+            repaint();
+        }
+    }
 }
 
 void TimelineComponent::deleteSelectedClips()

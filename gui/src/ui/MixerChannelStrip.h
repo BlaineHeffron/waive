@@ -49,6 +49,10 @@ private:
     float peakR = 0.0f;
     float lastPeakL = 0.0f;
     float lastPeakR = 0.0f;
+    float peakHoldL = -60.0f;
+    float peakHoldR = -60.0f;
+    int peakHoldDecayCounterL = 0;
+    int peakHoldDecayCounterR = 0;
     juce::Rectangle<int> lastMeterBounds;
     bool isMaster = false;
     bool highlighted = false;

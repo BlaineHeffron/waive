@@ -293,51 +293,93 @@ void SessionComponent::resized()
 {
     auto bounds = getLocalBounds();
 
-    // Transport toolbar
-    auto toolbar = bounds.removeFromTop (68);
+    // Transport toolbar with responsive layout
+    const int viewportWidth = bounds.getWidth();
+    const bool showSecondaryControls = viewportWidth >= 900;
+
+    auto toolbar = bounds.removeFromTop (showSecondaryControls ? 68 : 36);
     toolbar = toolbar.reduced (8, 4);
+
+    // Primary row (always visible)
     auto topRow = toolbar.removeFromTop (28);
-    auto bottomRow = toolbar.removeFromTop (28);
+    juce::FlexBox primaryFlex;
+    primaryFlex.flexDirection = juce::FlexBox::Direction::row;
+    primaryFlex.justifyContent = juce::FlexBox::JustifyContent::flexStart;
+    primaryFlex.alignItems = juce::FlexBox::AlignItems::center;
 
-    playButton.setBounds (topRow.removeFromLeft (56));
-    topRow.removeFromLeft (waive::Spacing::xs);
-    stopButton.setBounds (topRow.removeFromLeft (56));
-    topRow.removeFromLeft (waive::Spacing::xs);
-    recordButton.setBounds (topRow.removeFromLeft (56));
-    topRow.removeFromLeft (waive::Spacing::sm);
-    addTrackButton.setBounds (topRow.removeFromLeft (78));
-    topRow.removeFromLeft (waive::Spacing::sm);
-    positionLabel.setBounds (topRow.removeFromLeft (92));
-    topRow.removeFromLeft (waive::Spacing::md);
-    selectionStatusLabel.setBounds (topRow.removeFromLeft (150));
-    topRow.removeFromLeft (waive::Spacing::md);
-    tempoLabel.setBounds (topRow.removeFromLeft (40));
-    tempoSlider.setBounds (topRow.removeFromLeft (180));
-    topRow.removeFromLeft (waive::Spacing::sm);
-    timeSigLabel.setBounds (topRow.removeFromLeft (26));
-    timeSigNumeratorBox.setBounds (topRow.removeFromLeft (52));
-    topRow.removeFromLeft (waive::Spacing::xxs);
-    timeSigDenominatorBox.setBounds (topRow.removeFromLeft (52));
-    topRow.removeFromLeft (waive::Spacing::xs);
-    addTempoMarkerButton.setBounds (topRow.removeFromLeft (72));
-    topRow.removeFromLeft (waive::Spacing::xs);
-    addTimeSigMarkerButton.setBounds (topRow.removeFromLeft (60));
+    primaryFlex.items.add (juce::FlexItem (playButton).withWidth (56));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+    primaryFlex.items.add (juce::FlexItem (stopButton).withWidth (56));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+    primaryFlex.items.add (juce::FlexItem (recordButton).withWidth (56));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+    primaryFlex.items.add (juce::FlexItem (addTrackButton).withWidth (78));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+    primaryFlex.items.add (juce::FlexItem (positionLabel).withWidth (92));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::md));
+    primaryFlex.items.add (juce::FlexItem (selectionStatusLabel).withWidth (150).withFlex (1.0f));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::md));
+    primaryFlex.items.add (juce::FlexItem (tempoLabel).withWidth (40));
+    primaryFlex.items.add (juce::FlexItem (tempoSlider).withWidth (180));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+    primaryFlex.items.add (juce::FlexItem (timeSigLabel).withWidth (26));
+    primaryFlex.items.add (juce::FlexItem (timeSigNumeratorBox).withWidth (52));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xxs));
+    primaryFlex.items.add (juce::FlexItem (timeSigDenominatorBox).withWidth (52));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+    primaryFlex.items.add (juce::FlexItem (addTempoMarkerButton).withWidth (72));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+    primaryFlex.items.add (juce::FlexItem (addTimeSigMarkerButton).withWidth (60));
 
-    loopButton.setBounds (bottomRow.removeFromLeft (60));
-    bottomRow.removeFromLeft (waive::Spacing::xs);
-    punchButton.setBounds (bottomRow.removeFromLeft (68));
-    bottomRow.removeFromLeft (waive::Spacing::xs);
-    setLoopInButton.setBounds (bottomRow.removeFromLeft (62));
-    bottomRow.removeFromLeft (waive::Spacing::xs);
-    setLoopOutButton.setBounds (bottomRow.removeFromLeft (62));
-    bottomRow.removeFromLeft (waive::Spacing::xs);
-    clickToggle.setBounds (bottomRow.removeFromLeft (60));
-    bottomRow.removeFromLeft (waive::Spacing::sm);
-    snapToggle.setBounds (bottomRow.removeFromLeft (64));
-    bottomRow.removeFromLeft (waive::Spacing::xs);
-    snapResolutionBox.setBounds (bottomRow.removeFromLeft (84));
-    bottomRow.removeFromLeft (waive::Spacing::sm);
-    barsBeatsToggle.setBounds (bottomRow.removeFromLeft (58));
+    primaryFlex.performLayout (topRow);
+
+    // Secondary row (visible when width >= 900px)
+    if (showSecondaryControls)
+    {
+        auto bottomRow = toolbar.removeFromTop (28);
+        juce::FlexBox secondaryFlex;
+        secondaryFlex.flexDirection = juce::FlexBox::Direction::row;
+        secondaryFlex.justifyContent = juce::FlexBox::JustifyContent::flexStart;
+        secondaryFlex.alignItems = juce::FlexBox::AlignItems::center;
+
+        secondaryFlex.items.add (juce::FlexItem (loopButton).withWidth (60));
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+        secondaryFlex.items.add (juce::FlexItem (punchButton).withWidth (68));
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+        secondaryFlex.items.add (juce::FlexItem (setLoopInButton).withWidth (62));
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+        secondaryFlex.items.add (juce::FlexItem (setLoopOutButton).withWidth (62));
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+        secondaryFlex.items.add (juce::FlexItem (clickToggle).withWidth (60));
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+        secondaryFlex.items.add (juce::FlexItem (snapToggle).withWidth (64));
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+        secondaryFlex.items.add (juce::FlexItem (snapResolutionBox).withWidth (84));
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+        secondaryFlex.items.add (juce::FlexItem (barsBeatsToggle).withWidth (58));
+
+        secondaryFlex.performLayout (bottomRow);
+
+        loopButton.setVisible (true);
+        punchButton.setVisible (true);
+        setLoopInButton.setVisible (true);
+        setLoopOutButton.setVisible (true);
+        clickToggle.setVisible (true);
+        snapToggle.setVisible (true);
+        snapResolutionBox.setVisible (true);
+        barsBeatsToggle.setVisible (true);
+    }
+    else
+    {
+        loopButton.setVisible (false);
+        punchButton.setVisible (false);
+        setLoopInButton.setVisible (false);
+        setLoopOutButton.setVisible (false);
+        clickToggle.setVisible (false);
+        snapToggle.setVisible (false);
+        snapResolutionBox.setVisible (false);
+        barsBeatsToggle.setVisible (false);
+    }
 
     // Horizontal split: content area | resizer | sidebar
     auto contentBounds = bounds;

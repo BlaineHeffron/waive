@@ -1,5 +1,6 @@
 #include "ClipComponent.h"
 #include "TimelineComponent.h"
+#include "TrackLaneComponent.h"
 #include "EditSession.h"
 #include "SelectionManager.h"
 #include "ClipEditActions.h"
@@ -34,10 +35,40 @@ void ClipComponent::paint (juce::Graphics& g)
     bool highlighted = inPreview || selected;
     auto* pal = waive::getWaivePalette (*this);
 
-    // Background
+    // Get track index for color blending
+    int trackIndex = 0;
+    if (auto* parentLane = dynamic_cast<TrackLaneComponent*> (getParentComponent()))
+    {
+        // Find track index by searching parent timeline
+        auto& edit = timeline.getEditSession().getEdit();
+        auto tracks = te::getAudioTracks (edit);
+        for (int i = 0; i < tracks.size(); ++i)
+        {
+            if (tracks[i] == &parentLane->getTrack())
+            {
+                trackIndex = i;
+                break;
+            }
+        }
+    }
+
+    // Get track color
+    juce::Colour trackColor = juce::Colours::grey;
+    if (pal)
+    {
+        const juce::Colour* trackColors[] = {
+            &pal->trackColor1, &pal->trackColor2, &pal->trackColor3, &pal->trackColor4,
+            &pal->trackColor5, &pal->trackColor6, &pal->trackColor7, &pal->trackColor8,
+            &pal->trackColor9, &pal->trackColor10, &pal->trackColor11, &pal->trackColor12
+        };
+        trackColor = *trackColors[trackIndex % 12];
+    }
+
+    // Background with 20% track color blend
     auto bgColour = highlighted ? (pal ? pal->clipSelected : juce::Colour (0xff4477aa))
                                 : (pal ? pal->clipDefault : juce::Colour (0xff3a5a3a));
-    g.setColour (bgColour);
+    auto blendedBgColour = bgColour.interpolatedWith (trackColor, 0.2f);
+    g.setColour (blendedBgColour);
     g.fillRoundedRectangle (bounds, 4.0f);
 
     // Waveform
@@ -108,6 +139,21 @@ void ClipComponent::paint (juce::Graphics& g)
         g.fillRect (bounds.removeFromLeft ((float) trimZoneWidth));
         g.fillRect (getLocalBounds().toFloat().removeFromRight ((float) trimZoneWidth));
     }
+
+    // Ghost drag outline
+    if (ghostDragBounds.has_value())
+    {
+        auto ghostBounds = ghostDragBounds.value();
+        g.setColour (pal ? pal->primary.withAlpha (0.3f) : juce::Colour (0x4c4488cc));
+        g.drawRoundedRectangle (ghostBounds, 4.0f, 2.0f);
+
+        // Draw snap line if snapping is enabled
+        if (timeline.isSnapEnabled())
+        {
+            g.setColour (pal ? pal->primary : juce::Colour (0xff4488cc));
+            g.drawLine (ghostBounds.getX(), 0.0f, ghostBounds.getX(), (float) getParentComponent()->getHeight(), 1.0f);
+        }
+    }
 }
 
 void ClipComponent::mouseDown (const juce::MouseEvent& e)
@@ -165,6 +211,16 @@ void ClipComponent::mouseDrag (const juce::MouseEvent& e)
         {
             double newStart = juce::jmax (0.0, dragOriginalStart + delta);
             newStart = timeline.snapTimeToGrid (newStart);
+
+            // Calculate ghost drag position (parent-relative coords)
+            double clipLength = dragOriginalEnd - dragOriginalStart;
+            int ghostX = timeline.timeToX (newStart);
+            int ghostW = (int) (clipLength * timeline.getPixelsPerSecond());
+            ghostDragBounds = juce::Rectangle<float> (
+                (float) ghostX - TimelineComponent::trackHeaderWidth,
+                getY() * 1.0f, ghostW * 1.0f, getHeight() * 1.0f);
+            repaint();
+
             waive::moveClip (session, clip, newStart);
             break;
         }
@@ -218,6 +274,8 @@ void ClipComponent::mouseDrag (const juce::MouseEvent& e)
 void ClipComponent::mouseUp (const juce::MouseEvent&)
 {
     dragMode = None;
+    ghostDragBounds.reset();
+    repaint();
     timeline.getEditSession().endCoalescedTransaction();
 }
 

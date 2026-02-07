@@ -16,7 +16,7 @@ class TrackLaneComponent : public juce::Component,
 public:
     static constexpr int automationLaneHeight = 34;
 
-    TrackLaneComponent (te::AudioTrack& track, TimelineComponent& timeline);
+    TrackLaneComponent (te::AudioTrack& track, TimelineComponent& timeline, int trackIndex = 0);
     ~TrackLaneComponent() override;
 
     void paint (juce::Graphics& g) override;
@@ -46,6 +46,7 @@ private:
 
     te::AudioTrack& track;
     TimelineComponent& timeline;
+    int trackIndex = 0;
 
     juce::Label headerLabel;
     juce::ComboBox automationParamCombo;
