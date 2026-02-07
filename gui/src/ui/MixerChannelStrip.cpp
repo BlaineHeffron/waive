@@ -48,6 +48,17 @@ void MixerChannelStrip::setupControls()
 {
     nameLabel.setJustificationType (juce::Justification::centred);
     nameLabel.setFont (juce::FontOptions (11.0f));
+    nameLabel.setEditable (false, true, false);
+    nameLabel.onTextChange = [this]
+    {
+        if (suppressControlCallbacks || track == nullptr)
+            return;
+
+        editSession.performEdit ("Rename Track", [this] (te::Edit&)
+        {
+            track->setName (nameLabel.getText());
+        });
+    };
     addAndMakeVisible (nameLabel);
 
     faderSlider.setSliderStyle (juce::Slider::LinearVertical);
@@ -86,6 +97,33 @@ void MixerChannelStrip::setupControls()
 
     if (! isMaster)
     {
+        soloButton.setButtonText ("S");
+        soloButton.onClick = [this]
+        {
+            if (suppressControlCallbacks || track == nullptr)
+                return;
+
+            bool newState = soloButton.getToggleState();
+            editSession.performEdit ("Toggle Solo", [this, newState] (te::Edit&)
+            {
+                track->setSolo (newState);
+            });
+        };
+        addAndMakeVisible (soloButton);
+
+        muteButton.setButtonText ("M");
+        muteButton.onClick = [this]
+        {
+            if (suppressControlCallbacks || track == nullptr)
+                return;
+
+            bool newState = muteButton.getToggleState();
+            editSession.performEdit ("Toggle Mute", [this, newState] (te::Edit&)
+            {
+                track->setMute (newState);
+            });
+        };
+        addAndMakeVisible (muteButton);
         panKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         panKnob.setRange (-1.0, 1.0, 0.01);
         panKnob.setValue (0.0, juce::dontSendNotification);
@@ -124,6 +162,12 @@ void MixerChannelStrip::resized()
 
     if (! isMaster)
     {
+        auto buttonRow = bounds.removeFromTop (20);
+        soloButton.setBounds (buttonRow.removeFromLeft (36));
+        buttonRow.removeFromLeft (2);
+        muteButton.setBounds (buttonRow.removeFromLeft (36));
+        bounds.removeFromTop (2);
+
         panKnob.setBounds (bounds.removeFromTop (36).withSizeKeepingCentre (36, 36));
         bounds.removeFromTop (2);
     }
@@ -190,6 +234,8 @@ void MixerChannelStrip::timerCallback()
     suppressControlCallbacks = true;
     if (track != nullptr)
     {
+        nameLabel.setText (track->getName(), juce::dontSendNotification);
+
         if (auto* vp = track->getVolumePlugin())
         {
             faderSlider.setValue (te::volumeFaderPositionToDB (vp->volParam->getCurrentValue()),
@@ -197,6 +243,9 @@ void MixerChannelStrip::timerCallback()
             panKnob.setValue (vp->panParam->getCurrentValue() * 2.0f - 1.0f,
                               juce::dontSendNotification);
         }
+
+        soloButton.setToggleState (track->isSolo (false), juce::dontSendNotification);
+        muteButton.setToggleState (track->isMuted (false), juce::dontSendNotification);
     }
     else if (masterEdit != nullptr)
     {

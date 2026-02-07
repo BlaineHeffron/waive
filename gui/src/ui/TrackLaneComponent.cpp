@@ -24,6 +24,14 @@ TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl
     headerLabel.setText (track.getName(), juce::dontSendNotification);
     headerLabel.setJustificationType (juce::Justification::centredLeft);
     headerLabel.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
+    headerLabel.setEditable (false, true, false);
+    headerLabel.onTextChange = [this]
+    {
+        timeline.getEditSession().performEdit ("Rename Track", [this] (te::Edit&)
+        {
+            track.setName (headerLabel.getText());
+        });
+    };
     addAndMakeVisible (headerLabel);
 
     automationParamCombo.setTextWhenNothingSelected ("Automation: none");

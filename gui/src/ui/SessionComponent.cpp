@@ -63,6 +63,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
 
     snapToggle.setToggleState (true, juce::dontSendNotification);
     barsBeatsToggle.setToggleState (true, juce::dontSendNotification);
+    clickToggle.setToggleState (false, juce::dontSendNotification);
 
     positionLabel.setText ("0:00.0", juce::dontSendNotification);
     positionLabel.setJustificationType (juce::Justification::centredLeft);
@@ -85,6 +86,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     addAndMakeVisible (snapToggle);
     addAndMakeVisible (snapResolutionBox);
     addAndMakeVisible (barsBeatsToggle);
+    addAndMakeVisible (clickToggle);
     addAndMakeVisible (positionLabel);
 
     playButton.onClick  = [this] { runTransportAction ("transport_play"); };
@@ -214,6 +216,13 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
         timeline->setShowBarsBeatsRuler (barsBeatsToggle.getToggleState());
     };
 
+    clickToggle.onClick = [this]
+    {
+        if (suppressControlCallbacks)
+            return;
+        editSession.getEdit().clickTrackEnabled = clickToggle.getToggleState();
+    };
+
     // Mixer
     mixer = std::make_unique<MixerComponent> (editSession);
     addAndMakeVisible (mixer.get());
@@ -281,7 +290,9 @@ void SessionComponent::resized()
     setLoopInButton.setBounds (bottomRow.removeFromLeft (62));
     bottomRow.removeFromLeft (4);
     setLoopOutButton.setBounds (bottomRow.removeFromLeft (62));
-    bottomRow.removeFromLeft (14);
+    bottomRow.removeFromLeft (6);
+    clickToggle.setBounds (bottomRow.removeFromLeft (60));
+    bottomRow.removeFromLeft (8);
     snapToggle.setBounds (bottomRow.removeFromLeft (64));
     bottomRow.removeFromLeft (4);
     snapResolutionBox.setBounds (bottomRow.removeFromLeft (84));
@@ -332,6 +343,41 @@ void SessionComponent::toggleToolSidebar()
     resized();
 }
 
+void SessionComponent::play()
+{
+    auto& transport = editSession.getEdit().getTransport();
+    if (transport.isPlaying())
+        transport.stop (false, false);
+    else
+        transport.play (false);
+}
+
+void SessionComponent::stop()
+{
+    editSession.getEdit().getTransport().stop (false, false);
+}
+
+void SessionComponent::record()
+{
+    auto& transport = editSession.getEdit().getTransport();
+    if (transport.isRecording())
+    {
+        editSession.performEdit ("Stop Recording", [&] (te::Edit&)
+        {
+            transport.stopRecording (false);
+        });
+    }
+    else
+    {
+        transport.record (false, true);
+    }
+}
+
+void SessionComponent::goToStart()
+{
+    editSession.getEdit().getTransport().setPosition (te::TimePosition::fromSeconds (0.0));
+}
+
 void SessionComponent::timerCallback()
 {
     auto& transport = editSession.getEdit().getTransport();
@@ -362,6 +408,7 @@ void SessionComponent::timerCallback()
 
     loopButton.setToggleState (transport.looping.get(), juce::dontSendNotification);
     punchButton.setToggleState (editSession.getEdit().recordingPunchInOut.get(), juce::dontSendNotification);
+    clickToggle.setToggleState (editSession.getEdit().clickTrackEnabled.get(), juce::dontSendNotification);
     snapToggle.setToggleState (timeline->isSnapEnabled(), juce::dontSendNotification);
     barsBeatsToggle.setToggleState (timeline->getShowBarsBeatsRuler(), juce::dontSendNotification);
 

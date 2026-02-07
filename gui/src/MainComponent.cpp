@@ -96,7 +96,7 @@ void MainComponent::resized()
 
 juce::StringArray MainComponent::getMenuBarNames()
 {
-    return { "File", "Edit", "View" };
+    return { "File", "Edit", "Transport", "View" };
 }
 
 juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::String&)
@@ -128,6 +128,9 @@ juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::Strin
         }
 
         menu.addSeparator();
+        menu.addCommandItem (&commandManager, cmdAudioSettings);
+        menu.addCommandItem (&commandManager, cmdRender);
+        menu.addSeparator();
         menu.addItem (9999, "Quit");
     }
     else if (menuIndex == 1) // Edit
@@ -139,7 +142,14 @@ juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::Strin
         menu.addCommandItem (&commandManager, cmdDuplicate);
         menu.addCommandItem (&commandManager, cmdSplit);
     }
-    else if (menuIndex == 2) // View
+    else if (menuIndex == 2) // Transport
+    {
+        menu.addCommandItem (&commandManager, cmdPlay);
+        menu.addCommandItem (&commandManager, cmdStop);
+        menu.addCommandItem (&commandManager, cmdRecord);
+        menu.addCommandItem (&commandManager, cmdGoToStart);
+    }
+    else if (menuIndex == 3) // View
     {
         menu.addCommandItem (&commandManager, cmdToggleToolSidebar);
     }
@@ -191,6 +201,12 @@ void MainComponent::getAllCommands (juce::Array<juce::CommandID>& commands)
     commands.add (cmdDuplicate);
     commands.add (cmdSplit);
     commands.add (cmdToggleToolSidebar);
+    commands.add (cmdPlay);
+    commands.add (cmdStop);
+    commands.add (cmdRecord);
+    commands.add (cmdGoToStart);
+    commands.add (cmdAudioSettings);
+    commands.add (cmdRender);
 }
 
 void MainComponent::getCommandInfo (juce::CommandID commandID, juce::ApplicationCommandInfo& result)
@@ -247,12 +263,33 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
             break;
         case cmdSplit:
             result.setInfo ("Split at Playhead", "Split selected clips at playhead", "Edit", 0);
-            result.addDefaultKeypress ('s', 0);  // just 's' key
+            result.addDefaultKeypress ('s', juce::ModifierKeys::commandModifier);
             result.setActive (sessionComponent->getTimeline().getSelectionManager().getSelectedClips().size() > 0);
             break;
         case cmdToggleToolSidebar:
             result.setInfo ("Toggle Tool Sidebar", "Show or hide the tool sidebar", "View", 0);
             result.addDefaultKeypress ('t', juce::ModifierKeys::commandModifier);
+            break;
+        case cmdPlay:
+            result.setInfo ("Play", "Start or stop playback", "Transport", 0);
+            result.addDefaultKeypress (juce::KeyPress::spaceKey, 0);
+            break;
+        case cmdStop:
+            result.setInfo ("Stop", "Stop playback", "Transport", 0);
+            break;
+        case cmdRecord:
+            result.setInfo ("Record", "Toggle recording", "Transport", 0);
+            result.addDefaultKeypress ('r', 0);
+            break;
+        case cmdGoToStart:
+            result.setInfo ("Go to Start", "Jump to start of timeline", "Transport", 0);
+            result.addDefaultKeypress (juce::KeyPress::homeKey, 0);
+            break;
+        case cmdAudioSettings:
+            result.setInfo ("Audio Settings...", "Configure audio device settings", "File", 0);
+            break;
+        case cmdRender:
+            result.setInfo ("Render...", "Render project to audio file", "File", 0);
             break;
         default:
             break;
@@ -293,6 +330,66 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         case cmdToggleToolSidebar:
             sessionComponent->toggleToolSidebar();
             return true;
+        case cmdPlay:
+            sessionComponent->play();
+            return true;
+        case cmdStop:
+            sessionComponent->stop();
+            return true;
+        case cmdRecord:
+            sessionComponent->record();
+            return true;
+        case cmdGoToStart:
+            sessionComponent->goToStart();
+            return true;
+        case cmdAudioSettings:
+        {
+            auto& engine = editSession.getEdit().engine;
+            auto& deviceManager = engine.getDeviceManager();
+
+            juce::DialogWindow::LaunchOptions opts;
+            auto* selector = new juce::AudioDeviceSelectorComponent (
+                deviceManager.deviceManager,
+                0, 256, 0, 256, false, false, true, false);
+
+            opts.content.setOwned (selector);
+            opts.dialogTitle = "Audio Settings";
+            opts.dialogBackgroundColour = juce::Colours::darkgrey;
+            opts.escapeKeyTriggersCloseButton = true;
+            opts.useNativeTitleBar = true;
+            opts.resizable = false;
+            opts.runModal();
+            return true;
+        }
+        case cmdRender:
+        {
+            juce::FileChooser chooser ("Render to...", juce::File(), "*.wav");
+            if (chooser.browseForFileToSave (true))
+            {
+                auto outputFile = chooser.getResult();
+                auto& edit = editSession.getEdit();
+
+                te::Renderer::Parameters params (edit);
+                params.audioFormat = std::make_unique<juce::WavAudioFormat>();
+                params.destFile = outputFile;
+                params.time = te::EditTimeRange (te::TimePosition::fromSeconds (0.0),
+                                                  edit.getLength());
+                params.blockSizeForAudio = 512;
+                params.sampleRateForAudio = edit.engine.getDeviceManager().getSampleRate();
+
+                te::Renderer renderer (params);
+                auto renderResult = renderer.runRenderer();
+
+                if (! renderResult.wasOk())
+                {
+                    juce::AlertWindow::showMessageBoxAsync (
+                        juce::AlertWindow::WarningIcon,
+                        "Render Failed",
+                        renderResult.getErrorMessage());
+                }
+            }
+            return true;
+        }
         default:
             return false;
     }

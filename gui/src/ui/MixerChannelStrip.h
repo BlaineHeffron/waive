@@ -40,6 +40,8 @@ private:
     juce::Label nameLabel;
     juce::Slider faderSlider;
     juce::Slider panKnob;
+    juce::ToggleButton soloButton;
+    juce::ToggleButton muteButton;
 
     // Metering
     te::LevelMeasurer::Client meterClient;

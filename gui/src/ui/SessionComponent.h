@@ -31,6 +31,10 @@ public:
     ToolSidebarComponent* getToolSidebar();
 
     void toggleToolSidebar();
+    void play();
+    void stop();
+    void record();
+    void goToStart();
 
     // Test helpers for no-user UI coverage.
     void setTempoForTesting (double bpm);
@@ -78,6 +82,7 @@ private:
     juce::ToggleButton snapToggle { "Snap" };
     juce::ComboBox snapResolutionBox;
     juce::ToggleButton barsBeatsToggle { "Bars" };
+    juce::ToggleButton clickToggle { "Click" };
     juce::Label positionLabel;
 
     // Main areas

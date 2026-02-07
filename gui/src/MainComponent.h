@@ -55,7 +55,13 @@ public:
         cmdDelete  = 0x2010,
         cmdDuplicate = 0x2011,
         cmdSplit   = 0x2012,
-        cmdToggleToolSidebar = 0x2020
+        cmdToggleToolSidebar = 0x2020,
+        cmdPlay    = 0x2030,
+        cmdStop    = 0x2031,
+        cmdRecord  = 0x2032,
+        cmdGoToStart = 0x2033,
+        cmdAudioSettings = 0x2040,
+        cmdRender  = 0x2041
     };
 
 private:

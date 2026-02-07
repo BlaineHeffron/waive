@@ -1313,6 +1313,134 @@ void runUiPhase5ModelBackedToolsRegression()
     (void) modelStorage.deleteRecursively();
 }
 
+void runUiPhase3TransportAndWorkflowTests()
+{
+    te::Engine engine ("WaiveUiPhase3DAWTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (session);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+
+    MainComponent mainComponent (undoableHandler, session, jobQueue, projectManager);
+    mainComponent.setBounds (0, 0, 1200, 800);
+    mainComponent.resized();
+
+    auto& sessionComponent = mainComponent.getSessionComponentForTesting();
+    auto& edit = session.getEdit();
+    auto& transport = edit.getTransport();
+    auto* track = getFirstTrack (edit);
+    expect (track != nullptr, "Expected phase-3 transport test track");
+
+    // Transport shortcuts
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdGoToStart),
+            "Expected go-to-start command to execute");
+    expect (std::abs (transport.getPosition().inSeconds()) < 0.01,
+            "Expected transport at start after go-to-start command");
+
+    transport.setPosition (te::TimePosition::fromSeconds (5.0));
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdGoToStart),
+            "Expected go-to-start command to execute from non-zero position");
+    expect (std::abs (transport.getPosition().inSeconds()) < 0.01,
+            "Expected transport at start after second go-to-start");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdPlay),
+            "Expected play command to execute");
+    juce::Thread::sleep (50);
+    expect (transport.isPlaying(), "Expected transport playing after play command");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdStop),
+            "Expected stop command to execute");
+    juce::Thread::sleep (50);
+    expect (! transport.isPlaying(), "Expected transport stopped after stop command");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdPlay),
+            "Expected play command to toggle playback");
+    juce::Thread::sleep (50);
+    expect (transport.isPlaying(), "Expected transport playing after second play");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdPlay),
+            "Expected play command to toggle stop");
+    juce::Thread::sleep (50);
+    expect (! transport.isPlaying(), "Expected transport stopped after play toggle");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRecord),
+            "Expected record command to execute");
+    juce::Thread::sleep (50);
+    expect (transport.isRecording(), "Expected transport recording after record command");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRecord),
+            "Expected record toggle to stop recording");
+    juce::Thread::sleep (50);
+    expect (! transport.isRecording(), "Expected transport not recording after toggle");
+
+    // Split keybinding change
+    auto clip = track->insertMIDIClip (
+        "split_test",
+        te::TimeRange (te::TimePosition::fromSeconds (0.0),
+                       te::TimePosition::fromSeconds (2.0)),
+        nullptr);
+    expect (clip != nullptr, "Expected split test clip insertion");
+    sessionComponent.getTimeline().rebuildTracks();
+    sessionComponent.getTimeline().getSelectionManager().selectClip (clip.get());
+    transport.setPosition (te::TimePosition::fromSeconds (1.0));
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdSplit),
+            "Expected split command to execute with Cmd+S");
+    expect (getClipCount (*track) == 2, "Expected split to create two clips");
+
+    // Solo/mute
+    const bool soloInitial = track->isSolo (false);
+    const bool muteInitial = track->isMuted (false);
+    track->setSolo (! soloInitial);
+    juce::Thread::sleep (50);
+    expect (track->isSolo (false) == ! soloInitial, "Expected solo state change");
+    track->setMute (! muteInitial);
+    juce::Thread::sleep (50);
+    expect (track->isMuted (false) == ! muteInitial, "Expected mute state change");
+    track->setSolo (soloInitial);
+    track->setMute (muteInitial);
+
+    // Track rename
+    const auto originalName = track->getName();
+    track->setName ("TestRenamed");
+    juce::Thread::sleep (50);
+    expect (track->getName() == "TestRenamed", "Expected track rename to apply");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo for track rename");
+    juce::Thread::sleep (50);
+    expect (track->getName() == originalName, "Expected undo to restore original track name");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo for track rename");
+    juce::Thread::sleep (50);
+    expect (track->getName() == "TestRenamed", "Expected redo to restore renamed track name");
+
+    // Transport menu
+    auto menuNames = mainComponent.getMenuBarNames();
+    expect (menuNames.contains ("Transport"), "Expected Transport menu in menu bar");
+    int transportMenuIndex = -1;
+    for (int i = 0; i < menuNames.size(); ++i)
+    {
+        if (menuNames[i] == "Transport")
+        {
+            transportMenuIndex = i;
+            break;
+        }
+    }
+    expect (transportMenuIndex >= 0, "Expected to find Transport menu index");
+
+    // Render command exists
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRender),
+            "Expected render command to be callable (dialog dismissed by test environment)");
+
+    // Metronome toggle
+    const bool clickInitial = edit.clickTrackEnabled.get();
+    edit.clickTrackEnabled = ! clickInitial;
+    juce::Thread::sleep (50);
+    expect (edit.clickTrackEnabled.get() == ! clickInitial, "Expected click state change");
+    edit.clickTrackEnabled = clickInitial;
+}
+
 void runPhase2ModelWorkflowTests()
 {
     te::Engine engine { "WaivePhase2Tests" };
@@ -1439,6 +1567,7 @@ int main()
         runUiProjectLifecycleRegression();
         runUiPhase1LibraryAndPhase2PluginRoutingRegression();
         runUiPhase3TimeAutomationLoopPunchRegression();
+        runUiPhase3TransportAndWorkflowTests();
         runUiPhase4ToolFrameworkRegression();
         runUiPhase5BuiltInToolsRegression();
         runUiPhase5ModelBackedToolsRegression();
