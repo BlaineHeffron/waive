@@ -278,10 +278,11 @@ PluginBrowserComponent::~PluginBrowserComponent()
 
 void PluginBrowserComponent::paint (juce::Graphics& g)
 {
+    auto* pal = waive::getWaivePalette (*this);
+
     if (scanningInProgress)
     {
         g.setFont (waive::Fonts::body());
-        auto* pal = waive::getWaivePalette (*this);
         g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
         g.drawText ("Scanning plugins...", getLocalBounds(), juce::Justification::centred, true);
         return;
@@ -290,10 +291,9 @@ void PluginBrowserComponent::paint (juce::Graphics& g)
     auto& knownPlugins = editSession.getEdit().engine.getPluginManager().knownPluginList;
     if (knownPlugins.getNumTypes() == 0)
     {
-        g.setFont (waive::Fonts::body());
-        auto* pal = waive::getWaivePalette (*this);
+        g.setFont (waive::Fonts::caption());
         g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
-        g.drawText ("Click 'Scan' to find installed plugins", getLocalBounds(), juce::Justification::centred, true);
+        g.drawText ("No plugins found — click Scan", getLocalBounds(), juce::Justification::centred, true);
         return;
     }
 
@@ -303,10 +303,18 @@ void PluginBrowserComponent::paint (juce::Graphics& g)
     if (!isMaster && track == nullptr)
     {
         g.setFont (waive::Fonts::body());
-        auto* pal = waive::getWaivePalette (*this);
         g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
         g.drawText ("Select a track to manage plugins", chainList.getBounds(), juce::Justification::centred, true);
     }
+
+    // Draw vertical separator between plugin list (left) and chain panel (right)
+    auto bounds = getLocalBounds().reduced (waive::Spacing::sm);
+    bounds.removeFromTop (waive::Spacing::controlHeightDefault + waive::Spacing::sm);
+    constexpr int leftPanelMinWidth = 360;
+    int separatorX = waive::Spacing::sm + juce::jmax (leftPanelMinWidth, bounds.getWidth() / 2);
+    g.setColour (pal ? pal->borderSubtle : juce::Colour (0xff2a2a2a));
+    g.drawVerticalLine (separatorX, (float) (waive::Spacing::sm + waive::Spacing::controlHeightDefault + waive::Spacing::sm),
+                        (float) getHeight());
 }
 
 void PluginBrowserComponent::setScanning (bool scanning)
@@ -334,7 +342,9 @@ void PluginBrowserComponent::resized()
     auto left = bounds.removeFromLeft (juce::jmax (leftPanelMinWidth, bounds.getWidth() / 2));
     pluginList->setBounds (left);
 
-    bounds.removeFromLeft (waive::Spacing::sm);
+    // Draw vertical separator between panels
+    bounds.removeFromLeft (1); // Reserve 1px for separator line (drawn in paint)
+    bounds.removeFromLeft (waive::Spacing::sm - 1);
 
     auto right = bounds;
     auto ioRow = right.removeFromTop (waive::Spacing::controlHeightDefault);

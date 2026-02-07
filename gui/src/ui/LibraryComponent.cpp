@@ -68,12 +68,10 @@ void LibraryComponent::paint (juce::Graphics& g)
 {
     if (directoryList.getNumFiles() == 0)
     {
-        g.setFont (waive::Fonts::body());
-        if (auto* pal = waive::getWaivePalette (*this))
-            g.setColour (pal->textMuted);
-        else
-            g.setColour (juce::Colour (0xff808080));
-        g.drawText ("Click '+' to add a favorite directory", getLocalBounds(), juce::Justification::centred, true);
+        g.setFont (waive::Fonts::caption());
+        auto* pal = waive::getWaivePalette (*this);
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
+        g.drawText ("No files in directory", getLocalBounds(), juce::Justification::centred, true);
     }
 }
 

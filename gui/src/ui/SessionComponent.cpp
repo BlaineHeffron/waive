@@ -398,6 +398,7 @@ void SessionComponent::resized()
     primaryFlex.justifyContent = juce::FlexBox::JustifyContent::flexStart;
     primaryFlex.alignItems = juce::FlexBox::AlignItems::center;
 
+    // Playback control group
     primaryFlex.items.add (juce::FlexItem (playButton).withWidth (56));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
     primaryFlex.items.add (juce::FlexItem (stopButton).withWidth (56));
@@ -405,13 +406,17 @@ void SessionComponent::resized()
     primaryFlex.items.add (juce::FlexItem (recordButton).withWidth (56));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
     primaryFlex.items.add (juce::FlexItem (recordFromMicButton).withWidth (70));
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::md)); // Group separator
     primaryFlex.items.add (juce::FlexItem (addTrackButton).withWidth (78));
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+
+    // Position display group
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
     primaryFlex.items.add (juce::FlexItem (positionLabel).withWidth (92));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::md));
     primaryFlex.items.add (juce::FlexItem (selectionStatusLabel).withWidth (150).withFlex (1.0f));
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::md));
+
+    // Tempo/timesig group
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
     primaryFlex.items.add (juce::FlexItem (tempoLabel).withWidth (40));
     primaryFlex.items.add (juce::FlexItem (tempoSlider).withWidth (180));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
@@ -419,7 +424,9 @@ void SessionComponent::resized()
     primaryFlex.items.add (juce::FlexItem (timeSigNumeratorBox).withWidth (52));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xxs));
     primaryFlex.items.add (juce::FlexItem (timeSigDenominatorBox).withWidth (52));
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+
+    // Marker group
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
     primaryFlex.items.add (juce::FlexItem (addTempoMarkerButton).withWidth (72));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
     primaryFlex.items.add (juce::FlexItem (addTimeSigMarkerButton).withWidth (60));
@@ -435,6 +442,7 @@ void SessionComponent::resized()
         secondaryFlex.justifyContent = juce::FlexBox::JustifyContent::flexStart;
         secondaryFlex.alignItems = juce::FlexBox::AlignItems::center;
 
+        // Loop/punch group
         secondaryFlex.items.add (juce::FlexItem (loopButton).withWidth (60));
         secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
         secondaryFlex.items.add (juce::FlexItem (punchButton).withWidth (68));
@@ -442,13 +450,17 @@ void SessionComponent::resized()
         secondaryFlex.items.add (juce::FlexItem (setLoopInButton).withWidth (62));
         secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
         secondaryFlex.items.add (juce::FlexItem (setLoopOutButton).withWidth (62));
-        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+
+        // Click/snap group
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
         secondaryFlex.items.add (juce::FlexItem (clickToggle).withWidth (60));
         secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
         secondaryFlex.items.add (juce::FlexItem (snapToggle).withWidth (64));
         secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
         secondaryFlex.items.add (juce::FlexItem (snapResolutionBox).withWidth (84));
-        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+
+        // Display mode group
+        secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
         secondaryFlex.items.add (juce::FlexItem (barsBeatsToggle).withWidth (58));
 
         secondaryFlex.performLayout (bottomRow);

@@ -29,7 +29,7 @@ void TimeRulerComponent::paint (juce::Graphics& g)
     const double startTime = scrollOffset;
     const double endTime = scrollOffset + bounds.getWidth() / pps;
 
-    g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
+    g.setColour (pal ? pal->textSecondary : juce::Colour (0xff999999));
     g.setFont (waive::Fonts::caption());
 
     if (timeline.getShowBarsBeatsRuler())

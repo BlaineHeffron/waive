@@ -31,14 +31,14 @@ void PlayheadComponent::paint (juce::Graphics& g)
         g.fillRect (x1, 0, x2 - x1, getHeight());
     }
 
-    // Draw playhead line
+    // Draw playhead line (2px width for better visibility)
     auto pos = transport.getPosition().inSeconds();
     int x = timeline.timeToX (pos);
 
     if (x >= 0 && x < getWidth())
     {
         g.setColour (pal ? pal->playhead : juce::Colour (0xffff6600));
-        g.drawVerticalLine (x, 0.0f, (float) getHeight());
+        g.fillRect ((float) x - 1.0f, 0.0f, 2.0f, (float) getHeight());
     }
 }
 
@@ -49,11 +49,11 @@ void PlayheadComponent::timerCallback()
 
     if (x != lastPlayheadX)
     {
-        // Repaint old line region + new line region
+        // Repaint old line region + new line region (wider for 2px line)
         if (lastPlayheadX >= 0)
-            repaint (lastPlayheadX - 1, 0, 3, getHeight());
+            repaint (lastPlayheadX - 2, 0, 4, getHeight());
         if (x >= 0)
-            repaint (x - 1, 0, 3, getHeight());
+            repaint (x - 2, 0, 4, getHeight());
         lastPlayheadX = x;
     }
 }

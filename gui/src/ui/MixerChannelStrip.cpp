@@ -296,8 +296,8 @@ void MixerChannelStrip::paint (juce::Graphics& g)
     auto bounds = getLocalBounds().toFloat();
     auto* pal = waive::getWaivePalette (*this);
 
-    // Background
-    g.setColour (pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a));
+    // Background (master strip uses distinct background)
+    g.setColour (isMaster && pal ? pal->surfaceBgAlt : (pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a)));
     g.fillRoundedRectangle (bounds, 3.0f);
 
     // Border

@@ -113,10 +113,10 @@ void ClipComponent::paint (juce::Graphics& g)
     g.drawText (clip.getName(), bounds.reduced ((float) waive::Spacing::xs, 1.0f).removeFromTop (14.0f),
                 juce::Justification::centredLeft, true);
 
-    // Border
+    // Border (2px for selected clips for clear distinction)
     g.setColour (highlighted ? (pal ? pal->selectionBorder : juce::Colour (0xffffffff))
                              : (pal ? pal->border : juce::Colour (0xff555555)));
-    g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+    g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, highlighted ? 2.0f : 1.0f);
 
     // Hover border
     if (isHovered && ! highlighted)

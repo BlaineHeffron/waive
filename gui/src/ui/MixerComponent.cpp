@@ -40,7 +40,8 @@ void MixerComponent::resized()
     // Track strips in viewport
     stripViewport.setBounds (bounds);
 
-    int totalWidth = (int) strips.size() * MixerChannelStrip::stripWidth;
+    constexpr int stripGap = 4; // Visual separation between strips
+    int totalWidth = (int) strips.size() * (MixerChannelStrip::stripWidth + stripGap);
     stripContainer.setSize (juce::jmax (totalWidth, bounds.getWidth()),
                              bounds.getHeight());
 
@@ -48,7 +49,7 @@ void MixerComponent::resized()
     for (auto& strip : strips)
     {
         strip->setBounds (x, 0, MixerChannelStrip::stripWidth, bounds.getHeight());
-        x += MixerChannelStrip::stripWidth;
+        x += MixerChannelStrip::stripWidth + stripGap;
     }
 }
 

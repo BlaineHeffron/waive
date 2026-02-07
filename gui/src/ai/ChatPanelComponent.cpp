@@ -99,10 +99,21 @@ ChatPanelComponent::~ChatPanelComponent()
 
 void ChatPanelComponent::paint (juce::Graphics& g)
 {
-    if (auto* pal = getWaivePalette (*this))
+    auto* pal = getWaivePalette (*this);
+    if (pal)
         g.fillAll (pal->panelBg);
     else
         g.fillAll (juce::Colours::darkgrey);
+
+    // Empty state message when no messages
+    if (agent.getConversation().empty())
+    {
+        g.setFont (waive::Fonts::caption());
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
+        auto messageBounds = getLocalBounds().reduced (Spacing::xs)
+                                             .removeFromTop (getHeight() - Spacing::controlHeightDefault * 2 - Spacing::xs * 4);
+        g.drawText ("No messages yet", messageBounds, juce::Justification::centred, true);
+    }
 }
 
 void ChatPanelComponent::resized()
@@ -121,13 +132,13 @@ void ChatPanelComponent::resized()
 
     bounds.removeFromTop (Spacing::xs);
 
-    // Input bar at bottom
-    auto inputBar = bounds.removeFromBottom (Spacing::controlHeightDefault);
+    // Input bar at bottom (use controlHeightLarge for adequate multi-line input space)
+    auto inputBar = bounds.removeFromBottom (Spacing::controlHeightLarge);
     autoApplyToggle.setBounds (inputBar.removeFromLeft (100));
     inputBar.removeFromLeft (Spacing::xs);
-    clearButton.setBounds (inputBar.removeFromRight (50));
+    clearButton.setBounds (inputBar.removeFromRight (50).removeFromTop (Spacing::controlHeightDefault));
     inputBar.removeFromRight (Spacing::xs);
-    sendButton.setBounds (inputBar.removeFromRight (50));
+    sendButton.setBounds (inputBar.removeFromRight (50).removeFromTop (Spacing::controlHeightDefault));
     inputBar.removeFromRight (Spacing::xs);
     inputField.setBounds (inputBar);
 

@@ -370,11 +370,28 @@ ToolSidebarComponent::~ToolSidebarComponent()
 
 void ToolSidebarComponent::paint (juce::Graphics& g)
 {
+    auto* pal = waive::getWaivePalette (*this);
+    auto bounds = getLocalBounds();
+
+    // Draw section dividers
+    if (modelManagerSection != nullptr)
+    {
+        auto modelSectionHeight = juce::jlimit (120, 240, modelManagerSection->getIdealHeight());
+        int dividerY = waive::Spacing::sm + modelSectionHeight + waive::Spacing::sm / 2;
+        g.setColour (pal ? pal->borderSubtle : juce::Colour (0xff2a2a2a));
+        g.drawHorizontalLine (dividerY, (float) waive::Spacing::sm, (float) (getWidth() - waive::Spacing::sm));
+    }
+
+    // Divider after tool selector (before schema form)
+    int toolSelectorY = waive::Spacing::sm + (modelManagerSection ? juce::jlimit (120, 240, modelManagerSection->getIdealHeight()) + waive::Spacing::sm : 0)
+                        + waive::Spacing::controlHeightMedium + waive::Spacing::sm / 2;
+    g.setColour (pal ? pal->borderSubtle : juce::Colour (0xff2a2a2a));
+    g.drawHorizontalLine (toolSelectorY, (float) waive::Spacing::sm, (float) (getWidth() - waive::Spacing::sm));
+
+    // Empty state message
     if (toolCombo.getSelectedId() == 0)
     {
-        auto bounds = getLocalBounds();
-        g.setFont (waive::Fonts::body());
-        auto* pal = waive::getWaivePalette (*this);
+        g.setFont (waive::Fonts::caption());
         g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
         g.drawText ("Select a tool from the menu", bounds, juce::Justification::centred, true);
     }
