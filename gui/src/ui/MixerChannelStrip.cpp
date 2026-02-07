@@ -45,7 +45,7 @@ MixerChannelStrip::~MixerChannelStrip()
 void MixerChannelStrip::setupControls()
 {
     nameLabel.setJustificationType (juce::Justification::centred);
-    nameLabel.setFont (juce::FontOptions (11.0f));
+    nameLabel.setFont (waive::Fonts::caption());
     nameLabel.setEditable (false, true, false);
     nameLabel.onTextChange = [this]
     {
@@ -246,22 +246,22 @@ void MixerChannelStrip::paint (juce::Graphics& g)
             int barH = (int) (meterHeight * norm);
             int barY = meterBounds.getY() + meterHeight - barH;
 
-            // Draw gradient segments
-            for (int i = 0; i < barH; ++i)
-            {
-                float currentDB = ((float) (barH - i) / meterHeight) * 66.0f - 60.0f;
-                juce::Colour barColor;
+            // Use gradient fill instead of pixel-by-pixel
+            auto meterRect = juce::Rectangle<int> (meterBounds.getX() + xOffset, barY, 6, barH);
 
-                if (currentDB > -3.0f)
-                    barColor = pal ? pal->meterClip : juce::Colours::red;
-                else if (currentDB > -12.0f)
-                    barColor = pal ? pal->meterWarning : juce::Colours::yellow;
-                else
-                    barColor = pal ? pal->meterNormal : juce::Colours::limegreen;
+            juce::ColourGradient gradient (
+                pal ? pal->meterClip : juce::Colours::red,
+                (float) meterRect.getX(), (float) meterRect.getY(),
+                pal ? pal->meterNormal : juce::Colours::limegreen,
+                (float) meterRect.getX(), (float) meterRect.getBottom(),
+                false);
 
-                g.setColour (barColor);
-                g.fillRect (meterBounds.getX() + xOffset, barY + i, 6, 1);
-            }
+            // Add intermediate color stops
+            gradient.addColour (0.05, pal ? pal->meterClip : juce::Colours::red);        // -3dB
+            gradient.addColour (0.45, pal ? pal->meterWarning : juce::Colours::yellow);  // -12dB
+
+            g.setGradientFill (gradient);
+            g.fillRect (meterRect);
 
             // Peak hold line
             float peakHoldNorm = juce::jlimit (0.0f, 1.0f, (peakHoldDB + 60.0f) / 66.0f);

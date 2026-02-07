@@ -39,24 +39,11 @@ void ClipComponent::paint (juce::Graphics& g)
     bool highlighted = inPreview || selected;
     auto* pal = waive::getWaivePalette (*this);
 
-    // Get track index for color blending
-    int trackIndex = 0;
-    if (auto* parentLane = dynamic_cast<TrackLaneComponent*> (getParentComponent()))
-    {
-        // Find track index by searching parent timeline
-        auto& edit = timeline.getEditSession().getEdit();
-        auto tracks = te::getAudioTracks (edit);
-        for (int i = 0; i < tracks.size(); ++i)
-        {
-            if (tracks[i] == &parentLane->getTrack())
-            {
-                trackIndex = i;
-                break;
-            }
-        }
-    }
+    // Update track index if needed (lazy initialization)
+    if (cachedTrackIndex == 0 && getParentComponent() != nullptr)
+        const_cast<ClipComponent*>(this)->updateTrackIndex();
 
-    // Get track color
+    // Get track color using cached index
     juce::Colour trackColor = juce::Colours::grey;
     if (pal)
     {
@@ -65,7 +52,7 @@ void ClipComponent::paint (juce::Graphics& g)
             &pal->trackColor5, &pal->trackColor6, &pal->trackColor7, &pal->trackColor8,
             &pal->trackColor9, &pal->trackColor10, &pal->trackColor11, &pal->trackColor12
         };
-        trackColor = *trackColors[trackIndex % 12];
+        trackColor = *trackColors[cachedTrackIndex % 12];
     }
 
     // Background with 20% track color blend
@@ -99,28 +86,24 @@ void ClipComponent::paint (juce::Graphics& g)
         if (fadeInSec > 0.001)
         {
             const float fadeInWidth = juce::jmin ((float) (fadeInSec / clipLengthSec * bounds.getWidth()), bounds.getWidth() * 0.5f);
-            juce::Path fadeInPath;
-            fadeInPath.addTriangle (bounds.getX(), bounds.getY(),
-                                    bounds.getX(), bounds.getBottom(),
-                                    bounds.getX() + fadeInWidth, bounds.getY());
-            g.fillPath (fadeInPath);
+            g.fillTriangle (bounds.getX(), bounds.getY(),
+                           bounds.getX(), bounds.getBottom(),
+                           bounds.getX() + fadeInWidth, bounds.getY());
         }
 
         // Fade-out triangle
         if (fadeOutSec > 0.001)
         {
             const float fadeOutWidth = juce::jmin ((float) (fadeOutSec / clipLengthSec * bounds.getWidth()), bounds.getWidth() * 0.5f);
-            juce::Path fadeOutPath;
-            fadeOutPath.addTriangle (bounds.getRight(), bounds.getY(),
-                                     bounds.getRight() - fadeOutWidth, bounds.getY(),
-                                     bounds.getRight(), bounds.getBottom());
-            g.fillPath (fadeOutPath);
+            g.fillTriangle (bounds.getRight(), bounds.getY(),
+                           bounds.getRight() - fadeOutWidth, bounds.getY(),
+                           bounds.getRight(), bounds.getBottom());
         }
     }
 
     // Clip name
     g.setColour (pal ? pal->textOnPrimary : juce::Colours::white);
-    g.setFont (juce::FontOptions (11.0f));
+    g.setFont (waive::Fonts::caption());
     g.drawText (clip.getName(), bounds.reduced (4.0f, 1.0f).removeFromTop (14.0f),
                 juce::Justification::centredLeft, true);
 
@@ -313,6 +296,24 @@ void ClipComponent::updatePosition()
     int x = timeline.timeToX (pos.getStart().inSeconds());
     int w = (int) (pos.getLength().inSeconds() * timeline.getPixelsPerSecond());
     setBounds (x, 0, juce::jmax (4, w), getParentHeight());
+}
+
+void ClipComponent::updateTrackIndex()
+{
+    cachedTrackIndex = 0;
+    if (auto* parentLane = dynamic_cast<TrackLaneComponent*> (getParentComponent()))
+    {
+        auto& edit = timeline.getEditSession().getEdit();
+        auto tracks = te::getAudioTracks (edit);
+        for (int i = 0; i < tracks.size(); ++i)
+        {
+            if (tracks[i] == &parentLane->getTrack())
+            {
+                cachedTrackIndex = i;
+                break;
+            }
+        }
+    }
 }
 
 //==============================================================================

@@ -24,6 +24,7 @@ public:
     void mouseExit (const juce::MouseEvent& e) override;
 
     void updatePosition();
+    void updateTrackIndex();
 
     te::Clip& getClip()  { return clip; }
 
@@ -50,6 +51,7 @@ private:
     double dragStartFadeOut = 0.0;
     bool isHovered = false;
     std::optional<juce::Rectangle<float>> ghostDragBounds;
+    int cachedTrackIndex = 0;
 
     static constexpr int trimZoneWidth = 8;
     static constexpr int fadeZoneSize = 8;

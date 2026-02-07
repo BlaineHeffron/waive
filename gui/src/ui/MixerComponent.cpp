@@ -95,9 +95,10 @@ void MixerComponent::timerCallback()
     if (tracks.size() != lastTrackCount)
         rebuildStrips();
 
-    // Poll all strips at 30Hz
+    // Poll only visible strips
+    auto visibleArea = stripViewport.getViewArea();
     for (auto& strip : strips)
-        if (strip != nullptr)
+        if (strip != nullptr && strip->getBounds().intersects (visibleArea))
             strip->pollState();
 
     if (masterStrip != nullptr)

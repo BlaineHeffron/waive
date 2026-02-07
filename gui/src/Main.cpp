@@ -39,7 +39,7 @@ public:
 //==============================================================================
 class WaiveApplication : public juce::JUCEApplication,
                          public EditSession::Listener,
-                         private juce::Timer
+                         public ProjectManager::Listener
 {
 public:
     const juce::String getApplicationName() override    { return "Waive"; }
@@ -65,6 +65,7 @@ public:
         undoableHandler = std::make_unique<UndoableCommandHandler> (*commandHandler, *editSession);
 
         editSession->addListener (this);
+        projectManager->addListener (this);
 
         mainWindow = std::make_unique<MainWindow> (getWindowTitle(), *undoableHandler,
                                                    *editSession, *jobQueue, *projectManager);
@@ -76,13 +77,12 @@ public:
                               if (engine)
                                   engine->getPluginManager().initialise();
                           });
-
-        startTimerHz (4);
     }
 
     void shutdown() override
     {
-        stopTimer();
+        if (projectManager)
+            projectManager->removeListener (this);
         if (editSession)
             editSession->removeListener (this);
         mainWindow.reset();
@@ -115,7 +115,8 @@ public:
     }
 
     //==============================================================================
-    void timerCallback() override
+    // ProjectManager::Listener
+    void projectDirtyChanged() override
     {
         updateWindowTitle();
     }

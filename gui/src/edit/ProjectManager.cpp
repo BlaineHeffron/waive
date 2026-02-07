@@ -14,9 +14,15 @@ ProjectManager::ProjectManager (EditSession& session)
     opts.filenameSuffix       = ".settings";
     opts.osxLibrarySubFolder = "Application Support/Waive";
     appProperties.setStorageParameters (opts);
+
+    // Poll dirty state at 2Hz
+    startTimerHz (2);
 }
 
-ProjectManager::~ProjectManager() = default;
+ProjectManager::~ProjectManager()
+{
+    stopTimer();
+}
 
 //==============================================================================
 bool ProjectManager::newProject()
@@ -88,6 +94,31 @@ bool ProjectManager::saveAs()
 bool ProjectManager::isDirty() const
 {
     return editSession.hasChangedSinceSaved();
+}
+
+void ProjectManager::addListener (Listener* listener)
+{
+    listeners.add (listener);
+}
+
+void ProjectManager::removeListener (Listener* listener)
+{
+    listeners.remove (listener);
+}
+
+void ProjectManager::notifyDirtyChanged()
+{
+    // Deferred to timer to avoid issues during operations
+}
+
+void ProjectManager::timerCallback()
+{
+    bool currentDirty = isDirty();
+    if (currentDirty != lastDirtyState)
+    {
+        lastDirtyState = currentDirty;
+        listeners.call (&Listener::projectDirtyChanged);
+    }
 }
 
 juce::String ProjectManager::getProjectName() const

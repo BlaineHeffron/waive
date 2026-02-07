@@ -40,17 +40,13 @@ TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl
 
     refreshAutomationParams();
     updateClips();
-    startTimerHz (5);
 
     setTitle (track.getName());
     setDescription ("Track lane - contains clips and automation for " + track.getName());
     setWantsKeyboardFocus (true);
 }
 
-TrackLaneComponent::~TrackLaneComponent()
-{
-    stopTimer();
-}
+TrackLaneComponent::~TrackLaneComponent() = default;
 
 void TrackLaneComponent::paint (juce::Graphics& g)
 {
@@ -190,7 +186,7 @@ void TrackLaneComponent::updateClips()
     resized();
 }
 
-void TrackLaneComponent::timerCallback()
+void TrackLaneComponent::pollState()
 {
     const int currentCount = track.getClips().size();
     const int automatableCount = track.getAllAutomatableParams().size();

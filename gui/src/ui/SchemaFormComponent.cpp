@@ -81,14 +81,14 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
 
     field->label.setText (displayName, juce::dontSendNotification);
     field->label.setJustificationType (juce::Justification::centredLeft);
-    field->label.setFont (juce::FontOptions (12.0f));
+    field->label.setFont (waive::Fonts::body());
     addAndMakeVisible (field->label);
 
     auto description = propSchema.getProperty ("description", "").toString();
     if (description.isNotEmpty())
     {
         field->caption.setText (description, juce::dontSendNotification);
-        field->caption.setFont (juce::FontOptions (10.0f));
+        field->caption.setFont (waive::Fonts::caption());
         field->caption.setColour (juce::Label::textColourId, juce::Colours::grey);
         field->caption.setJustificationType (juce::Justification::centredLeft);
         addAndMakeVisible (field->caption);

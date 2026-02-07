@@ -224,7 +224,7 @@ void WaiveLookAndFeel::drawTabButton (juce::TabBarButton& button, juce::Graphics
 
     // Text
     g.setColour (isFront ? palette.textPrimary : palette.textMuted);
-    g.setFont (juce::FontOptions (13.0f));
+    g.setFont (waive::Fonts::body());
     g.drawText (button.getButtonText(), bounds.toNearestInt(), juce::Justification::centred, true);
 
     // Underline for active tab
@@ -256,7 +256,7 @@ void WaiveLookAndFeel::drawProgressBar (juce::Graphics& g, juce::ProgressBar&,
     if (textToShow.isNotEmpty())
     {
         g.setColour (palette.textPrimary);
-        g.setFont (juce::FontOptions (12.0f));
+        g.setFont (waive::Fonts::body());
         g.drawText (textToShow, bounds.toNearestInt(), juce::Justification::centred, false);
     }
 }

@@ -392,6 +392,11 @@ void TimelineComponent::timerCallback()
     auto tracks = te::getAudioTracks (editSession.getEdit());
     if (tracks.size() != lastTrackCount)
         rebuildTracks();
+
+    // Poll all track lanes
+    for (auto& lane : trackLanes)
+        if (lane != nullptr)
+            lane->pollState();
 }
 
 void TimelineComponent::scrollBarMoved (juce::ScrollBar* scrollBarThatHasMoved, double newRangeStart)

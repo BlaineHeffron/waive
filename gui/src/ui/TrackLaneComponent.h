@@ -18,8 +18,7 @@ struct GridLine
 
 //==============================================================================
 /** Single track's horizontal clip lane. */
-class TrackLaneComponent : public juce::Component,
-                           private juce::Timer
+class TrackLaneComponent : public juce::Component
 {
 public:
     static constexpr int automationLaneHeight = 34;
@@ -37,13 +36,13 @@ public:
     void mouseExit (const juce::MouseEvent& e) override;
 
     void updateClips();
+    void pollState();
 
     te::AudioTrack& getTrack()  { return track; }
 
     juce::Colour getTrackColorForTesting() const;
 
 private:
-    void timerCallback() override;
     void refreshAutomationParams();
     void layoutClipComponents();
     void showTrackContextMenu();
