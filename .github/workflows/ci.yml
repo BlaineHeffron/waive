@@ -54,7 +54,7 @@ jobs:
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 
       - name: Build
-        run: cmake --build build -j$(nproc)
+        run: cmake --build build -j$(($(nproc) / 2 < 1 ? 1 : $(nproc) / 2))
 
       - name: Test
         run: xvfb-run ctest --test-dir build --output-on-failure

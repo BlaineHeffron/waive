@@ -41,6 +41,33 @@ mkdir -p "$PHASE_LOG_DIR"
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 die() { log "FATAL: $*"; exit 1; }
 
+# Compute a safe -j value: min(nproc/2, available_ram / 2GB, MAX_BUILD_JOBS)
+# JUCE/Tracktion template-heavy C++ can use 1-2GB per compiler process.
+MAX_BUILD_JOBS="${MAX_BUILD_JOBS:-12}"
+safe_jobs() {
+    local cores
+    cores=$(nproc)
+    local half_cores=$(( cores / 2 ))
+    (( half_cores < 1 )) && half_cores=1
+
+    # Memory-based limit: ~2GB per compiler process
+    local avail_mb
+    avail_mb=$(awk '/MemAvailable/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo "0")
+    local mem_jobs=4  # fallback
+    if (( avail_mb > 0 )); then
+        mem_jobs=$(( avail_mb / 2048 ))
+        (( mem_jobs < 1 )) && mem_jobs=1
+    fi
+
+    # Take the minimum of all limits
+    local jobs=$half_cores
+    (( mem_jobs < jobs )) && jobs=$mem_jobs
+    (( MAX_BUILD_JOBS < jobs )) && jobs=$MAX_BUILD_JOBS
+    (( jobs < 1 )) && jobs=1
+
+    echo "$jobs"
+}
+
 get_current_phase() {
     if [[ -f "$STATE_FILE" ]]; then
         cat "$STATE_FILE"
@@ -181,7 +208,11 @@ validate_phase() {
     local phase_num=$1
     log "Running build + tests for phase $phase_num..."
 
-    if cmake --build build --target Waive -j"$(nproc)" 2>&1 | tail -5; then
+    local jobs
+    jobs=$(safe_jobs)
+    log "Building with -j$jobs (cores: $(nproc), max: $MAX_BUILD_JOBS)"
+
+    if cmake --build build --target Waive -j"$jobs" 2>&1 | tail -5; then
         log "Build: PASSED"
     else
         log "Build: FAILED (continuing anyway — next phase may fix it)"

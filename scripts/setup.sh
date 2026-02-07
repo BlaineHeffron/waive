@@ -36,6 +36,6 @@ fi
 echo ""
 echo "To build the engine:"
 echo "  cmake -B build -DCMAKE_BUILD_TYPE=Release"
-echo "  cmake --build build --target WaiveEngine -j\$(nproc)"
+echo "  cmake --build build --target WaiveEngine -j\$(((\$(nproc)+1)/2))"
 echo ""
 echo "Setup complete."
