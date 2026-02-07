@@ -6,6 +6,7 @@
 #include "UndoableCommandHandler.h"
 #include "ToolRegistry.h"
 #include "JobQueue.h"
+#include "Tool.h"
 
 namespace waive
 {
@@ -29,6 +30,11 @@ void AiAgent::addListener (AiAgentListener* listener)
 void AiAgent::removeListener (AiAgentListener* listener)
 {
     listeners.remove (listener);
+}
+
+void AiAgent::setToolContextProvider (ToolContextProvider provider)
+{
+    toolContextProvider = std::move (provider);
 }
 
 std::vector<ChatMessage> AiAgent::getConversation() const
@@ -225,9 +231,8 @@ juce::String AiAgent::executeToolCall (const ChatMessage::ToolCall& call)
     }
     else if (call.name.startsWith ("tool_"))
     {
-        // Higher-level tools not supported in the conversation loop for v1.
-        // They need SessionComponent context, Plan/Apply flow, etc.
-        return "{\"status\":\"error\",\"message\":\"High-level tool execution is not yet supported from AI chat. Use the Tool Sidebar instead.\"}";
+        auto toolName = call.name.substring (5);  // strip "tool_" prefix
+        return executeTool (toolName, call.arguments);
     }
 
     return "{\"status\":\"error\",\"message\":\"Unknown tool: " + call.name + "\"}";
@@ -291,6 +296,78 @@ void AiAgent::loadConversation (const juce::File& file)
     }
 
     juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
+}
+
+juce::String AiAgent::executeTool (const juce::String& toolName, const juce::var& args)
+{
+    if (! toolContextProvider)
+        return "{\"status\":\"error\",\"message\":\"Tool execution context not configured.\"}";
+
+    // Find the tool
+    auto* tool = toolRegistry.findTool (toolName);
+    if (tool == nullptr)
+        return "{\"status\":\"error\",\"message\":\"Unknown tool: " + toolName + "\"}";
+
+    // Step 1: preparePlan on message thread (needs UI/edit access)
+    ToolPlanTask task;
+    juce::Result prepareResult = juce::Result::fail ("Not executed");
+
+    {
+        juce::WaitableEvent done;
+        juce::MessageManager::callAsync ([&]
+        {
+            auto context = toolContextProvider();
+            prepareResult = tool->preparePlan (context, args, task);
+            done.signal();
+        });
+        done.wait (30000);  // 30s timeout for plan preparation
+    }
+
+    if (prepareResult.failed())
+        return "{\"status\":\"error\",\"message\":\"Plan preparation failed: "
+               + prepareResult.getErrorMessage().replace ("\"", "\\\"") + "\"}";
+
+    // Step 2: run task on current thread (already background)
+    // Create a simple reporter
+    class SimpleReporter : public ProgressReporter
+    {
+    public:
+        SimpleReporter()
+            : ProgressReporter (0, cancelFlag, [](int, float, const juce::String&) {})
+        {
+        }
+
+    private:
+        std::atomic<bool> cancelFlag { false };
+    };
+
+    SimpleReporter reporter;
+    auto plan = task.run (reporter);
+
+    // Step 3: apply on message thread
+    juce::Result applyResult = juce::Result::fail ("Not executed");
+
+    {
+        juce::WaitableEvent done;
+        juce::MessageManager::callAsync ([&]
+        {
+            auto context = toolContextProvider();
+            applyResult = tool->apply (context, plan);
+            done.signal();
+        });
+        done.wait (30000);  // 30s timeout for apply
+    }
+
+    if (applyResult.failed())
+        return "{\"status\":\"error\",\"message\":\"Apply failed: "
+               + applyResult.getErrorMessage().replace ("\"", "\\\"") + "\"}";
+
+    // Build success response
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("summary", plan.summary);
+    result->setProperty ("changes", plan.changes.size());
+    return juce::JSON::toString (juce::var (result));
 }
 
 } // namespace waive

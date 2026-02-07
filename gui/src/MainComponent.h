@@ -35,6 +35,7 @@ public:
     LibraryComponent& getLibraryComponentForTesting();
     PluginBrowserComponent& getPluginBrowserForTesting();
     bool invokeCommandForTesting (juce::CommandID commandID);
+    waive::ModelManager* getModelManager() { return modelManager.get(); }
 
     // MenuBarModel
     juce::StringArray getMenuBarNames() override;

@@ -189,7 +189,11 @@ juce::String generateSystemPrompt()
            "- Volume is in decibels (dB). 0 dB is unity gain.\n"
            "- Pan ranges from -1.0 (full left) to 1.0 (full right).\n"
            "- When asked about the project state, use cmd_get_tracks first.\n"
-           "- Do not invent file paths. Ask the user for paths if needed.\n";
+           "- Do not invent file paths. Ask the user for paths if needed.\n"
+           "- tool_* tools run a Plan/Apply workflow: they analyze the current selection, preview changes, then apply them.\n"
+           "- Available tool_* tools include audio processing (normalize, stem separation, gain staging, etc.).\n"
+           "- If external tools are installed, additional tool_* commands may be available (e.g., timbre transfer, music generation).\n"
+           "- When using tool_* commands, the tool operates on the currently selected clips/tracks.\n";
 }
 
 } // namespace waive

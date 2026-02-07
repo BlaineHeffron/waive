@@ -7,6 +7,7 @@
 
 #include "AiProvider.h"
 #include "AiSettings.h"
+#include "Tool.h"
 
 class UndoableCommandHandler;
 
@@ -53,10 +54,16 @@ public:
     void addListener (AiAgentListener* listener);
     void removeListener (AiAgentListener* listener);
 
+    using ToolContextProvider = std::function<waive::ToolExecutionContext()>;
+
+    /** Set a callback that provides the execution context for tool_* calls. */
+    void setToolContextProvider (ToolContextProvider provider);
+
 private:
     void runConversationLoop();
     juce::String executeToolCall (const ChatMessage::ToolCall& call);
     juce::String executeCommand (const juce::String& action, const juce::var& args);
+    juce::String executeTool (const juce::String& toolName, const juce::var& args);
 
     AiSettings& settings;
     UndoableCommandHandler& commandHandler;
@@ -72,6 +79,8 @@ private:
     std::atomic<bool> processing { false };
     std::atomic<bool> cancelRequested { false };
     int currentJobId = -1;
+
+    ToolContextProvider toolContextProvider;
 
     juce::ListenerList<AiAgentListener> listeners;
 };

@@ -12,6 +12,7 @@
 #include "WaiveLookAndFeel.h"
 #include "AiSettings.h"
 #include "AiAgent.h"
+#include "Tool.h"
 
 namespace te = tracktion;
 
@@ -109,6 +110,20 @@ public:
         mainWindow = std::make_unique<MainWindow> (getWindowTitle(), *undoableHandler,
                                                    *editSession, *jobQueue, *projectManager,
                                                    aiAgent.get(), aiSettings.get());
+
+        // Wire tool context provider for AI agent
+        aiAgent->setToolContextProvider ([this]() -> waive::ToolExecutionContext
+        {
+            auto* mc = dynamic_cast<MainComponent*> (mainWindow->getContentComponent());
+            jassert (mc != nullptr);
+
+            auto cacheDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                                .getChildFile ("Waive").getChildFile ("cache");
+            cacheDir.createDirectory();
+
+            return { *editSession, *projectManager, mc->getSessionComponentForTesting(),
+                     *mc->getModelManager(), cacheDir };
+        });
 
         // Schedule plugin scan in background after UI shown
         jobQueue->submit ({"ScanPlugins", "System"},
