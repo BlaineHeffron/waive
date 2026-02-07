@@ -23,6 +23,9 @@ ClipComponent::ClipComponent (te::Clip& c, TimelineComponent& tl)
     setTitle (clip.getName());
     setDescription ("Audio or MIDI clip - drag to move, drag edges to trim, drag fade handles to adjust fades");
     setWantsKeyboardFocus (true);
+
+    // Cache track index for paint optimization
+    updateTrackIndex();
 }
 
 ClipComponent::~ClipComponent() = default;
@@ -40,10 +43,6 @@ void ClipComponent::paint (juce::Graphics& g)
     // Use preview highlight if in preview mode, otherwise use selection
     bool highlighted = inPreview || selected;
     auto* pal = waive::getWaivePalette (*this);
-
-    // Update track index if needed (lazy initialization)
-    if (cachedTrackIndex == 0 && getParentComponent() != nullptr)
-        const_cast<ClipComponent*>(this)->updateTrackIndex();
 
     // Get track color using cached index
     juce::Colour trackColor = juce::Colours::grey;
@@ -88,18 +87,22 @@ void ClipComponent::paint (juce::Graphics& g)
         if (fadeInSec > 0.001)
         {
             const float fadeInWidth = juce::jmin ((float) (fadeInSec / clipLengthSec * bounds.getWidth()), bounds.getWidth() * 0.5f);
-            g.fillTriangle (bounds.getX(), bounds.getY(),
-                           bounds.getX(), bounds.getBottom(),
-                           bounds.getX() + fadeInWidth, bounds.getY());
+            juce::Path fadeIn;
+            fadeIn.addTriangle (bounds.getX(), bounds.getY(),
+                                bounds.getX(), bounds.getBottom(),
+                                bounds.getX() + fadeInWidth, bounds.getY());
+            g.fillPath (fadeIn);
         }
 
         // Fade-out triangle
         if (fadeOutSec > 0.001)
         {
             const float fadeOutWidth = juce::jmin ((float) (fadeOutSec / clipLengthSec * bounds.getWidth()), bounds.getWidth() * 0.5f);
-            g.fillTriangle (bounds.getRight(), bounds.getY(),
-                           bounds.getRight() - fadeOutWidth, bounds.getY(),
-                           bounds.getRight(), bounds.getBottom());
+            juce::Path fadeOut;
+            fadeOut.addTriangle (bounds.getRight(), bounds.getY(),
+                                 bounds.getRight() - fadeOutWidth, bounds.getY(),
+                                 bounds.getRight(), bounds.getBottom());
+            g.fillPath (fadeOut);
         }
     }
 

@@ -41,7 +41,6 @@ TimelineComponent::TimelineComponent (EditSession& session)
     // Horizontal scrollbar
     horizontalScrollbar.setOrientation (false);
     horizontalScrollbar.addListener (this);
-    horizontalScrollbar.setTooltip ("Scroll timeline horizontally");
     addAndMakeVisible (horizontalScrollbar);
 
     rebuildTracks();

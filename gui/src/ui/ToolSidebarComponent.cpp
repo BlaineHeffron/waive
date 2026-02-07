@@ -31,7 +31,7 @@ public:
     {
         addAndMakeVisible (titleLabel);
         titleLabel.setText ("Models", juce::dontSendNotification);
-        titleLabel.setFont (juce::Font (14.0f, juce::Font::bold));
+        titleLabel.setFont (waive::Fonts::subheader());
 
         addAndMakeVisible (usageLabel);
         addAndMakeVisible (settingsButton);

@@ -236,7 +236,7 @@ void MixerChannelStrip::paint (juce::Graphics& g)
         // dB scale markings
         const float dbMarks[] = {-60.0f, -40.0f, -20.0f, -10.0f, -6.0f, -3.0f, 0.0f, 6.0f};
         g.setColour (pal ? pal->textMuted : juce::Colour (0xff777777));
-        g.setFont (juce::FontOptions (8.0f));
+        g.setFont (waive::Fonts::meter());
 
         for (float db : dbMarks)
         {

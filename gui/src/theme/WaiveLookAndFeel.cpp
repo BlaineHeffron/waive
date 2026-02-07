@@ -1,4 +1,5 @@
 #include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
 
 namespace waive
 {

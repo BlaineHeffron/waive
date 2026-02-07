@@ -161,8 +161,8 @@ bool MixerComponent::keyPressed (const juce::KeyPress& key)
         if (focusedStripIndex > 0)
         {
             focusedStripIndex--;
-            if (focusedStripIndex < (int) strips.size() && strips[focusedStripIndex] != nullptr)
-                strips[focusedStripIndex]->grabKeyboardFocus();
+            if (focusedStripIndex < (int) strips.size() && strips[(size_t) focusedStripIndex] != nullptr)
+                strips[(size_t) focusedStripIndex]->grabKeyboardFocus();
             return true;
         }
     }
@@ -171,8 +171,8 @@ bool MixerComponent::keyPressed (const juce::KeyPress& key)
         if (focusedStripIndex < (int) strips.size() - 1)
         {
             focusedStripIndex++;
-            if (strips[focusedStripIndex] != nullptr)
-                strips[focusedStripIndex]->grabKeyboardFocus();
+            if (strips[(size_t) focusedStripIndex] != nullptr)
+                strips[(size_t) focusedStripIndex]->grabKeyboardFocus();
             return true;
         }
         else if (focusedStripIndex == (int) strips.size() - 1 && masterStrip != nullptr)

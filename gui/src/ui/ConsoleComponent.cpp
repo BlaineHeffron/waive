@@ -82,7 +82,7 @@ void ConsoleComponent::appendLog (const juce::String& text)
     if (parsed.isObject() && parsed.hasProperty ("error"))
     {
         if (auto* pal = waive::getWaivePalette (*this))
-            responseEditor.setColour (juce::TextEditor::textColourId, pal->error);
+            responseEditor.setColour (juce::TextEditor::textColourId, pal->danger);
         else
             responseEditor.setColour (juce::TextEditor::textColourId, juce::Colours::red);
     }

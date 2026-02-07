@@ -129,12 +129,6 @@ target_link_libraries(Waive PRIVATE
     CURL::libcurl
 )
 
-# Precompiled headers for faster builds
-target_precompile_headers(Waive PRIVATE
-    <JuceHeader.h>
-    <tracktion_engine/tracktion_engine.h>
-)
-
 # Some sandbox/dev environments don't have GTK dev headers installed.
 # JUCE can build without GTK (falls back to X11 where available).
 target_compile_definitions(Waive PRIVATE
