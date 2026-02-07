@@ -66,6 +66,12 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "remove_plugin")       result = handleRemovePlugin (parsed);
     else if (action == "bypass_plugin")       result = handleBypassPlugin (parsed);
     else if (action == "get_plugin_parameters") result = handleGetPluginParameters (parsed);
+    else if (action == "get_automation_params")    result = handleGetAutomationParams (parsed);
+    else if (action == "get_automation_points")    result = handleGetAutomationPoints (parsed);
+    else if (action == "add_automation_point")     result = handleAddAutomationPoint (parsed);
+    else if (action == "remove_automation_point")  result = handleRemoveAutomationPoint (parsed);
+    else if (action == "clear_automation")         result = handleClearAutomation (parsed);
+    else if (action == "set_clip_fade")            result = handleSetClipFade (parsed);
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -1394,6 +1400,194 @@ juce::var CommandHandler::handleGetPluginParameters (const juce::var& params)
         obj->setProperty ("parameter_count", paramList.size());
     }
     return result;
+}
+
+juce::var CommandHandler::handleGetAutomationParams (const juce::var& params)
+{
+    auto trackId = (int) params["track_id"];
+    auto* track = getTrackById (trackId);
+    if (! track)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    juce::Array<juce::var> paramList;
+    auto allParams = track->getAllAutomatableParams();
+    for (int i = 0; i < allParams.size(); ++i)
+    {
+        auto* p = allParams[i];
+        auto* pObj = new juce::DynamicObject();
+        pObj->setProperty ("index", i);
+        pObj->setProperty ("name", p->getParameterName());
+        pObj->setProperty ("label", p->getLabel());
+        pObj->setProperty ("current_value", p->getCurrentValue());
+        auto defVal = p->getDefaultValue();
+        if (defVal.has_value())
+            pObj->setProperty ("default_value", (double) *defVal);
+        pObj->setProperty ("range_min", 0.0);
+        pObj->setProperty ("range_max", 1.0);
+        paramList.add (juce::var (pObj));
+    }
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("track_id", trackId);
+    result->setProperty ("params", paramList);
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleGetAutomationPoints (const juce::var& params)
+{
+    auto trackId = (int) params["track_id"];
+    auto paramIndex = (int) params["param_index"];
+    auto* track = getTrackById (trackId);
+    if (! track)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    auto allParams = track->getAllAutomatableParams();
+    if (paramIndex < 0 || paramIndex >= allParams.size())
+        return makeError ("Parameter index out of range: " + juce::String (paramIndex));
+
+    auto* param = allParams[paramIndex];
+    auto& curve = param->getCurve();
+
+    juce::Array<juce::var> points;
+    for (int i = 0; i < curve.getNumPoints(); ++i)
+    {
+        auto* pt = new juce::DynamicObject();
+        pt->setProperty ("index", i);
+        pt->setProperty ("time", curve.getPointTime (i).inSeconds());
+        pt->setProperty ("value", curve.getPointValue (i));
+        pt->setProperty ("curve_value", curve.getPointCurve (i));
+        points.add (juce::var (pt));
+    }
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("track_id", trackId);
+    result->setProperty ("param_index", paramIndex);
+    result->setProperty ("param_name", param->getParameterName());
+    result->setProperty ("points", points);
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleAddAutomationPoint (const juce::var& params)
+{
+    auto trackId = (int) params["track_id"];
+    auto paramIndex = (int) params["param_index"];
+    auto timeSec = (double) params["time"];
+    auto value = (float) (double) params["value"];
+    auto curveVal = params.hasProperty ("curve") ? (float) (double) params["curve"] : 0.0f;
+
+    auto* track = getTrackById (trackId);
+    if (! track)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    auto allParams = track->getAllAutomatableParams();
+    if (paramIndex < 0 || paramIndex >= allParams.size())
+        return makeError ("Parameter index out of range: " + juce::String (paramIndex));
+
+    value = juce::jlimit (0.0f, 1.0f, value);
+
+    auto* param = allParams[paramIndex];
+    auto& curve = param->getCurve();
+    auto tp = te::TimePosition::fromSeconds (timeSec);
+    curve.addPoint (tp, value, curveVal, nullptr);
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("track_id", trackId);
+    result->setProperty ("param_name", param->getParameterName());
+    result->setProperty ("time", timeSec);
+    result->setProperty ("value", (double) value);
+    result->setProperty ("total_points", curve.getNumPoints());
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleRemoveAutomationPoint (const juce::var& params)
+{
+    auto trackId = (int) params["track_id"];
+    auto paramIndex = (int) params["param_index"];
+    auto pointIndex = (int) params["point_index"];
+
+    auto* track = getTrackById (trackId);
+    if (! track)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    auto allParams = track->getAllAutomatableParams();
+    if (paramIndex < 0 || paramIndex >= allParams.size())
+        return makeError ("Parameter index out of range: " + juce::String (paramIndex));
+
+    auto* param = allParams[paramIndex];
+    auto& curve = param->getCurve();
+
+    if (pointIndex < 0 || pointIndex >= curve.getNumPoints())
+        return makeError ("Point index out of range: " + juce::String (pointIndex));
+
+    curve.removePoint (pointIndex, nullptr);
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("remaining_points", curve.getNumPoints());
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleClearAutomation (const juce::var& params)
+{
+    auto trackId = (int) params["track_id"];
+    auto paramIndex = (int) params["param_index"];
+
+    auto* track = getTrackById (trackId);
+    if (! track)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    auto allParams = track->getAllAutomatableParams();
+    if (paramIndex < 0 || paramIndex >= allParams.size())
+        return makeError ("Parameter index out of range: " + juce::String (paramIndex));
+
+    auto* param = allParams[paramIndex];
+    auto& curve = param->getCurve();
+    curve.clear (nullptr);
+
+    return makeOk();
+}
+
+juce::var CommandHandler::handleSetClipFade (const juce::var& params)
+{
+    auto trackId = (int) params["track_id"];
+    auto clipIndex = (int) params["clip_index"];
+
+    auto* clip = getClipByIndex (trackId, clipIndex);
+    if (! clip)
+        return makeError ("Clip not found: track " + juce::String (trackId)
+                          + " clip " + juce::String (clipIndex));
+
+    auto* waveClip = dynamic_cast<te::WaveAudioClip*> (clip);
+    if (! waveClip)
+        return makeError ("Clip is not an audio clip (MIDI clips do not support fades)");
+
+    bool changed = false;
+
+    if (params.hasProperty ("fade_in"))
+    {
+        auto fadeInSec = juce::jmax (0.0, (double) params["fade_in"]);
+        waveClip->setFadeIn (te::TimeDuration::fromSeconds (fadeInSec));
+        changed = true;
+    }
+
+    if (params.hasProperty ("fade_out"))
+    {
+        auto fadeOutSec = juce::jmax (0.0, (double) params["fade_out"]);
+        waveClip->setFadeOut (te::TimeDuration::fromSeconds (fadeOutSec));
+        changed = true;
+    }
+
+    if (! changed)
+        return makeError ("Provide fade_in and/or fade_out (in seconds)");
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("fade_in", waveClip->getFadeIn().inSeconds());
+    result->setProperty ("fade_out", waveClip->getFadeOut().inSeconds());
+    return juce::var (result);
 }
 
 //==============================================================================

@@ -9,7 +9,9 @@ const std::unordered_set<std::string> UndoableCommandHandler::readOnlyActions = 
     "list_plugins",
     "transport_play",
     "transport_stop",
-    "transport_seek"
+    "transport_seek",
+    "get_automation_params",
+    "get_automation_points"
 };
 
 UndoableCommandHandler::UndoableCommandHandler (CommandHandler& handler, EditSession& session)

@@ -63,6 +63,12 @@ private:
     juce::var handleRemovePlugin (const juce::var& params);
     juce::var handleBypassPlugin (const juce::var& params);
     juce::var handleGetPluginParameters (const juce::var& params);
+    juce::var handleGetAutomationParams (const juce::var& params);
+    juce::var handleGetAutomationPoints (const juce::var& params);
+    juce::var handleAddAutomationPoint (const juce::var& params);
+    juce::var handleRemoveAutomationPoint (const juce::var& params);
+    juce::var handleClearAutomation (const juce::var& params);
+    juce::var handleSetClipFade (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::AudioTrack* getTrackById (int trackIndex);

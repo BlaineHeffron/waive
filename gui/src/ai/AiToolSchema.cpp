@@ -370,6 +370,65 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                                   { "track_id", "plugin_index" }),
                       "query" });
 
+    // get_automation_params
+    defs.push_back ({ "cmd_get_automation_params",
+                      "Get all automatable parameters for a track (volume, pan, plugin params). Returns parameter indices needed for other automation commands.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") } },
+                                  { "track_id" }),
+                      "query" });
+
+    // get_automation_points
+    defs.push_back ({ "cmd_get_automation_points",
+                      "Get all automation points for a specific parameter. Use get_automation_params first to find the param_index.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "param_index", prop ("integer", "Parameter index from get_automation_params") } },
+                                  { "track_id", "param_index" }),
+                      "query" });
+
+    // add_automation_point
+    defs.push_back ({ "cmd_add_automation_point",
+                      "Add an automation point at a specific time with a normalised value (0.0-1.0). Use get_automation_params to find the param_index.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "param_index", prop ("integer", "Parameter index from get_automation_params") },
+                                    { "time", prop ("number", "Time in seconds for the automation point") },
+                                    { "value", prop ("number", "Normalised value 0.0-1.0") },
+                                    { "curve", prop ("number", "Curve tension (-1.0 to 1.0, 0=linear). Optional.") } },
+                                  { "track_id", "param_index", "time", "value" }),
+                      "mixing" });
+
+    // remove_automation_point
+    defs.push_back ({ "cmd_remove_automation_point",
+                      "Remove an automation point by its index. Use get_automation_points to see current points.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "param_index", prop ("integer", "Parameter index") },
+                                    { "point_index", prop ("integer", "0-based index of the point to remove") } },
+                                  { "track_id", "param_index", "point_index" }),
+                      "mixing" });
+
+    // clear_automation
+    defs.push_back ({ "cmd_clear_automation",
+                      "Remove all automation points for a parameter, resetting it to its current static value.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "param_index", prop ("integer", "Parameter index") } },
+                                  { "track_id", "param_index" }),
+                      "mixing" });
+
+    // set_clip_fade
+    defs.push_back ({ "cmd_set_clip_fade",
+                      "Set fade-in and/or fade-out duration on an audio clip. Provide fade_in and/or fade_out in seconds.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                    { "fade_in", prop ("number", "Fade-in duration in seconds") },
+                                    { "fade_out", prop ("number", "Fade-out duration in seconds") } },
+                                  { "track_id", "clip_index" }),
+                      "mixing" });
+
     return defs;
 }
 
