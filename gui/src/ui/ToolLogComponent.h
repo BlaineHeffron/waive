@@ -21,6 +21,7 @@ public:
 
 private:
     void appendLog (const juce::String& text);
+    void appendErrorLog (const juce::String& text);
     void updateActiveJobs();
 
     waive::JobQueue& jobQueue;

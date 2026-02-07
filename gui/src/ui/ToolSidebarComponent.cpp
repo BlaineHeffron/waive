@@ -371,7 +371,7 @@ void ToolSidebarComponent::paint (juce::Graphics& g)
         g.setFont (waive::Fonts::body());
         auto* pal = waive::getWaivePalette (*this);
         g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
-        g.drawText ("Select a tool from the dropdown above", bounds, juce::Justification::centred, true);
+        g.drawText ("Select a tool from the menu", bounds, juce::Justification::centred, true);
     }
 }
 

@@ -294,6 +294,18 @@ void PluginBrowserComponent::paint (juce::Graphics& g)
         auto* pal = waive::getWaivePalette (*this);
         g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
         g.drawText ("Click 'Scan' to find installed plugins", getLocalBounds(), juce::Justification::centred, true);
+        return;
+    }
+
+    // Empty state when no track selected or no plugins available
+    const bool isMaster = trackCombo.getSelectedId() == masterItemId;
+    auto* track = getSelectedTrack();
+    if (!isMaster && track == nullptr)
+    {
+        g.setFont (waive::Fonts::body());
+        auto* pal = waive::getWaivePalette (*this);
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
+        g.drawText ("Select a track to manage plugins", chainList.getBounds(), juce::Justification::centred, true);
     }
 }
 

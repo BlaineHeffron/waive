@@ -112,7 +112,7 @@ void WaiveLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& bu
 
     if (button.hasKeyboardFocus (true))
     {
-        g.setColour (palette.primary);
+        g.setColour (palette.borderFocused);
         g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 2.0f);
     }
     else
@@ -148,20 +148,20 @@ void WaiveLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int wi
 
         // Track background
         g.setColour (palette.insetBg);
-        g.fillRoundedRectangle (trackBounds, 2.0f);
+        g.fillRoundedRectangle (trackBounds, 4.0f);
 
         // Filled portion
         g.setColour (palette.primary);
         if (isHorizontal)
         {
             auto fillW = sliderPos - (float) x;
-            g.fillRoundedRectangle (trackBounds.withWidth (juce::jmax (0.0f, fillW)), 2.0f);
+            g.fillRoundedRectangle (trackBounds.withWidth (juce::jmax (0.0f, fillW)), 4.0f);
         }
         else
         {
             auto fillH = (float) (y + height) - sliderPos;
             g.fillRoundedRectangle (trackBounds.getX(), sliderPos,
-                                    trackBounds.getWidth(), juce::jmax (0.0f, fillH), 2.0f);
+                                    trackBounds.getWidth(), juce::jmax (0.0f, fillH), 4.0f);
         }
 
         // Thumb
@@ -180,9 +180,9 @@ void WaiveLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int wi
         // Focus indicator
         if (slider.hasKeyboardFocus (true))
         {
-            g.setColour (palette.primary);
+            g.setColour (palette.borderFocused);
             auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height);
-            g.drawRoundedRectangle (bounds.reduced (1.0f), 2.0f, 2.0f);
+            g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 2.0f);
         }
     }
     else
@@ -226,8 +226,22 @@ void WaiveLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int wi
     // Focus indicator
     if (slider.hasKeyboardFocus (true))
     {
-        g.setColour (palette.primary);
+        g.setColour (palette.borderFocused);
         g.drawEllipse (bounds.reduced (2.0f), 2.0f);
+    }
+}
+
+void WaiveLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,
+                                          bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown)
+{
+    // Use base class drawing for toggle button content
+    LookAndFeel_V4::drawToggleButton (g, button, shouldDrawButtonAsHighlighted, shouldDrawButtonAsDown);
+
+    // Add focus ring if keyboard-focused
+    if (button.hasKeyboardFocus (true))
+    {
+        g.setColour (palette.borderFocused);
+        g.drawRoundedRectangle (button.getLocalBounds().toFloat().reduced (1.0f), 4.0f, 2.0f);
     }
 }
 
@@ -295,8 +309,8 @@ void WaiveLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height, b
 
     if (box.hasKeyboardFocus (true))
     {
-        g.setColour (palette.primary);
-        g.drawRoundedRectangle (bounds.reduced (1.0f), 2.0f, 2.0f);
+        g.setColour (palette.borderFocused);
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 2.0f);
     }
     else
     {
@@ -326,8 +340,8 @@ void WaiveLookAndFeel::drawTextEditorOutline (juce::Graphics& g, int width, int 
 
     if (editor.hasKeyboardFocus (true))
     {
-        g.setColour (palette.primary);
-        g.drawRoundedRectangle (bounds.reduced (1.0f), 2.0f, 2.0f);
+        g.setColour (palette.borderFocused);
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 2.0f);
     }
     else
     {

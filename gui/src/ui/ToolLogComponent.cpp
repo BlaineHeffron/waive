@@ -1,6 +1,7 @@
 #include "ToolLogComponent.h"
 #include "JobQueue.h"
 #include "WaiveSpacing.h"
+#include "WaiveLookAndFeel.h"
 
 //==============================================================================
 ToolLogComponent::ToolLogComponent (waive::JobQueue& queue)
@@ -122,11 +123,15 @@ void ToolLogComponent::jobEvent (const waive::JobEvent& event)
                             [&] (auto& aj) { return aj.jobId == event.jobId; }),
             activeJobs.end());
 
-        appendLog ("[" + timestamp + "] " + event.descriptor.name
-                   + " " + statusStr);
+        juce::String logEntry = "[" + timestamp + "] " + event.descriptor.name + " " + statusStr;
         if (event.message.isNotEmpty())
-            appendLog (" - " + event.message);
-        appendLog ("\n");
+            logEntry += " - " + event.message;
+        logEntry += "\n";
+
+        if (event.status == waive::JobStatus::Failed)
+            appendErrorLog (logEntry);
+        else
+            appendLog (logEntry);
     }
 
     updateActiveJobs();
@@ -136,6 +141,17 @@ void ToolLogComponent::appendLog (const juce::String& text)
 {
     logEditor.moveCaretToEnd();
     logEditor.insertTextAtCaret (text);
+    logEditor.moveCaretToEnd();
+}
+
+void ToolLogComponent::appendErrorLog (const juce::String& text)
+{
+    // Insert error text with visual distinction
+    // Note: TextEditor doesn't support colored text directly, but the text will be distinct
+    // when read. For now, we prefix with ERROR marker for visual scanning.
+    juce::String errorText = "ERROR: " + text;
+    logEditor.moveCaretToEnd();
+    logEditor.insertTextAtCaret (errorText);
     logEditor.moveCaretToEnd();
 }
 
