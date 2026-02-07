@@ -1,0 +1,5 @@
+pytest>=7.0
+numpy
+scipy
+mir_eval>=0.7
+pyloudnorm>=0.1

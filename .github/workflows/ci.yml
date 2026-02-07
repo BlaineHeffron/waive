@@ -81,11 +81,23 @@ jobs:
 
       - name: Install Python dependencies
         run: |
+          python3 -m pip install --upgrade pip
           if [ -f ai/requirements.txt ]; then
             pip install -r ai/requirements.txt
           else
             echo "No ai/requirements.txt found, skipping"
           fi
+
+      - name: Install audio tool test dependencies
+        if: hashFiles('tools/tests/requirements.txt') != ''
+        run: |
+          pip install -r tools/tests/requirements.txt
+          # Install each tool's own requirements (numpy, soundfile, etc.)
+          for req in tools/*/requirements.txt; do
+            if [ -f "$req" ]; then
+              pip install -r "$req" || true
+            fi
+          done
 
       - name: Run Python tests
         run: |
@@ -94,3 +106,8 @@ jobs:
           else
             echo "No ai/tests directory found, skipping"
           fi
+
+      - name: Run audio tool tests
+        if: hashFiles('tools/tests/requirements.txt') != ''
+        run: |
+          python3 -m pytest tools/tests/ -v --tb=short -x
