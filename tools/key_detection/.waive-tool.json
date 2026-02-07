@@ -1,0 +1,14 @@
+{
+  "name": "key_detection",
+  "displayName": "Key Detection",
+  "version": "0.1.0",
+  "description": "Detect the musical key of an audio file. Returns the estimated key (e.g., 'C major', 'A minor') with confidence.",
+  "category": "analysis",
+  "inputSchema": {
+    "type": "object",
+    "properties": {}
+  },
+  "command": ["python3", "-m", "key_detection"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": false
+}

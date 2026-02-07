@@ -1,0 +1,20 @@
+{
+  "name": "chord_detection",
+  "displayName": "Chord Detection",
+  "version": "0.1.0",
+  "description": "Detect chords from an audio file. Returns a time-stamped list of detected chords (e.g., C major, Am, G7).",
+  "category": "analysis",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "hop_seconds": {
+        "type": "number",
+        "description": "Analysis hop size in seconds (default: 0.5). Smaller = more granular.",
+        "default": 0.5
+      }
+    }
+  },
+  "command": ["python3", "-m", "chord_detection"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": false
+}

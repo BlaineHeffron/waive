@@ -1,0 +1,25 @@
+{
+  "name": "audio_to_midi",
+  "displayName": "Audio to MIDI",
+  "version": "0.1.0",
+  "description": "Transcribe audio to MIDI notes. Detects pitched content and outputs a MIDI file. Works best on monophonic sources (vocals, bass, lead instruments).",
+  "category": "analysis",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "min_note_length_ms": {
+        "type": "number",
+        "description": "Minimum note length in milliseconds (default: 50). Shorter = more notes detected.",
+        "default": 50
+      },
+      "onset_threshold": {
+        "type": "number",
+        "description": "Onset detection sensitivity 0.0-1.0 (default: 0.3). Lower = more sensitive.",
+        "default": 0.3
+      }
+    }
+  },
+  "command": ["python3", "-m", "audio_to_midi"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": false
+}

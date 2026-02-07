@@ -91,6 +91,7 @@ void AiAgent::clearConversation()
         std::lock_guard<std::mutex> lock (conversationMutex);
         conversation.clear();
     }
+    discoveredTools.clear();
     juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
 }
 
@@ -109,7 +110,9 @@ void AiAgent::runConversationLoop()
     auto apiKey = settings.getApiKey (settings.getActiveProvider());
     auto model = settings.getSelectedModel (settings.getActiveProvider());
     auto systemPrompt = generateSystemPrompt();
-    auto toolDefs = generateAllDefinitions (toolRegistry);
+
+    discoveredTools.clear();
+    auto toolDefs = generateCoreDefinitions();
 
     const int maxIterations = 10;
 
@@ -125,8 +128,12 @@ void AiAgent::runConversationLoop()
             snapshot = conversation;
         }
 
+        // Update tool definitions with discovered tools
+        auto currentToolDefs = generateCoreDefinitions();
+        currentToolDefs.insert (currentToolDefs.end(), discoveredTools.begin(), discoveredTools.end());
+
         // Call the LLM
-        auto response = provider->sendRequest (apiKey, model, systemPrompt, snapshot, toolDefs);
+        auto response = provider->sendRequest (apiKey, model, systemPrompt, snapshot, currentToolDefs);
 
         if (cancelRequested.load())
             return;
@@ -224,6 +231,60 @@ void AiAgent::runConversationLoop()
 
 juce::String AiAgent::executeToolCall (const ChatMessage::ToolCall& call)
 {
+    // Handle search_tools specially — it returns schemas and adds them to the active set
+    if (call.name == "cmd_search_tools")
+    {
+        auto query = call.arguments.hasProperty ("query")
+                       ? call.arguments["query"].toString()
+                       : juce::String();
+
+        if (query.isEmpty())
+            return "{\"status\":\"error\",\"message\":\"Missing query parameter\"}";
+
+        auto results = searchDefinitions (toolRegistry, query);
+
+        // Add discovered tools to the active set (avoid duplicates)
+        for (auto& r : results)
+        {
+            bool alreadyKnown = false;
+            for (auto& existing : discoveredTools)
+            {
+                if (existing.name == r.name)
+                {
+                    alreadyKnown = true;
+                    break;
+                }
+            }
+            if (! alreadyKnown)
+                discoveredTools.push_back (r);
+        }
+
+        // Build response
+        auto* resultObj = new juce::DynamicObject();
+        resultObj->setProperty ("status", "ok");
+        resultObj->setProperty ("count", (int) results.size());
+
+        juce::Array<juce::var> toolList;
+        for (auto& r : results)
+        {
+            auto* tObj = new juce::DynamicObject();
+            tObj->setProperty ("name", r.name);
+            tObj->setProperty ("description", r.description);
+            tObj->setProperty ("category", r.category);
+            // Include input schema so the AI knows the parameters
+            tObj->setProperty ("input_schema", r.inputSchema);
+            toolList.add (juce::var (tObj));
+        }
+        resultObj->setProperty ("tools", toolList);
+
+        if (results.empty())
+            resultObj->setProperty ("message", "No tools found matching: " + query);
+        else
+            resultObj->setProperty ("message", juce::String (results.size()) + " tools found. You can now call them directly.");
+
+        return juce::JSON::toString (juce::var (resultObj));
+    }
+
     if (call.name.startsWith ("cmd_"))
     {
         auto action = call.name.substring (4);  // strip "cmd_" prefix

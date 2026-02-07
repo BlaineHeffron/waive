@@ -1,0 +1,20 @@
+{
+  "name": "beat_detection",
+  "displayName": "Beat Detection",
+  "version": "0.1.0",
+  "description": "Detect tempo (BPM) and beat positions in an audio file. Returns estimated BPM and an array of beat timestamps in seconds.",
+  "category": "analysis",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "method": {
+        "type": "string",
+        "description": "Detection method: 'onset' for onset-based (default), 'autocorrelation' for tempo estimation only",
+        "default": "onset"
+      }
+    }
+  },
+  "command": ["python3", "-m", "beat_detection"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": false
+}

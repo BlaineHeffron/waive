@@ -29,6 +29,7 @@ struct AiToolDefinition
     juce::String name;
     juce::String description;
     juce::var inputSchema;  // JSON Schema object
+    juce::String category;
 };
 
 struct AiResponse

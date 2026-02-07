@@ -24,7 +24,7 @@ STALE_MINUTES="${STALE_MINUTES:-8}"      # stop after N minutes of no file chang
 PHASE_TIMEOUT="${PHASE_TIMEOUT:-45}"     # hard timeout per phase in minutes
 POLL_INTERVAL="${POLL_INTERVAL:-30}"     # seconds between status checks
 
-# Ordered phase files (v5+v8 — full DAW command set, AI tools, automation, markers, tests, UI polish)
+# Ordered phase files (v5+v10 — full DAW, AI tools, automation, markers, tests, benchmarks, fix loop)
 PHASE_FILES=(
     "phase_01_chat_history_persistence.md"
     "phase_02_recording_improvements.md"
@@ -43,6 +43,9 @@ PHASE_FILES=(
     "phase_15_automation_and_fade_commands.md"
     "phase_16_undo_markers_session_commands.md"
     "phase_17_test_infrastructure_stability.md"
+    "phase_18_audio_tool_validation_benchmarks.md"
+    "phase_19_cpp_tool_validation_benchmarks.md"
+    "phase_20_test_iteration_fix_loop.md"
 )
 
 mkdir -p "$PHASE_LOG_DIR"

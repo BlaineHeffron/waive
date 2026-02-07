@@ -73,6 +73,7 @@ private:
     std::vector<ChatMessage> conversation;
     mutable std::mutex conversationMutex;
 
+    std::vector<AiToolDefinition> discoveredTools;
     std::vector<ChatMessage::ToolCall> pendingToolCalls;
     juce::WaitableEvent approvalEvent;
     std::atomic<bool> pendingApproved { false };
