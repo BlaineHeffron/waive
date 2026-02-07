@@ -103,4 +103,15 @@ private:
     juce::StretchableLayoutManager horizontalLayout;
     bool sidebarVisible = true;
     static constexpr int defaultSidebarWidth = 280;
+
+    // Cache for change detection in timerCallback
+    double lastTempo = -1.0;
+    int lastNumerator = -1;
+    int lastDenominator = -1;
+    bool lastLoopState = false;
+    bool lastPunchState = false;
+    bool lastClickState = false;
+    bool lastSnapState = false;
+    bool lastBarsBeatsState = false;
+    int lastSnapResolution = -1;
 };

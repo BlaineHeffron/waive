@@ -99,7 +99,7 @@ private:
 
     juce::ThreadPool threadPool;
     std::mutex jobsMutex;
-    std::vector<std::shared_ptr<JobInfo>> jobs;
+    std::unordered_map<int, std::shared_ptr<JobInfo>> jobs;
     int64_t nextJobId = 1;
 
     juce::ListenerList<Listener> listeners;

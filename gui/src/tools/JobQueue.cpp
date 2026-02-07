@@ -47,7 +47,7 @@ int JobQueue::submit (const JobDescriptor& descriptor, JobFunction jobFunction,
         info->id = id;
         info->descriptor = descriptor;
         info->onComplete = std::move (onComplete);
-        jobs.push_back (info);
+        jobs[id] = info;
     }
 
     // Fire pending event
@@ -108,21 +108,16 @@ int JobQueue::submit (const JobDescriptor& descriptor, JobFunction jobFunction,
 void JobQueue::cancelJob (int jobId)
 {
     std::lock_guard<std::mutex> lock (jobsMutex);
-    for (auto& info : jobs)
-    {
-        if (info->id == jobId)
-        {
-            info->cancelFlag.store (true);
-            break;
-        }
-    }
+    auto it = jobs.find (jobId);
+    if (it != jobs.end())
+        it->second->cancelFlag.store (true);
 }
 
 void JobQueue::cancelAll()
 {
     std::lock_guard<std::mutex> lock (jobsMutex);
-    for (auto& info : jobs)
-        info->cancelFlag.store (true);
+    for (auto& pair : jobs)
+        pair.second->cancelFlag.store (true);
 }
 
 void JobQueue::addListener (Listener* listener)
@@ -140,33 +135,33 @@ void JobQueue::timerCallback()
     // Coalesce progress updates — deliver on message thread at ~10Hz.
     std::vector<std::shared_ptr<JobInfo>> completedJobs;
     std::vector<std::shared_ptr<JobInfo>> updatedJobs;
+    std::vector<int> completedJobIds;
 
     {
         std::lock_guard<std::mutex> lock (jobsMutex);
 
         // Collect jobs with updates and move completed jobs to local list
-        for (auto& info : jobs)
+        for (auto& pair : jobs)
         {
+            auto& info = pair.second;
             if (! info->hasUpdate.exchange (false))
                 continue;
 
             auto status = static_cast<JobStatus> (info->status.load());
             if (status == JobStatus::Completed || status == JobStatus::Failed || status == JobStatus::Cancelled)
+            {
                 completedJobs.push_back (info);
+                completedJobIds.push_back (pair.first);
+            }
             else
+            {
                 updatedJobs.push_back (info);
+            }
         }
 
-        // Remove completed jobs from active list while holding lock
-        if (! completedJobs.empty())
-        {
-            jobs.erase (std::remove_if (jobs.begin(), jobs.end(),
-                                        [&completedJobs] (const auto& j)
-                                        {
-                                            return std::find (completedJobs.begin(), completedJobs.end(), j) != completedJobs.end();
-                                        }),
-                        jobs.end());
-        }
+        // Remove completed jobs from active map while holding lock
+        for (int jobId : completedJobIds)
+            jobs.erase (jobId);
     }
 
     // Fire events for updated jobs

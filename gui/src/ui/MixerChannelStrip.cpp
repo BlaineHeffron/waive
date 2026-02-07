@@ -255,18 +255,23 @@ void MixerChannelStrip::paint (juce::Graphics& g)
             // Use gradient fill instead of pixel-by-pixel
             auto meterRect = juce::Rectangle<int> (meterBounds.getX() + xOffset, barY, 6, barH);
 
-            juce::ColourGradient gradient (
-                pal ? pal->meterClip : juce::Colour (0xffff0000),
-                (float) meterRect.getX(), (float) meterRect.getY(),
-                pal ? pal->meterNormal : juce::Colour (0xff00ff00),
-                (float) meterRect.getX(), (float) meterRect.getBottom(),
-                false);
+            // Cache gradient - rebuild only when meterBounds changes
+            if (meterBounds != cachedMeterGradientBounds)
+            {
+                cachedMeterGradientBounds = meterBounds;
+                meterGradient = juce::ColourGradient (
+                    pal ? pal->meterClip : juce::Colour (0xffff0000),
+                    (float) meterBounds.getX(), (float) meterBounds.getY(),
+                    pal ? pal->meterNormal : juce::Colour (0xff00ff00),
+                    (float) meterBounds.getX(), (float) meterBounds.getBottom(),
+                    false);
 
-            // Add intermediate color stops
-            gradient.addColour (0.05, pal ? pal->meterClip : juce::Colour (0xffff0000));        // -3dB
-            gradient.addColour (0.45, pal ? pal->meterWarning : juce::Colour (0xffffff00));  // -12dB
+                // Add intermediate color stops
+                meterGradient.addColour (0.05, pal ? pal->meterClip : juce::Colour (0xffff0000));        // -3dB
+                meterGradient.addColour (0.45, pal ? pal->meterWarning : juce::Colour (0xffffff00));  // -12dB
+            }
 
-            g.setGradientFill (gradient);
+            g.setGradientFill (meterGradient);
             g.fillRect (meterRect);
 
             // Peak hold line

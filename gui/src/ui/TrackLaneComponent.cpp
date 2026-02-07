@@ -103,13 +103,24 @@ void TrackLaneComponent::paint (juce::Graphics& g)
         cachedPixelsPerSecondForGrid = currentPPS;
     }
 
-    // Draw cached grid lines
+    // Draw cached grid lines - batch into paths for performance
+    juce::Path majorPath, minorPath;
+    float top = 0.0f;
+    float bottom = (float) getHeight();
+
     for (const auto& gridLine : cachedGridLines)
     {
-        g.setColour (gridLine.isMinor ? (pal ? pal->gridMinor : juce::Colour (0xff333333))
-                                      : (pal ? pal->gridMajor : juce::Colour (0xff555555)));
-        g.drawVerticalLine (gridLine.x, 0.0f, (float) getHeight());
+        float xf = (float) gridLine.x;
+        if (gridLine.isMinor)
+            minorPath.addLineSegment ({ xf, top, xf, bottom }, 1.0f);
+        else
+            majorPath.addLineSegment ({ xf, top, xf, bottom }, 1.0f);
     }
+
+    g.setColour (pal ? pal->gridMinor : juce::Colour (0xff333333));
+    g.fillPath (minorPath);
+    g.setColour (pal ? pal->gridMajor : juce::Colour (0xff555555));
+    g.fillPath (majorPath);
 
     // Automation lane background
     auto automationBounds = getAutomationBounds();

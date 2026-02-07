@@ -527,7 +527,7 @@ void SessionComponent::timerCallback()
     auto pos = transport.getPosition().inSeconds();
     int mins = (int) pos / 60;
     double secs = pos - mins * 60;
-    positionLabel.setText (juce::String (mins) + ":" + juce::String (secs, 1),
+    positionLabel.setText (juce::String::formatted ("%d:%.1f", mins, secs),
                            juce::dontSendNotification);
 
     {
@@ -541,34 +541,89 @@ void SessionComponent::timerCallback()
 
     auto& seq = editSession.getEdit().tempoSequence;
     if (auto* tempo0 = seq.getTempo (0))
-        tempoSlider.setValue (tempo0->getBpm(), juce::dontSendNotification);
+    {
+        auto newTempo = tempo0->getBpm();
+        if (! juce::approximatelyEqual (newTempo, lastTempo))
+        {
+            tempoSlider.setValue (newTempo, juce::dontSendNotification);
+            lastTempo = newTempo;
+        }
+    }
 
     if (auto* sig0 = seq.getTimeSig (0))
     {
-        timeSigNumeratorBox.setSelectedId (sig0->numerator.get(), juce::dontSendNotification);
-        timeSigDenominatorBox.setSelectedId (sig0->denominator.get(), juce::dontSendNotification);
+        int newNumerator = sig0->numerator.get();
+        int newDenominator = sig0->denominator.get();
+
+        if (newNumerator != lastNumerator)
+        {
+            timeSigNumeratorBox.setSelectedId (newNumerator, juce::dontSendNotification);
+            lastNumerator = newNumerator;
+        }
+
+        if (newDenominator != lastDenominator)
+        {
+            timeSigDenominatorBox.setSelectedId (newDenominator, juce::dontSendNotification);
+            lastDenominator = newDenominator;
+        }
     }
 
-    loopButton.setToggleState (transport.looping.get(), juce::dontSendNotification);
-    punchButton.setToggleState (editSession.getEdit().recordingPunchInOut.get(), juce::dontSendNotification);
-    clickToggle.setToggleState (editSession.getEdit().clickTrackEnabled.get(), juce::dontSendNotification);
-    snapToggle.setToggleState (timeline->isSnapEnabled(), juce::dontSendNotification);
-    barsBeatsToggle.setToggleState (timeline->getShowBarsBeatsRuler(), juce::dontSendNotification);
+    bool newLoopState = transport.looping.get();
+    if (newLoopState != lastLoopState)
+    {
+        loopButton.setToggleState (newLoopState, juce::dontSendNotification);
+        lastLoopState = newLoopState;
+    }
 
+    bool newPunchState = editSession.getEdit().recordingPunchInOut.get();
+    if (newPunchState != lastPunchState)
+    {
+        punchButton.setToggleState (newPunchState, juce::dontSendNotification);
+        lastPunchState = newPunchState;
+    }
+
+    bool newClickState = editSession.getEdit().clickTrackEnabled.get();
+    if (newClickState != lastClickState)
+    {
+        clickToggle.setToggleState (newClickState, juce::dontSendNotification);
+        lastClickState = newClickState;
+    }
+
+    bool newSnapState = timeline->isSnapEnabled();
+    if (newSnapState != lastSnapState)
+    {
+        snapToggle.setToggleState (newSnapState, juce::dontSendNotification);
+        lastSnapState = newSnapState;
+    }
+
+    bool newBarsBeatsState = timeline->getShowBarsBeatsRuler();
+    if (newBarsBeatsState != lastBarsBeatsState)
+    {
+        barsBeatsToggle.setToggleState (newBarsBeatsState, juce::dontSendNotification);
+        lastBarsBeatsState = newBarsBeatsState;
+    }
+
+    int newSnapResolution = -1;
     switch (timeline->getSnapResolution())
     {
         case TimelineComponent::SnapResolution::bar:
-            snapResolutionBox.setSelectedId (1, juce::dontSendNotification);
+            newSnapResolution = 1;
             break;
         case TimelineComponent::SnapResolution::beat:
-            snapResolutionBox.setSelectedId (2, juce::dontSendNotification);
+            newSnapResolution = 2;
             break;
         case TimelineComponent::SnapResolution::halfBeat:
-            snapResolutionBox.setSelectedId (3, juce::dontSendNotification);
+            newSnapResolution = 3;
             break;
         case TimelineComponent::SnapResolution::quarterBeat:
-            snapResolutionBox.setSelectedId (4, juce::dontSendNotification);
+            newSnapResolution = 4;
             break;
+    }
+
+    if (newSnapResolution != lastSnapResolution)
+    {
+        snapResolutionBox.setSelectedId (newSnapResolution, juce::dontSendNotification);
+        lastSnapResolution = newSnapResolution;
     }
 }
 

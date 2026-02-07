@@ -57,4 +57,8 @@ private:
     bool isMaster = false;
     bool highlighted = false;
     bool suppressControlCallbacks = false;
+
+    // Cache meter gradient
+    juce::ColourGradient meterGradient;
+    juce::Rectangle<int> cachedMeterGradientBounds;
 };
