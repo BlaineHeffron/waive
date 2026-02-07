@@ -17,6 +17,10 @@ target_sources(WaiveCoreTests PRIVATE
     ../gui/src/ui/ClipEditActions.cpp
     ../gui/src/tools/ModelManager.h
     ../gui/src/tools/ModelManager.cpp
+    ../gui/src/tools/AudioAnalysisCache.h
+    ../gui/src/tools/AudioAnalysisCache.cpp
+    ../gui/src/tools/AudioAnalysis.h
+    ../gui/src/tools/AudioAnalysis.cpp
     ../gui/src/util/PathSanitizer.h
     ../gui/src/util/PathSanitizer.cpp
 )

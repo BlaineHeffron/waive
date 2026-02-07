@@ -310,6 +310,18 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
     rejectButton.setTooltip ("Reject Plan");
     cancelButton.setTooltip ("Cancel Running Tool");
 
+    toolCombo.setTitle ("Tool Selector");
+    toolCombo.setDescription ("Select AI tool from list");
+    planButton.setTitle ("Plan");
+    planButton.setDescription ("Generate execution plan for selected tool");
+    applyButton.setTitle ("Apply");
+    applyButton.setDescription ("Apply planned changes to project");
+    rejectButton.setTitle ("Reject");
+    rejectButton.setDescription ("Reject planned changes");
+    cancelButton.setTitle ("Cancel");
+    cancelButton.setDescription ("Cancel running tool execution");
+
+    toolCombo.setWantsKeyboardFocus (true);
     planButton.setWantsKeyboardFocus (true);
     applyButton.setWantsKeyboardFocus (true);
     rejectButton.setWantsKeyboardFocus (true);

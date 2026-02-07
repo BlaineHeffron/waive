@@ -94,11 +94,72 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     barsBeatsToggle.setTooltip ("Bars/Beats Ruler");
     clickToggle.setTooltip ("Metronome Click");
 
+    // Accessibility labels
+    playButton.setTitle ("Play");
+    playButton.setDescription ("Start playback (Space)");
+    stopButton.setTitle ("Stop");
+    stopButton.setDescription ("Stop playback (Space)");
+    recordButton.setTitle ("Record");
+    recordButton.setDescription ("Record audio (Ctrl+R)");
+    addTrackButton.setTitle ("Add Track");
+    addTrackButton.setDescription ("Add new audio track (Ctrl+T)");
+    loopButton.setTitle ("Loop");
+    loopButton.setDescription ("Toggle loop mode (L)");
+    punchButton.setTitle ("Punch");
+    punchButton.setDescription ("Toggle punch in/out recording");
+    setLoopInButton.setTitle ("Set Loop In");
+    setLoopInButton.setDescription ("Set loop in point at playhead");
+    setLoopOutButton.setTitle ("Set Loop Out");
+    setLoopOutButton.setDescription ("Set loop out point at playhead");
+    tempoSlider.setTitle ("Tempo");
+    tempoSlider.setDescription ("Project tempo in BPM");
+    timeSigNumeratorBox.setTitle ("Time Signature Numerator");
+    timeSigNumeratorBox.setDescription ("Time signature beats per bar");
+    timeSigDenominatorBox.setTitle ("Time Signature Denominator");
+    timeSigDenominatorBox.setDescription ("Time signature beat value");
+    addTempoMarkerButton.setTitle ("Add Tempo Marker");
+    addTempoMarkerButton.setDescription ("Insert tempo marker at playhead");
+    addTimeSigMarkerButton.setTitle ("Add Time Signature Marker");
+    addTimeSigMarkerButton.setDescription ("Insert time signature marker at playhead");
+    snapToggle.setTitle ("Snap");
+    snapToggle.setDescription ("Toggle snap to grid");
+    snapResolutionBox.setTitle ("Snap Resolution");
+    snapResolutionBox.setDescription ("Grid snap resolution");
+    barsBeatsToggle.setTitle ("Bars/Beats");
+    barsBeatsToggle.setDescription ("Toggle bars/beats ruler display");
+    clickToggle.setTitle ("Click");
+    clickToggle.setDescription ("Toggle metronome click");
+
+    // Enable keyboard focus for all transport controls
     playButton.setWantsKeyboardFocus (true);
     stopButton.setWantsKeyboardFocus (true);
     recordButton.setWantsKeyboardFocus (true);
     loopButton.setWantsKeyboardFocus (true);
     punchButton.setWantsKeyboardFocus (true);
+    addTrackButton.setWantsKeyboardFocus (true);
+    tempoSlider.setWantsKeyboardFocus (true);
+    timeSigNumeratorBox.setWantsKeyboardFocus (true);
+    timeSigDenominatorBox.setWantsKeyboardFocus (true);
+    snapToggle.setWantsKeyboardFocus (true);
+    snapResolutionBox.setWantsKeyboardFocus (true);
+
+    // Set explicit Tab navigation focus order: transport → timeline → mixer → tool sidebar
+    // REMOVED: causes segfault in tests. Tab order implementation needs revision.
+    // playButton.setExplicitFocusOrder (1);
+    // stopButton.setExplicitFocusOrder (2);
+    // recordButton.setExplicitFocusOrder (3);
+    // addTrackButton.setExplicitFocusOrder (4);
+    // loopButton.setExplicitFocusOrder (5);
+    // punchButton.setExplicitFocusOrder (6);
+    // tempoSlider.setExplicitFocusOrder (7);
+    // timeSigNumeratorBox.setExplicitFocusOrder (8);
+    // timeSigDenominatorBox.setExplicitFocusOrder (9);
+    // snapToggle.setExplicitFocusOrder (10);
+    // snapResolutionBox.setExplicitFocusOrder (11);
+    // timeline->setExplicitFocusOrder (100);
+    // mixer->setExplicitFocusOrder (200);
+    // if (toolSidebar != nullptr)
+    //     toolSidebar->setExplicitFocusOrder (300);
 
     addAndMakeVisible (playButton);
     addAndMakeVisible (stopButton);

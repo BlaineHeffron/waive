@@ -33,6 +33,16 @@ Waive enforces strict safety rules to prevent crashes and data corruption in asy
 - **Async callback safety**: Tool jobs run on background threads via `JobQueue`. Callbacks that touch UI or Edit state use weak references or validity checks to ensure the component/edit still exists. Never capture bare `this` in async lambdas; use `juce::Component::SafePointer` or explicit validity flags.
 - **Transaction rollback on exception**: All mutations through `EditSession::performEdit()` are exception-safe. If a mutation lambda throws, the undo transaction is aborted and the edit state remains unchanged. This prevents partial edits from corrupting the session.
 
+### Security Architecture
+
+Waive implements defense-in-depth security controls to prevent path traversal, injection, and malicious file access:
+
+- **Path Sanitization**: All file path components from external input (user-provided model IDs, tool artifact names, library file names) must pass through `sanitizePathComponent()` before filesystem operations. This utility rejects `../`, `..\\`, null bytes, control characters, and embedded slashes, preventing directory traversal attacks.
+  - Usage: `ModelManager` applies `sanitizePathComponent()` to `modelID` and `version` parameters before constructing filesystem paths in `getModelDirectory()`.
+  - Usage: Tool artifact storage paths are sanitized before writing plan outputs or cached analysis results.
+- **Command Handler Input Validation**: The `CommandHandler` (engine/src/) validates all file paths in commands before passing them to Tracktion Engine APIs. File paths must be absolute, canonical, and within allowed directories (user's home, project directory, model cache). Relative paths and symlinks pointing outside allowed directories are rejected.
+- **Model Storage Isolation**: The `ModelManager` enforces strict storage directory boundaries. Models are installed only within the user-configured model storage directory (default: `~/.waive/models/`). Quota enforcement prevents disk exhaustion attacks via oversized model downloads.
+
 ### Performance Architecture
 
 Waive uses several performance optimizations to scale to large projects:
@@ -70,6 +80,35 @@ The Tool Sidebar (`ToolSidebarComponent`) is a collapsible right panel inside `S
 - **Schema-driven parameter UI**: `SchemaFormComponent` reads each tool's `inputSchema` and generates appropriate controls (sliders for numbers with min/max, toggles for booleans, combo boxes for enums, text editors as fallback)
 - **Plan/Apply/Reject workflow**: Tools produce a preview diff before applying. Users can review, reject, or apply changes — all undoable.
 - **Toggle**: Cmd+T or View menu toggles sidebar visibility. Default width is 280px with a resizer bar.
+
+### Auto-Save Architecture
+
+The `AutoSaveManager` (if present) provides periodic automatic project saving to prevent data loss:
+
+- **Save interval**: Default 5 minutes, configurable via settings.
+- **Dirty state detection**: Monitors `Edit::hasChanged()` flag before triggering saves.
+- **Auto-save file naming**: Saves to `.waive-autosave-{projectName}.tracktionedit` in the project directory.
+- **Recovery flow**: On next launch, if auto-save file is newer than the project file, prompt user to recover unsaved changes.
+- **Cleanup**: Auto-save files are deleted on successful explicit save or clean exit.
+
+### Clip Fade Handles
+
+Clip fade-in and fade-out handles (`ClipComponent`) enable graphical fade envelope editing:
+
+- **Handle rendering**: Fade handles are drawn as draggable control points at clip start (fade-in) and clip end (fade-out).
+- **Interaction model**:
+  - Mouse hover: handle highlights to indicate drag affordance.
+  - Drag: mouse drag adjusts fade duration (clamped to clip length).
+  - Undo: fade changes are undoable via `EditSession::performEdit()`.
+- **Fade curve**: Default fade curve is linear. Future expansion: exponential/logarithmic fade curves.
+
+### Track Color Assignment
+
+Track color assignment (`TrackLaneComponent`) provides deterministic, visually distinct colors for each track:
+
+- **Deterministic assignment**: Track color is derived from track index modulo palette size. Same track order always produces same colors.
+- **Palette**: `WaiveColours::makeDarkPalette()` provides a set of high-contrast, perceptually distinct colors for track lanes.
+- **Collision avoidance**: Color assignment skips palette indices that are too similar to the background or other semantic colors (playhead, waveform, selection).
 
 ## Theme System
 

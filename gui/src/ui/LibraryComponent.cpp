@@ -21,14 +21,22 @@ LibraryComponent::LibraryComponent (EditSession& session)
     fileTree = std::make_unique<juce::FileTreeComponent> (directoryList);
     fileTree->addListener (this);
     fileTree->setDragAndDropDescription ("LibraryFile");
+    fileTree->setTitle ("File Browser");
+    fileTree->setDescription ("Browse and drag audio files");
     addAndMakeVisible (fileTree.get());
 
     goUpButton.setButtonText ("..");
     goUpButton.onClick = [this] { goUp(); };
+    goUpButton.setTitle ("Go Up");
+    goUpButton.setDescription ("Navigate to parent directory");
+    goUpButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (goUpButton);
 
     addFavButton.setButtonText ("+");
     addFavButton.onClick = [this] { addCurrentToFavorites(); };
+    addFavButton.setTitle ("Add Favorite");
+    addFavButton.setDescription ("Add current directory to favorites");
+    addFavButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (addFavButton);
 
     favoritesCombo.setTextWhenNothingSelected ("Favorites");
@@ -38,6 +46,9 @@ LibraryComponent::LibraryComponent (EditSession& session)
         if (idx >= 0 && idx < favoritesPaths.size())
             setRoot (juce::File (favoritesPaths[idx]));
     };
+    favoritesCombo.setTitle ("Favorites");
+    favoritesCombo.setDescription ("Navigate to favorite directory");
+    favoritesCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (favoritesCombo);
 
     loadFavorites();

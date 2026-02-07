@@ -32,6 +32,8 @@ public:
 
     te::AudioTrack& getTrack()  { return track; }
 
+    juce::Colour getTrackColorForTesting() const;
+
 private:
     void timerCallback() override;
     void refreshAutomationParams();

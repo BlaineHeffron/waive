@@ -57,6 +57,8 @@ void MixerChannelStrip::setupControls()
             track->setName (nameLabel.getText());
         });
     };
+    nameLabel.setTitle ("Track Name");
+    nameLabel.setDescription ("Channel strip name");
     addAndMakeVisible (nameLabel);
 
     faderSlider.setSliderStyle (juce::Slider::LinearVertical);
@@ -65,6 +67,9 @@ void MixerChannelStrip::setupControls()
     faderSlider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 60, 16);
     faderSlider.setTextValueSuffix (" dB");
     faderSlider.setTooltip ("Track Volume (dB)");
+    faderSlider.setTitle ("Volume");
+    faderSlider.setDescription ("Track volume in dB");
+    faderSlider.setWantsKeyboardFocus (true);
     addAndMakeVisible (faderSlider);
 
     faderSlider.onValueChange = [this]
@@ -98,6 +103,8 @@ void MixerChannelStrip::setupControls()
     {
         soloButton.setButtonText ("S");
         soloButton.setTooltip ("Solo (S)");
+        soloButton.setTitle ("Solo");
+        soloButton.setDescription ("Solo this track (S)");
         soloButton.setWantsKeyboardFocus (true);
         soloButton.onClick = [this]
         {
@@ -114,6 +121,8 @@ void MixerChannelStrip::setupControls()
 
         muteButton.setButtonText ("M");
         muteButton.setTooltip ("Mute (M)");
+        muteButton.setTitle ("Mute");
+        muteButton.setDescription ("Mute this track (M)");
         muteButton.setWantsKeyboardFocus (true);
         muteButton.onClick = [this]
         {
@@ -132,6 +141,9 @@ void MixerChannelStrip::setupControls()
         panKnob.setValue (0.0, juce::dontSendNotification);
         panKnob.setTextBoxStyle (juce::Slider::NoTextBox, true, 0, 0);
         panKnob.setTooltip ("Pan L/R");
+        panKnob.setTitle ("Pan");
+        panKnob.setDescription ("Pan left/right");
+        panKnob.setWantsKeyboardFocus (true);
         addAndMakeVisible (panKnob);
 
         panKnob.onValueChange = [this]

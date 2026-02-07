@@ -20,6 +20,7 @@ public:
 
     void paint (juce::Graphics& g) override;
     void resized() override;
+    bool keyPressed (const juce::KeyPress& key) override;
 
     // Test helpers for no-user UI coverage.
     bool selectTrackForTesting (int trackIndex);

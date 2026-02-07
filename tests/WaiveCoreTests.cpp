@@ -5,6 +5,8 @@
 #include "ClipEditActions.h"
 #include "ModelManager.h"
 #include "PathSanitizer.h"
+#include "AudioAnalysisCache.h"
+#include "AudioAnalysis.h"
 
 #include <cmath>
 #include <iostream>
@@ -273,6 +275,46 @@ void testModelManagerRejectsPathTraversal()
     fixtureDir.deleteRecursively();
 }
 
+void testAudioAnalysisCacheLRU()
+{
+    waive::AudioAnalysisCache cache (100);
+
+    // Insert 101 entries to exceed capacity
+    for (int i = 0; i < 101; ++i)
+    {
+        waive::AudioAnalysisCache::CacheKey key;
+        key.sourceFile = juce::File ("/tmp/test_" + juce::String (i) + ".wav");
+        key.activityThreshold = 0.01f;
+        key.transientThreshold = 0.05f;
+
+        waive::AudioAnalysisSummary summary;
+        summary.valid = true;
+        summary.totalSamples = 44100;
+        summary.firstAboveSample = 0;
+        summary.firstTransientSample = -1;
+
+        cache.put (key, summary);
+    }
+
+    // Oldest entry (i=0) should have been evicted
+    waive::AudioAnalysisCache::CacheKey firstKey;
+    firstKey.sourceFile = juce::File ("/tmp/test_0.wav");
+    firstKey.activityThreshold = 0.01f;
+    firstKey.transientThreshold = 0.05f;
+
+    auto firstResult = cache.get (firstKey);
+    expect (! firstResult.has_value(), "Expected oldest entry to be evicted when capacity exceeded");
+
+    // Most recent entry (i=100) should still exist
+    waive::AudioAnalysisCache::CacheKey lastKey;
+    lastKey.sourceFile = juce::File ("/tmp/test_100.wav");
+    lastKey.activityThreshold = 0.01f;
+    lastKey.transientThreshold = 0.05f;
+
+    auto lastResult = cache.get (lastKey);
+    expect (lastResult.has_value(), "Expected most recent entry to remain in cache");
+}
+
 } // namespace
 
 int main()
@@ -294,6 +336,7 @@ int main()
         testPathSanitizerValidatesDirectory();
         testPathSanitizerValidatesIdentifier();
         testModelManagerRejectsPathTraversal();
+        testAudioAnalysisCacheLRU();
 
         std::cout << "WaiveCoreTests: PASS" << std::endl;
         return 0;

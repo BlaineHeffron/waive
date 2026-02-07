@@ -47,6 +47,10 @@ TimelineComponent::TimelineComponent (EditSession& session)
 
     // 5Hz for structural changes
     startTimerHz (5);
+
+    setTitle ("Timeline");
+    setDescription ("Timeline view - shows tracks, clips, playhead, and timeline ruler");
+    setWantsKeyboardFocus (true);
 }
 
 TimelineComponent::~TimelineComponent()
@@ -551,4 +555,13 @@ void TimelineComponent::editChanged()
     rebuildTracks();
     ruler->repaint();
     playhead->repaint();
+}
+
+std::vector<TrackLaneComponent*> TimelineComponent::getTrackLaneComponentsForTesting() const
+{
+    std::vector<TrackLaneComponent*> result;
+    result.reserve (trackLanes.size());
+    for (auto& lane : trackLanes)
+        result.push_back (lane.get());
+    return result;
 }

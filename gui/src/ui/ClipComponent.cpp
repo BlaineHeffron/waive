@@ -17,6 +17,10 @@ ClipComponent::ClipComponent (te::Clip& c, TimelineComponent& tl)
             clip.edit.engine, te::AudioFile (clip.edit.engine, waveClip->getSourceFileReference().getFile()),
             *this, &clip.edit);
     }
+
+    setTitle (clip.getName());
+    setDescription ("Audio or MIDI clip - drag to move, drag edges to trim, drag fade handles to adjust fades");
+    setWantsKeyboardFocus (true);
 }
 
 ClipComponent::~ClipComponent() = default;

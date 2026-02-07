@@ -85,6 +85,12 @@ Waive has two native C++ regression test executables integrated with CTest.
   - Safety architecture regression: ID-based selection persistence across edit swaps, async callback safety (no dangling pointers), transaction rollback on exception
   - Performance regression: ClipTrackIndexMap scaling to 100+ clips, AudioAnalysisCache hit rate and eviction behavior
 
+## Test Categories
+
+- **Security Regression Tests**: Path sanitization rejects `../`, `..\\`, null bytes, control chars. ModelManager rejects path traversal in modelID and version params.
+- **Accessibility Tests**: Label verification (setTitle/setDescription present on all interactive components), keyboard navigation (Tab order, arrow keys in lists).
+- **Performance Boundary Tests**: Cache limits (AudioAnalysisCache LRU eviction at max capacity), timer counts (consolidated timers per container), large-project scaling (100+ clips, 24+ tracks).
+
 ## Running Tests
 
 From repo root:

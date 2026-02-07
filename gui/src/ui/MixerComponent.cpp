@@ -14,6 +14,8 @@ MixerComponent::MixerComponent (EditSession& session)
     stripViewport.setScrollBarsShown (false, true);
     addAndMakeVisible (stripViewport);
 
+    setWantsKeyboardFocus (true);
+
     rebuildStrips();
     startTimerHz (30);
 }
@@ -147,4 +149,37 @@ void MixerComponent::applyTrackHighlights()
         if (strip != nullptr)
             strip->setHighlighted (highlightedTrackIndices.contains (i));
     }
+}
+
+bool MixerComponent::keyPressed (const juce::KeyPress& key)
+{
+    // Arrow key navigation between channel strips
+    if (key.isKeyCode (juce::KeyPress::leftKey))
+    {
+        if (focusedStripIndex > 0)
+        {
+            focusedStripIndex--;
+            if (focusedStripIndex < (int) strips.size() && strips[focusedStripIndex] != nullptr)
+                strips[focusedStripIndex]->grabKeyboardFocus();
+            return true;
+        }
+    }
+    else if (key.isKeyCode (juce::KeyPress::rightKey))
+    {
+        if (focusedStripIndex < (int) strips.size() - 1)
+        {
+            focusedStripIndex++;
+            if (strips[focusedStripIndex] != nullptr)
+                strips[focusedStripIndex]->grabKeyboardFocus();
+            return true;
+        }
+        else if (focusedStripIndex == (int) strips.size() - 1 && masterStrip != nullptr)
+        {
+            focusedStripIndex = (int) strips.size();
+            masterStrip->grabKeyboardFocus();
+            return true;
+        }
+    }
+
+    return false;
 }

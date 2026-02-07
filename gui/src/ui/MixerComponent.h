@@ -21,6 +21,7 @@ public:
 
     void resized() override;
     void paint (juce::Graphics& g) override;
+    bool keyPressed (const juce::KeyPress& key) override;
 
     void setHighlightedTrackIndices (const juce::Array<int>& trackIndices);
     void clearHighlightedTrackIndices();
@@ -42,4 +43,5 @@ private:
     juce::Array<int> highlightedTrackIndices;
 
     int lastTrackCount = -1;
+    int focusedStripIndex = 0;
 };

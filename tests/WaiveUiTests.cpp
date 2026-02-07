@@ -4,6 +4,7 @@
 #include "MainComponent.h"
 #include "SessionComponent.h"
 #include "TimelineComponent.h"
+#include "TrackLaneComponent.h"
 #include "ToolSidebarComponent.h"
 #include "LibraryComponent.h"
 #include "PluginBrowserComponent.h"
@@ -15,6 +16,7 @@
 #include "ClipTrackIndexMap.h"
 #include "AudioAnalysis.h"
 #include "AudioAnalysisCache.h"
+#include "WaiveLookAndFeel.h"
 
 #include <cmath>
 #include <functional>
@@ -1837,45 +1839,128 @@ void runPhase2UxFoundationsRegression()
     std::cout << "runPhase2UxFoundationsRegression: PASS" << std::endl;
 }
 
-void runPhase5TimelineMixerPolishTests()
+void testTooltipKeyboardShortcuts()
 {
-    std::cout << "runPhase5TimelineMixerPolishTests..." << std::endl;
+    std::cout << "testTooltipKeyboardShortcuts..." << std::endl;
 
     auto engine = std::make_unique<te::Engine> ("WaiveTestEngine");
-    auto editFile = juce::File::createTempFile ("test_edit_phase5.tracktionedit");
+    auto editFile = juce::File::createTempFile ("test_edit_tooltips.tracktionedit");
     editFile.deleteFile();
 
-    auto edit = te::loadEditFromFile (*engine, editFile, te::Edit::forEditing);
-    expect (edit != nullptr, "Expected edit to load");
+    auto session = std::make_unique<EditSession> (*engine);
+    CommandHandler cmdHandler (session->getEdit());
+    auto undoHandler = std::make_unique<UndoableCommandHandler> (cmdHandler, *session);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (*session);
+    auto mainComponent = std::make_unique<MainComponent> (*undoHandler, *session, jobQueue, projectManager);
 
-    auto session = std::make_unique<EditSession> (*edit);
-    waive::CommandHandler cmdHandler;
-    auto undoHandler = std::make_unique<UndoableCommandHandler> (*session, cmdHandler);
-    auto mainComponent = std::make_unique<MainComponent> (*session, *undoHandler, nullptr, nullptr, nullptr, nullptr);
+    auto& sessionComponent = mainComponent->getSessionComponentForTesting();
 
-    auto& sessionComponent = mainComponent->getSessionComponent();
+    // Test tooltip presence with all keyboard shortcuts
+    auto playTooltip = sessionComponent.getTransportTooltipForTesting ("play");
+    expect (playTooltip.isNotEmpty() && playTooltip.contains ("Space"),
+            "Expected play button tooltip to contain 'Space' shortcut");
+
+    auto stopTooltip = sessionComponent.getTransportTooltipForTesting ("stop");
+    expect (stopTooltip.isNotEmpty() && stopTooltip.contains ("Space"),
+            "Expected stop button tooltip to contain 'Space' shortcut");
+
+    auto recordTooltip = sessionComponent.getTransportTooltipForTesting ("record");
+    expect (recordTooltip.isNotEmpty() && (recordTooltip.contains ("Ctrl") || recordTooltip.contains ("Backspace")),
+            "Expected record button tooltip to contain keyboard shortcut");
+
+    std::cout << "testTooltipKeyboardShortcuts: PASS" << std::endl;
+}
+
+void testTrackColorDeterminism()
+{
+    std::cout << "testTrackColorDeterminism..." << std::endl;
+
+    auto engine = std::make_unique<te::Engine> ("WaiveTestEngine");
+    auto session = std::make_unique<EditSession> (*engine);
+    CommandHandler cmdHandler (session->getEdit());
+    auto undoHandler = std::make_unique<UndoableCommandHandler> (cmdHandler, *session);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (*session);
+    auto mainComponent = std::make_unique<MainComponent> (*undoHandler, *session, jobQueue, projectManager);
+
+    auto& sessionComponent = mainComponent->getSessionComponentForTesting();
     auto& timeline = sessionComponent.getTimeline();
+    auto& edit = session->getEdit();
 
-    // Test 1: Track color assignment wraps at 12
-    for (int i = 0; i < 24; ++i)
+    // Create 3 tracks
+    std::vector<juce::Colour> firstRunColors;
+    for (int i = 0; i < 3; ++i)
     {
-        auto track = edit->insertNewAudioTrack (te::TrackInsertPoint (edit->getTrackList().back(), false),
-                                                 nullptr);
+        auto tracks = te::getAudioTracks (edit);
+        auto* lastTrack = tracks.isEmpty() ? nullptr : tracks.getLast();
+        auto track = edit.insertNewAudioTrack (te::TrackInsertPoint (nullptr, lastTrack), nullptr);
         expect (track != nullptr, "Expected track creation");
     }
 
     timeline.rebuildTracks();
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
 
-    auto tracks = te::getAudioTracks (*edit);
-    expect (tracks.size() == 24, "Expected 24 tracks");
+    auto trackLaneComponents = timeline.getTrackLaneComponentsForTesting();
+    expect (trackLaneComponents.size() >= 3, "Expected at least 3 track lane components");
 
-    std::cout << "  Track color wrap test: PASS (24 tracks created)" << std::endl;
+    for (int i = 0; i < 3; ++i)
+    {
+        firstRunColors.push_back (trackLaneComponents[i]->getTrackColorForTesting());
+    }
 
-    // Test 2: Scrollbar range calculation (skip - requires valid audio file)
-    std::cout << "  Scrollbar range calculation test: SKIP (requires valid audio)" << std::endl;
+    // Verify colors are distinct
+    expect (firstRunColors[0] != firstRunColors[1], "Expected track 0 and 1 to have distinct colors");
+    expect (firstRunColors[1] != firstRunColors[2], "Expected track 1 and 2 to have distinct colors");
+    expect (firstRunColors[0] != firstRunColors[2], "Expected track 0 and 2 to have distinct colors");
 
-    // Test 3: Track height zoom bounds
+    // Delete all tracks and recreate in same order
+    for (auto* track : te::getAudioTracks (edit))
+        edit.deleteTrack (track);
+
+    timeline.rebuildTracks();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        auto tracks = te::getAudioTracks (edit);
+        auto* lastTrack = tracks.isEmpty() ? nullptr : tracks.getLast();
+        auto track = edit.insertNewAudioTrack (te::TrackInsertPoint (nullptr, lastTrack), nullptr);
+        expect (track != nullptr, "Expected track recreation");
+    }
+
+    timeline.rebuildTracks();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    trackLaneComponents = timeline.getTrackLaneComponentsForTesting();
+    expect (trackLaneComponents.size() >= 3, "Expected at least 3 track lane components after recreation");
+
+    for (int i = 0; i < 3; ++i)
+    {
+        auto secondRunColor = trackLaneComponents[i]->getTrackColorForTesting();
+        expect (secondRunColor == firstRunColors[i],
+                ("Expected deterministic color assignment: track " + juce::String(i) + " color mismatch").toStdString());
+    }
+
+    std::cout << "testTrackColorDeterminism: PASS" << std::endl;
+}
+
+void runPhase5TimelineMixerPolishTests()
+{
+    std::cout << "runPhase5TimelineMixerPolishTests..." << std::endl;
+
+    auto engine = std::make_unique<te::Engine> ("WaiveTestEngine");
+    auto session = std::make_unique<EditSession> (*engine);
+    CommandHandler cmdHandler (session->getEdit());
+    auto undoHandler = std::make_unique<UndoableCommandHandler> (cmdHandler, *session);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (*session);
+    auto mainComponent = std::make_unique<MainComponent> (*undoHandler, *session, jobQueue, projectManager);
+
+    auto& sessionComponent = mainComponent->getSessionComponentForTesting();
+    auto& timeline = sessionComponent.getTimeline();
+
+    // Test 1: Track height zoom bounds
     int originalHeight = timeline.getTrackLaneHeight();
     expect (originalHeight == 108, "Expected default track height 108");
 
@@ -1888,24 +1973,23 @@ void runPhase5TimelineMixerPolishTests()
     timeline.setTrackLaneHeight (150);  // within range
     expect (timeline.getTrackLaneHeight() == 150, "Expected height 150");
 
-    std::cout << "  Track height zoom bounds test: PASS" << std::endl;
+    std::cout << "Track height zoom bounds test: PASS" << std::endl;
 
-    // Test 4: Transport responsive breakpoint at 900px
+    // Test 2: Transport responsive breakpoint at 900px
     sessionComponent.setBounds (0, 0, 1200, 800);
     sessionComponent.resized();
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
 
     // At 1200px width, all controls should be visible
-    std::cout << "  Transport layout wide (1200px): secondary controls visible" << std::endl;
+    std::cout << "Transport layout wide (1200px): secondary controls visible" << std::endl;
 
     sessionComponent.setBounds (0, 0, 800, 600);
     sessionComponent.resized();
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
 
     // At 800px width, secondary controls should be hidden
-    std::cout << "  Transport layout narrow (800px): secondary controls hidden" << std::endl;
+    std::cout << "Transport layout narrow (800px): secondary controls hidden" << std::endl;
 
-    editFile.deleteFile();
     std::cout << "runPhase5TimelineMixerPolishTests: PASS" << std::endl;
 }
 
@@ -1914,6 +1998,10 @@ void runPhase5TimelineMixerPolishTests()
 int main()
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
+
+    // Initialize WaiveLookAndFeel for test environment (required for track color determinism test)
+    auto lookAndFeel = std::make_unique<waive::WaiveLookAndFeel>();
+    juce::LookAndFeel::setDefaultLookAndFeel (lookAndFeel.get());
 
     try
     {
@@ -1929,6 +2017,8 @@ int main()
         runUiPhase5BuiltInToolsRegression();
         runUiPhase5ModelBackedToolsRegression();
         runPhase2ModelWorkflowTests();
+        testTooltipKeyboardShortcuts();
+        testTrackColorDeterminism();
         runPhase5TimelineMixerPolishTests();
         std::cout << "WaiveUiTests: PASS" << std::endl;
         return 0;
@@ -1936,6 +2026,11 @@ int main()
     catch (const std::exception& e)
     {
         std::cerr << "WaiveUiTests: FAIL: " << e.what() << std::endl;
+        juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
         return 1;
     }
+
+    // Cleanup LookAndFeel before shutdown
+    juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
+    return 0;
 }

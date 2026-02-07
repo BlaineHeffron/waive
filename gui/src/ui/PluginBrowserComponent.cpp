@@ -162,17 +162,26 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     addAndMakeVisible (pluginList.get());
 
     insertButton.onClick = [this] { insertSelectedBrowserPlugin(); };
+    insertButton.setTitle ("Insert Plugin");
+    insertButton.setDescription ("Insert selected plugin to track or master");
+    insertButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (insertButton);
 
     // Track picker
     trackLabel.setJustificationType (juce::Justification::centredLeft);
     addAndMakeVisible (trackLabel);
     trackCombo.onChange = [this] { updateControlsFromSelection(); };
+    trackCombo.setTitle ("Track Selector");
+    trackCombo.setDescription ("Select track for plugin chain");
+    trackCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (trackCombo);
 
     // Chain list
     chainModel = std::make_unique<ChainModel> (*this);
     chainList.setModel (chainModel.get());
+    chainList.setTitle ("Plugin Chain");
+    chainList.setDescription ("Plugin chain for selected track");
+    chainList.setWantsKeyboardFocus (true);
     addAndMakeVisible (chainList);
 
     removeButton.onClick = [this] { removeSelectedChainPlugin(); };
@@ -181,6 +190,26 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     bypassButton.onClick = [this] { toggleSelectedChainPluginBypass(); };
     openEditorButton.onClick = [this] { openSelectedChainPluginEditor(); };
     closeEditorButton.onClick = [this] { closeSelectedChainPluginEditor(); };
+
+    removeButton.setTitle ("Remove");
+    removeButton.setDescription ("Remove selected plugin from chain");
+    upButton.setTitle ("Up");
+    upButton.setDescription ("Move plugin up in chain");
+    downButton.setTitle ("Down");
+    downButton.setDescription ("Move plugin down in chain");
+    bypassButton.setTitle ("Bypass");
+    bypassButton.setDescription ("Toggle plugin bypass");
+    openEditorButton.setTitle ("Editor");
+    openEditorButton.setDescription ("Open plugin editor window");
+    closeEditorButton.setTitle ("Close Editor");
+    closeEditorButton.setDescription ("Close plugin editor window");
+
+    removeButton.setWantsKeyboardFocus (true);
+    upButton.setWantsKeyboardFocus (true);
+    downButton.setWantsKeyboardFocus (true);
+    bypassButton.setWantsKeyboardFocus (true);
+    openEditorButton.setWantsKeyboardFocus (true);
+    closeEditorButton.setWantsKeyboardFocus (true);
 
     addAndMakeVisible (removeButton);
     addAndMakeVisible (upButton);
@@ -195,10 +224,19 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
 
     inputCombo.setTextWhenNothingSelected ("None");
     inputCombo.onChange = [this] { applyInputSelection(); };
+    inputCombo.setTitle ("Audio Input");
+    inputCombo.setDescription ("Select audio input device for track");
+    inputCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (inputCombo);
 
     armButton.onClick = [this] { setArmEnabled (armButton.getToggleState()); };
     monitorButton.onClick = [this] { setMonitorEnabled (monitorButton.getToggleState()); };
+    armButton.setTitle ("Arm");
+    armButton.setDescription ("Arm track for recording");
+    monitorButton.setTitle ("Monitor");
+    monitorButton.setDescription ("Monitor input signal");
+    armButton.setWantsKeyboardFocus (true);
+    monitorButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (armButton);
     addAndMakeVisible (monitorButton);
 
@@ -213,9 +251,15 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     sendSlider.setTextValueSuffix (" dB");
     sendSlider.onValueChange = [this] { updateAuxSendGainFromSlider(); };
     sendSlider.onDragEnd = [this] { editSession.endCoalescedTransaction(); };
+    sendSlider.setTitle ("Send Level");
+    sendSlider.setDescription ("Aux send level in dB");
+    sendSlider.setWantsKeyboardFocus (true);
     addAndMakeVisible (sendSlider);
 
     addReverbReturnButton.onClick = [this] { ensureReverbReturnOnMaster(); };
+    addReverbReturnButton.setTitle ("Add Reverb");
+    addReverbReturnButton.setDescription ("Add reverb return to master");
+    addReverbReturnButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (addReverbReturnButton);
 
     rebuildTrackListIfNeeded();
@@ -1004,6 +1048,34 @@ void PluginBrowserComponent::updateAuxSendGainFromSlider()
         if (auto* send = findAuxSend (*t, 0))
             send->setGainDb (db);
     });
+}
+
+bool PluginBrowserComponent::keyPressed (const juce::KeyPress& key)
+{
+    // Arrow key navigation in plugin chain list
+    if (chainList.hasKeyboardFocus (true))
+    {
+        if (key.isKeyCode (juce::KeyPress::upKey))
+        {
+            int row = chainList.getSelectedRow();
+            if (row > 0)
+            {
+                chainList.selectRow (row - 1);
+                return true;
+            }
+        }
+        else if (key.isKeyCode (juce::KeyPress::downKey))
+        {
+            int row = chainList.getSelectedRow();
+            if (row < chainModel->getNumRows() - 1)
+            {
+                chainList.selectRow (row + 1);
+                return true;
+            }
+        }
+    }
+
+    return false;
 }
 
 void PluginBrowserComponent::ensureReverbReturnOnMaster()

@@ -46,6 +46,14 @@
 - Use `waive::Fonts` (from `WaiveFonts.h`) for consistent font sizing across components.
 - Custom draw overrides live in `WaiveLookAndFeel.cpp` — prefer extending the LnF over per-component paint hacks.
 
+## Accessibility
+
+- **Every interactive component must call `setTitle()` for accessibility**. This provides a text label for screen readers and assistive technology.
+- **All file path components from external input must pass through `sanitizePathComponent()`**. Never trust user input or external data when constructing file paths.
+- **Every interactive component must have a tooltip via `setTooltip()`**. Tooltips provide user guidance and keyboard shortcut hints.
+- **Use `waive::Spacing` constants instead of magic numbers for padding/margins**. This maintains visual consistency across components.
+- **Timer discipline: prefer single consolidated timer per parent container**. Multiple timers in child components create unnecessary overhead.
+
 ## Edit Layer Rules
 
 - **All mutations** go through `UndoableCommandHandler`, never call `CommandHandler` directly

@@ -41,6 +41,10 @@ TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl
     refreshAutomationParams();
     updateClips();
     startTimerHz (5);
+
+    setTitle (track.getName());
+    setDescription ("Track lane - contains clips and automation for " + track.getName());
+    setWantsKeyboardFocus (true);
 }
 
 TrackLaneComponent::~TrackLaneComponent()
@@ -491,4 +495,19 @@ void TrackLaneComponent::showTrackContextMenu()
                 break;
         }
     });
+}
+
+juce::Colour TrackLaneComponent::getTrackColorForTesting() const
+{
+    auto* pal = waive::getWaivePalette (const_cast<TrackLaneComponent&> (*this));
+    if (! pal)
+        return juce::Colours::grey;
+
+    const juce::Colour* trackColors[] = {
+        &pal->trackColor1, &pal->trackColor2, &pal->trackColor3, &pal->trackColor4,
+        &pal->trackColor5, &pal->trackColor6, &pal->trackColor7, &pal->trackColor8,
+        &pal->trackColor9, &pal->trackColor10, &pal->trackColor11, &pal->trackColor12
+    };
+
+    return *trackColors[trackIndex % 12];
 }

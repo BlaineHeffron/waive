@@ -87,6 +87,8 @@ public:
     void selectClipsByIDForPreview (const juce::Array<te::EditItemID>& clipIDs);
     void clearPreviewSelection();
 
+    std::vector<TrackLaneComponent*> getTrackLaneComponentsForTesting() const;
+
 private:
     void selectionChanged() override;
     void editAboutToChange() override;
