@@ -1,16 +1,14 @@
-# Waive Post-Audit Phase Plan (v2)
+# Waive Post-Audit Phase Plan (v3)
 
-Generated from comprehensive audit on 2026-02-06 covering:
-- Feature completeness (~65% → target 85%)
-- UI/UX design quality (C+ → target B+)
-- Performance and efficiency
-- Security hardening
+Generated from comprehensive audit on 2026-02-07 covering:
+- Feature completeness (75-80% after v2 phases)
+- UI/UX design quality (B- → target A-)
+- Correctness (thread safety, memory safety, logic errors)
+- Performance (timer proliferation, paint optimization)
 
-## Phase Order
+## Phase Order (4 phases, priority-ordered)
 
-1. `phase_01_security_hardening.md` — Path traversal, input validation, command server auth
-2. `phase_02_ux_foundations.md` — Tooltips, empty states, hover/focus, selection feedback
-3. `phase_03_core_missing_features.md` — Track delete, clip fades, auto-save, loop viz
-4. `phase_04_performance_optimization.md` — Timer consolidation, cache bounds, deferred plugin scan
-5. `phase_05_timeline_and_mixer_polish.md` — Scrollbar, meters, track colors, responsive layout
-6. `phase_06_accessibility_and_validation.md` — Keyboard nav, accessibility labels, test expansion
+1. **Phase 01: Correctness and Safety Fixes** — Thread safety in JobQueue, memory safety in MixerChannelStrip, grid line bit-packing, AudioAnalysisCache O(1) removal, input validation
+2. **Phase 02: Performance Optimization** — Timer consolidation (8→4), meter gradient rendering, track index caching, PCH, viewport-culled mixer polling
+3. **Phase 03: UI/UX Polish** — 100% tooltip coverage, WaiveSpacing everywhere, error feedback, focus indicators, horizontal scroll
+4. **Phase 04: Keyboard Navigation and Accessibility** — Tab order fix, arrow key nav, screen reader announcements, test expansion, CI validation

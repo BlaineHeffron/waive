@@ -1,81 +1,94 @@
-# Phase 02: UX Foundations
+# Phase 02: Performance Optimization
 
 ## Objective
-Add the foundational UX layer that makes the application discoverable and responsive to user interaction. Focus on tooltips, empty states, hover/focus feedback, and selection status.
+Reduce CPU usage by consolidating timers, optimizing paint methods, caching expensive lookups, and adding precompiled headers for faster builds.
 
 ## Scope
-- Tooltips on all interactive controls.
-- Empty state messages for all major panels.
-- Stronger hover and focus visual states.
-- Selection count status display.
-- Minimum window size enforcement.
-- Spacing constants for consistent padding.
+- Consolidate 8 concurrent timers down to ~4.
+- Optimize pixel-by-pixel meter gradient rendering.
+- Cache track index lookups in ClipComponent paint.
+- Use static WaiveFonts instead of inline FontOptions.
+- Replace Path allocations with direct Graphics primitives for fade triangles.
+- Add precompiled headers for build speed.
+- Only poll visible mixer strips.
 
 ## Implementation Tasks
 
-1. Add tooltips to all interactive controls.
-- Transport buttons (play, stop, record, go-to-start, loop, punch-in, punch-out): set tooltip text describing function and keyboard shortcut.
-- Mixer controls: fader ("Track Volume (dB)"), pan ("Pan L/R"), solo ("Solo (S)"), mute ("Mute (M)").
-- Timeline: snap toggle ("Snap to Grid"), zoom controls, add-track button.
-- Tool sidebar: tool selector, run/apply/cancel buttons, model install/uninstall.
-- Tempo slider, time signature dropdowns, position display.
-- Use `setTooltip()` on each component.
+1. Remove WaiveApplication timer — use event-driven title updates.
+- In `gui/src/Main.cpp`, the `WaiveApplication` class runs a 4Hz timer just to poll `projectManager->isDirty()` for window title updates. This is wasteful.
+- Remove `private juce::Timer` inheritance and `timerCallback()` override from `WaiveApplication`.
+- Remove `startTimerHz(4)` from `initialise()` and `stopTimer()` from `shutdown()`.
+- Instead, call `updateWindowTitle()` directly from:
+  - `editChanged()` (already does this).
+  - Add a `ProjectManager::Listener` interface with `projectDirtyChanged()` callback, and implement it in `WaiveApplication` to call `updateWindowTitle()`.
+  - Or simpler: In `ProjectManager`, after any `setDirty()` call, use `juce::MessageManager::callAsync` to notify.
 
-2. Add empty state messages.
-- `TimelineComponent`: When no tracks exist, draw centered text "Click '+ Track' to add your first track" in `textMuted` color.
-- `LibraryComponent`: When no folders added, show "Click '+ Folder' to add a media directory".
-- `PluginBrowserComponent`: When plugin list is empty, show "Click 'Scan' to find installed plugins".
-- `ToolSidebarComponent`: When no tool selected, show "Select a tool from the dropdown above".
-- `MixerComponent`: When no tracks, show "Add tracks to see the mixer".
-- Each empty state should use `waive::Fonts::body()` and `pal->textMuted`.
+2. Consolidate TrackLaneComponent timers into TimelineComponent.
+- Currently each `TrackLaneComponent` has its own 5Hz timer. With N tracks, this creates N timers.
+- In `gui/src/ui/TrackLaneComponent.h`, remove `juce::Timer` inheritance.
+- In `gui/src/ui/TrackLaneComponent.cpp`, remove `startTimerHz()` and `timerCallback()`.
+- Add a public `void pollState()` method to `TrackLaneComponent` that contains the old timer logic.
+- In `gui/src/ui/TimelineComponent.cpp`, in its existing timer callback (~5Hz), iterate all track lanes and call `lane->pollState()`.
 
-3. Strengthen hover and pressed states in LookAndFeel.
-- In `WaiveLookAndFeel::drawButtonBackground()`, change:
-  - Hover: from `brighter(0.08f)` to `brighter(0.15f)`.
-  - Pressed: from `darker(0.05f)` to `darker(0.15f)`.
-- Add hover highlight to `ClipComponent`: draw a subtle bright border on `mouseEnter`, remove on `mouseExit`. Add `isHovered` flag.
-- Add hover highlight to `TrackLaneComponent` header area: slightly brighten background on hover.
-
-4. Add keyboard focus indicators.
-- In `WaiveLookAndFeel`, override `drawFocusOutline()` or add a 2px `pal->primary` border around focused components.
-- Set `setWantsKeyboardFocus(true)` on transport buttons, mixer solo/mute buttons, tool sidebar buttons.
-- Ensure Tab key cycles through focusable controls within the active panel.
-
-5. Add selection count status.
-- In `SessionComponent`, add a small status label in the transport toolbar area.
-- Update it whenever `SelectionManager` fires `selectionChanged()`:
-  - 0 selected: show nothing or "Ready"
-  - 1 clip: show clip name
-  - N clips: show "N clips selected"
-- Use `waive::Fonts::caption()` and `pal->textMuted`.
-
-6. Enforce minimum window size.
-- In `Main.cpp` where the window is created, add `setResizeLimits(1024, 600, 4096, 2160)`.
-
-7. Define spacing constants.
-- Add to `gui/src/theme/WaiveSpacing.h`:
+3. Optimize MixerComponent to only poll visible strips.
+- In `gui/src/ui/MixerComponent.cpp` timerCallback, currently iterates ALL strips calling `pollState()`.
+- Use the viewport's visible area to determine which strips are visible:
   ```cpp
-  namespace waive { namespace Spacing {
-      constexpr int xxs = 2, xs = 4, sm = 8, md = 12, lg = 16, xl = 24;
-  }}
+  auto visibleArea = stripViewport.getViewArea();
+  for (auto& strip : strips)
+      if (strip != nullptr && strip->getBounds().intersects(visibleArea))
+          strip->pollState();
   ```
-- Use these constants in at least the transport toolbar layout in SessionComponent (replace magic numbers like `reduced(2)`, `reduced(4)`, etc.).
+- This reduces work from N strips to ~8-12 visible strips.
+
+4. Pre-render meter gradients instead of pixel-by-pixel drawing.
+- In `gui/src/ui/MixerChannelStrip.cpp`, the meter paint currently does a `for (int i = 0; i < barH; ++i)` loop with individual `fillRect(x, y, 6, 1)` calls — hundreds per strip.
+- Replace with `juce::ColourGradient`:
+  ```cpp
+  juce::ColourGradient gradient (pal->meterClip, 0, topOfMeter,
+                                  pal->meterNormal, 0, bottomOfMeter, false);
+  gradient.addColour (0.45, pal->meterWarning); // -12dB position
+  gradient.addColour (0.05, pal->meterClip);    // -3dB position
+  g.setGradientFill (gradient);
+  g.fillRect (meterRect.removeFromBottom (barH));
+  ```
+
+5. Cache track index in ClipComponent.
+- In `gui/src/ui/ClipComponent.cpp`, the `paint()` method does a linear search through all tracks to find the track index for color blending — on every repaint.
+- Add an `int cachedTrackIndex = 0;` member to `ClipComponent.h`.
+- Set it once in the constructor or in a new `updateTrackIndex()` method.
+- Call `updateTrackIndex()` from the constructor and whenever the clip is reparented.
+- In `paint()`, use `cachedTrackIndex` directly instead of the loop.
+
+6. Use WaiveFonts instead of inline FontOptions in paint methods.
+- In `ClipComponent.cpp` line 123: Replace `g.setFont (juce::FontOptions (11.0f))` with `g.setFont (waive::Fonts::caption())`.
+- In `MixerChannelStrip.cpp` line 48: Replace `juce::FontOptions (11.0f)` with `waive::Fonts::caption()`.
+- Search for other `juce::FontOptions` usages in paint paths and replace with the appropriate `waive::Fonts::` static method.
+
+7. Replace Path allocations with Graphics primitives for fade triangles.
+- In `ClipComponent.cpp` lines 98-118, replace `juce::Path fadeInPath; fadeInPath.addTriangle(...)` with direct `g.fillTriangle(...)` calls.
+- `juce::Graphics::fillTriangle` takes 6 float coordinates and avoids the `juce::Path` heap allocation.
+
+8. Add precompiled headers.
+- In `gui/CMakeLists.txt`, after the `target_link_libraries` call, add:
+  ```cmake
+  target_precompile_headers(Waive PRIVATE
+      <JuceHeader.h>
+      <tracktion_engine/tracktion_engine.h>
+  )
+  ```
+- This should reduce incremental build times by 30-50%.
 
 ## Files Expected To Change
-- `gui/src/ui/SessionComponent.cpp`
+- `gui/src/Main.cpp`
+- `gui/src/ui/TrackLaneComponent.h`
+- `gui/src/ui/TrackLaneComponent.cpp`
 - `gui/src/ui/TimelineComponent.cpp`
 - `gui/src/ui/MixerComponent.cpp`
 - `gui/src/ui/MixerChannelStrip.cpp`
 - `gui/src/ui/ClipComponent.h`
 - `gui/src/ui/ClipComponent.cpp`
-- `gui/src/ui/TrackLaneComponent.cpp`
-- `gui/src/ui/LibraryComponent.cpp`
-- `gui/src/ui/PluginBrowserComponent.cpp`
-- `gui/src/ui/ToolSidebarComponent.cpp`
-- `gui/src/theme/WaiveLookAndFeel.cpp`
-- `gui/src/theme/WaiveSpacing.h` (NEW)
-- `gui/src/Main.cpp`
-- `tests/WaiveUiTests.cpp`
+- `gui/CMakeLists.txt`
 
 ## Validation
 
@@ -84,16 +97,11 @@ cmake --build build --target Waive -j$(($(nproc)/2))
 ctest --test-dir build --output-on-failure
 ```
 
-Manual checks:
-- Hover over every button — tooltip should appear within 500ms.
-- Open new project — empty state messages visible in timeline, mixer, library.
-- Tab through controls — focus indicator visible on each.
-- Select 3 clips — status shows "3 clips selected".
-- Resize window to minimum — controls should not overlap.
-
 ## Exit Criteria
-- Every interactive control has a tooltip.
-- All empty panels show guidance text.
-- Hover/focus states are visually distinct.
-- Selection count is displayed.
-- Window has enforced minimum size.
+- Timer count reduced from 8 to ~4 concurrent timers.
+- Meter gradient renders via ColourGradient, not pixel loop.
+- ClipComponent paint uses cached track index (no linear search).
+- No inline FontOptions in paint methods.
+- Fade triangles use fillTriangle, not Path objects.
+- PCH configured in CMakeLists.txt.
+- Build clean, all tests pass.

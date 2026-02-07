@@ -1,74 +1,97 @@
-# Phase 01: Security Hardening
+# Phase 01: Correctness and Safety Fixes
 
 ## Objective
-Eliminate path traversal, input validation, and authentication vulnerabilities identified in security audit.
+Fix all critical and high-severity correctness issues found in the post-Phase-6 audit: thread safety bugs, memory safety issues, logic errors, and data structure problems.
 
 ## Scope
-- Sanitize all user-controlled path components in ModelManager and tool artifact creation.
-- Add authentication token to CommandServer.
-- Validate file paths in insert_audio_clip and related commands.
-- Pin Tracktion Engine to a specific commit hash instead of `develop` branch.
-- Remove unused CURL dependency.
+- Thread safety in JobQueue, ProjectManager, ModelManager
+- Memory safety in MixerChannelStrip destructor
+- Grid line cache bit-packing overflow
+- AudioAnalysisCache O(n) list removal
+- Audio format reader validation
+- Test debug file leak cleanup
+- EditSession null check
 
 ## Implementation Tasks
 
-1. Add path sanitization utility.
-- Create `gui/src/util/PathSanitizer.h` with:
-  - `sanitizePathComponent(const juce::String&)` → rejects strings containing `..`, `/`, `\`, or null bytes.
-  - `isWithinDirectory(const juce::File& candidate, const juce::File& allowedBase)` → resolves canonical paths and checks containment.
-- Unit test both functions with adversarial inputs.
+1. Fix JobQueue timerCallback race condition.
+- In `gui/src/tools/JobQueue.cpp`, the `timerCallback()` method takes a snapshot of the jobs vector, releases the lock, then iterates and potentially erases jobs. Between taking the snapshot and erasing, other threads could modify the vector.
+- Replace the current pattern with a "completed jobs" list approach:
+  - While holding `jobsMutex`, move completed jobs from `jobs` to a local `completedJobs` vector using `std::remove_if` + `erase`.
+  - Release the lock.
+  - Then iterate `completedJobs` to fire callbacks on the message thread.
+  - This ensures no race between snapshot and erase.
+- Also change `nextJobId` from `int` to `int64_t` in `gui/src/tools/JobQueue.h` to prevent overflow after 2B jobs.
 
-2. Sanitize ModelManager file paths.
-- In `ModelManager::installModel()`, sanitize `modelID` and `selectedVersion` through `sanitizePathComponent()` before using as path components.
-- In `ModelManager::uninstallModel()`, validate the resolved directory is within the expected storage directory before calling `deleteRecursively()`.
-- Reject model IDs that don't match `[a-zA-Z0-9_-]+` pattern.
+2. Fix MixerChannelStrip dangling pointer in destructor.
+- In `gui/src/ui/MixerChannelStrip.cpp`, the destructor accesses `track` and `masterEdit` pointers that could be dangling if the track/edit was deleted first.
+- Fix: In the constructor, store a `juce::Component::SafePointer` or a `te::EditItemID` for the track. In the destructor, look up the track by ID from the edit instead of using a raw pointer.
+- Alternative simpler fix: Use `juce::ReferenceCountedObjectPtr` or check if the edit still contains the track before dereferencing.
+- The safest approach: Cache a pointer to the `te::LevelMeterPlugin::MeasurerClient` registration and wrap the destructor in a try/catch, or use a flag that gets cleared when the track is about to be deleted.
 
-3. Sanitize tool artifact paths.
-- In `StemSeparationTool.cpp` (and any other tool that creates artifact directories), sanitize `toolName` and `plan.planID` through `sanitizePathComponent()` before constructing artifact directory paths.
+3. Fix grid line cache bit-packing integer overflow.
+- In `gui/src/ui/TrackLaneComponent.cpp` lines ~100-103, grid lines use `| 0x80000000` to mark minor lines. This breaks for negative X values and very large X values.
+- Replace with a `struct GridLine { int x; bool isMinor; };` and change `cachedGridLines` from `std::vector<int>` to `std::vector<GridLine>`.
+- Update `TrackLaneComponent.h` to declare the new struct and vector type.
+- Update the paint code (~line 110-120) to read `gridLine.x` and `gridLine.isMinor` instead of bit masking.
 
-4. Add file path validation to CommandHandler.
-- In `handleInsertAudioClip()`, after checking file existence, resolve the canonical path and reject files outside a configurable allowed-directories list.
-- Add an `allowedMediaDirectories` configuration (default: user home + project directory).
-- Apply the same validation to any other command that accepts file paths.
+4. Fix AudioAnalysisCache O(n) list removal.
+- In `gui/src/tools/AudioAnalysisCache.cpp`, `accessOrder.remove(key)` is O(n) on every cache hit.
+- Add a `std::unordered_map<CacheKey, std::list<CacheKey>::iterator> iterMap` member to `AudioAnalysisCache.h`.
+- In `get()`: Use `iterMap[key]` to get the iterator, then `accessOrder.erase(it)` and `accessOrder.push_front(key)`, then update `iterMap[key]`.
+- In `put()`: Same pattern for existing key updates. On eviction, erase `iterMap[lru]`. On insert, store new iterator.
+- In `clear()`: Also clear `iterMap`.
 
-5. Add authentication token to CommandServer.
-- On startup, generate a random 32-byte hex token and write it to a temp file with mode 0600.
-- Require all incoming connections to send the token as the first message.
-- Reject connections that don't authenticate within 5 seconds.
-- Print the token file path to stdout on startup for client integration.
+5. Add audio format reader validation.
+- In `gui/src/tools/AudioAnalysis.cpp`, after creating the `AudioFormatReader`, add a check:
+  ```cpp
+  if (reader->sampleRate <= 0 || reader->lengthInSamples <= 0)
+      return summary;
+  ```
+- This prevents division by zero in downstream code that divides by sampleRate.
 
-6. Pin Tracktion Engine version.
-- In root `CMakeLists.txt`, change `GIT_TAG develop` to a specific commit hash from the current working version.
-- Document the pinned version and update process in a comment.
+6. Remove debug file write from tests.
+- In `tests/WaiveUiTests.cpp`, find and remove or guard any writes to `/tmp/gainstage_debug.txt` or similar debug files.
+- Use `#ifdef WAIVE_DEBUG_TESTS` guard if the debug output is useful during development.
 
-7. Remove unused CURL dependency.
-- Remove `find_package(CURL)` and `target_link_libraries(... CURL::libcurl)` from `gui/CMakeLists.txt` if CURL is not used in any source file.
+7. Add null check in EditSession::performEdit.
+- In `gui/src/edit/EditSession.cpp`, at the start of `performEdit()`, add:
+  ```cpp
+  if (edit == nullptr) return false;
+  ```
+
+8. Add tests for the fixes.
+- In `tests/WaiveCoreTests.cpp`:
+  - Test that `AudioAnalysisCache` get/put/eviction works correctly with the new iterator map.
+  - Test that `AudioAnalysisSummary` returns empty for zero-sample-rate files.
+- In `tests/WaiveUiTests.cpp`:
+  - Test that `GridLine` struct correctly stores minor/major flags.
 
 ## Files Expected To Change
-- `gui/src/util/PathSanitizer.h` (NEW)
-- `gui/src/tools/ModelManager.cpp`
-- `gui/src/tools/StemSeparationTool.cpp`
-- `engine/src/CommandHandler.cpp`
-- `engine/src/CommandServer.h`
-- `engine/src/CommandServer.cpp`
-- `CMakeLists.txt`
-- `gui/CMakeLists.txt`
+- `gui/src/tools/JobQueue.h`
+- `gui/src/tools/JobQueue.cpp`
+- `gui/src/ui/MixerChannelStrip.h`
+- `gui/src/ui/MixerChannelStrip.cpp`
+- `gui/src/ui/TrackLaneComponent.h`
+- `gui/src/ui/TrackLaneComponent.cpp`
+- `gui/src/tools/AudioAnalysisCache.h`
+- `gui/src/tools/AudioAnalysisCache.cpp`
+- `gui/src/tools/AudioAnalysis.cpp`
+- `gui/src/edit/EditSession.cpp`
+- `tests/WaiveUiTests.cpp`
 - `tests/WaiveCoreTests.cpp`
 
 ## Validation
 
 ```bash
-cmake --build build --target Waive -j$(($(nproc)/2))
+cmake --build build --target Waive WaiveUiTests WaiveCoreTests -j$(($(nproc)/2))
 ctest --test-dir build --output-on-failure
 ```
 
-Manual checks:
-- Attempt path traversal via console command with `../../etc` as model ID — should be rejected.
-- Attempt to insert audio clip with path outside allowed directories — should be rejected.
-- Connect to command server without token — should be disconnected.
-
 ## Exit Criteria
-- All path-controlled file operations validate inputs.
-- Command server requires authentication.
-- Tracktion Engine pinned to specific version.
-- No regressions in existing tests.
+- No race conditions in JobQueue timerCallback.
+- MixerChannelStrip destructor safe against dangling track pointers.
+- Grid line cache uses struct instead of bit-packing.
+- AudioAnalysisCache uses O(1) removal via iterator map.
+- All new tests pass.
+- Build clean with no warnings.
