@@ -275,6 +275,56 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                                     { "end", prop ("number", "Loop end in seconds (required when enabling)") } },
                                   { "enabled" }) });
 
+    // export_mixdown
+    defs.push_back ({ "cmd_export_mixdown",
+                      "Export the full mix as a WAV audio file (format: 44.1kHz/24-bit WAV).",
+                      makeSchema ("object",
+                                  { { "file_path", prop ("string", "Output file path (must be in allowed directories)") },
+                                    { "start", prop ("number", "Start time in seconds (default: 0)") },
+                                    { "end", prop ("number", "End time in seconds (default: edit length)") } },
+                                  { "file_path" }) });
+
+    // export_stems
+    defs.push_back ({ "cmd_export_stems",
+                      "Export each track as a separate WAV file into a directory.",
+                      makeSchema ("object",
+                                  { { "output_dir", prop ("string", "Output directory path") },
+                                    { "start", prop ("number", "Start time in seconds (default: 0)") },
+                                    { "end", prop ("number", "End time in seconds (default: edit length)") } },
+                                  { "output_dir" }) });
+
+    // bounce_track
+    defs.push_back ({ "cmd_bounce_track",
+                      "Render a track to a single audio file, replacing all clips with the bounced result.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index to bounce") } },
+                                  { "track_id" }) });
+
+    // remove_plugin
+    defs.push_back ({ "cmd_remove_plugin",
+                      "Remove a plugin from a track by its index (0-based among user/external plugins only).",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "plugin_index", prop ("integer", "0-based index among user plugins on the track") } },
+                                  { "track_id", "plugin_index" }) });
+
+    // bypass_plugin
+    defs.push_back ({ "cmd_bypass_plugin",
+                      "Bypass or unbypass a plugin on a track.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "plugin_index", prop ("integer", "0-based index among user plugins on the track") },
+                                    { "bypassed", prop ("boolean", "true to bypass, false to enable") } },
+                                  { "track_id", "plugin_index", "bypassed" }) });
+
+    // get_plugin_parameters
+    defs.push_back ({ "cmd_get_plugin_parameters",
+                      "List all automatable parameters of a plugin on a track, with current values.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "plugin_index", prop ("integer", "0-based index among user plugins on the track") } },
+                                  { "track_id", "plugin_index" }) });
+
     return defs;
 }
 

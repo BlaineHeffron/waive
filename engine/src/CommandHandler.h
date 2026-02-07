@@ -57,6 +57,12 @@ private:
     juce::var handleGetTransportState();
     juce::var handleSetTempo (const juce::var& params);
     juce::var handleSetLoopRegion (const juce::var& params);
+    juce::var handleExportMixdown (const juce::var& params);
+    juce::var handleExportStems (const juce::var& params);
+    juce::var handleBounceTrack (const juce::var& params);
+    juce::var handleRemovePlugin (const juce::var& params);
+    juce::var handleBypassPlugin (const juce::var& params);
+    juce::var handleGetPluginParameters (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::AudioTrack* getTrackById (int trackIndex);

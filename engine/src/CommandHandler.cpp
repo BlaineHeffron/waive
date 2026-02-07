@@ -60,6 +60,12 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "get_transport_state") result = handleGetTransportState();
     else if (action == "set_tempo")           result = handleSetTempo (parsed);
     else if (action == "set_loop_region")     result = handleSetLoopRegion (parsed);
+    else if (action == "export_mixdown")      result = handleExportMixdown (parsed);
+    else if (action == "export_stems")        result = handleExportStems (parsed);
+    else if (action == "bounce_track")        result = handleBounceTrack (parsed);
+    else if (action == "remove_plugin")       result = handleRemovePlugin (parsed);
+    else if (action == "bypass_plugin")       result = handleBypassPlugin (parsed);
+    else if (action == "get_plugin_parameters") result = handleGetPluginParameters (parsed);
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -1048,6 +1054,344 @@ juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
         obj->setProperty ("enabled", enabled);
         obj->setProperty ("loop_start", loopRange.getStart().inSeconds());
         obj->setProperty ("loop_end", loopRange.getEnd().inSeconds());
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleExportMixdown (const juce::var& params)
+{
+    if (! params.hasProperty ("file_path"))
+        return makeError ("Missing required parameter: file_path");
+
+    auto filePath = params["file_path"].toString();
+    juce::File outputFile (filePath);
+
+    // Validate output path
+    auto canonicalFile = outputFile.getLinkedTarget();
+    bool isAllowed = false;
+    for (const auto& allowedDir : allowedMediaDirectories)
+    {
+        if (canonicalFile.isAChildOf (allowedDir) || canonicalFile.getParentDirectory() == allowedDir)
+        {
+            isAllowed = true;
+            break;
+        }
+    }
+    if (! isAllowed)
+        return makeError ("Output path is outside allowed directories: " + filePath);
+
+    // Ensure parent directory exists
+    outputFile.getParentDirectory().createDirectory();
+
+    // Determine render range
+    double startSec = params.hasProperty ("start") ? (double) params["start"] : 0.0;
+    double endSec = params.hasProperty ("end") ? (double) params["end"] : edit.getLength().inSeconds();
+
+    if (endSec <= startSec)
+        return makeError ("End time must be greater than start time");
+
+    // Build track mask for all audio tracks
+    juce::BigInteger tracksMask;
+    auto audioTracks = te::getAudioTracks (edit);
+    for (int i = 0; i < audioTracks.size(); ++i)
+        tracksMask.setBit (audioTracks[i]->getIndexInEditTrackList());
+
+    // Render to file
+    auto renderResult = te::Renderer::renderToFile (
+        "Export Mixdown",
+        outputFile,
+        edit,
+        te::TimeRange (te::TimePosition::fromSeconds (startSec), te::TimePosition::fromSeconds (endSec)),
+        tracksMask,
+        true,     // usePlugins
+        true,     // useACID
+        {},       // allowedClips (empty = all)
+        true);    // useThread
+
+    if (! renderResult)
+        return makeError ("Export failed");
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("file_path", outputFile.getFullPathName());
+        obj->setProperty ("duration", endSec - startSec);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleExportStems (const juce::var& params)
+{
+    if (! params.hasProperty ("output_dir"))
+        return makeError ("Missing required parameter: output_dir");
+
+    auto outputDirPath = params["output_dir"].toString();
+    juce::File outputDir (outputDirPath);
+
+    // Validate path (with symlink resolution)
+    auto canonicalDir = outputDir.getLinkedTarget();
+    bool isAllowed = false;
+    for (const auto& allowedDir : allowedMediaDirectories)
+    {
+        if (canonicalDir.isAChildOf (allowedDir) || canonicalDir == allowedDir)
+        {
+            isAllowed = true;
+            break;
+        }
+    }
+    if (! isAllowed)
+        return makeError ("Output directory is outside allowed directories");
+
+    outputDir.createDirectory();
+
+    double startSec = params.hasProperty ("start") ? (double) params["start"] : 0.0;
+    double endSec = params.hasProperty ("end") ? (double) params["end"] : edit.getLength().inSeconds();
+
+    auto audioTracks = te::getAudioTracks (edit);
+    juce::Array<juce::var> exportedFiles;
+
+    for (int i = 0; i < audioTracks.size(); ++i)
+    {
+        auto* track = audioTracks[i];
+        if (track->getClips().isEmpty())
+            continue;
+
+        // Sanitize track name for filename
+        auto safeName = track->getName().replaceCharacters (" /\\:*?\"<>|", "__________");
+        auto stemFile = outputDir.getChildFile (juce::String::formatted ("%02d_", i) + safeName + ".wav");
+
+        // Create mask for just this track
+        juce::BigInteger trackMask;
+        trackMask.setBit (track->getIndexInEditTrackList());
+
+        auto ok = te::Renderer::renderToFile (
+            "Export Stem: " + track->getName(),
+            stemFile,
+            edit,
+            te::TimeRange (te::TimePosition::fromSeconds (startSec), te::TimePosition::fromSeconds (endSec)),
+            trackMask,
+            true,   // usePlugins
+            true,   // useACID
+            {},     // allowedClips
+            true);  // useThread
+
+        if (ok)
+        {
+            auto* fileInfo = new juce::DynamicObject();
+            fileInfo->setProperty ("track_id", i);
+            fileInfo->setProperty ("track_name", track->getName());
+            fileInfo->setProperty ("file_path", stemFile.getFullPathName());
+            exportedFiles.add (juce::var (fileInfo));
+        }
+    }
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("output_dir", outputDir.getFullPathName());
+        obj->setProperty ("stems", exportedFiles);
+        obj->setProperty ("count", exportedFiles.size());
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleBounceTrack (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id"))
+        return makeError ("Missing required parameter: track_id");
+
+    int trackId = params["track_id"];
+    auto* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    if (track->getClips().isEmpty())
+        return makeError ("Track has no clips to bounce");
+
+    // Determine render range from track's clip extents
+    double startSec = std::numeric_limits<double>::max();
+    double endSec = 0.0;
+    for (auto* clip : track->getClips())
+    {
+        auto pos = clip->getPosition();
+        startSec = std::min (startSec, pos.getStart().inSeconds());
+        endSec = std::max (endSec, pos.getEnd().inSeconds());
+    }
+
+    // Create bounce file in temp directory
+    auto bounceDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                         .getChildFile ("waive_bounces");
+    bounceDir.createDirectory();
+
+    auto safeName = track->getName().replaceCharacters (" /\\:*?\"<>|", "__________");
+    auto bounceFile = bounceDir.getChildFile (safeName + "_bounced.wav");
+
+    juce::BigInteger trackMask;
+    trackMask.setBit (track->getIndexInEditTrackList());
+
+    auto ok = te::Renderer::renderToFile (
+        "Bounce: " + track->getName(),
+        bounceFile,
+        edit,
+        te::TimeRange (te::TimePosition::fromSeconds (startSec), te::TimePosition::fromSeconds (endSec)),
+        trackMask,
+        true,  // usePlugins
+        true,  // useACID
+        {},    // allowedClips
+        true); // useThread
+
+    if (! ok || ! bounceFile.existsAsFile())
+        return makeError ("Bounce render failed");
+
+    // Remove all existing clips from the track (reverse iteration to avoid invalidation)
+    for (int j = track->getClips().size(); --j >= 0;)
+        track->getClips().getUnchecked (j)->removeFromParent();
+
+    // Insert the bounced audio as a single clip
+    te::AudioFile audioFile (edit.engine, bounceFile);
+    track->insertWaveClip (
+        track->getName() + " (bounced)",
+        bounceFile,
+        { { te::TimePosition::fromSeconds (startSec),
+            te::TimePosition::fromSeconds (endSec) },
+          te::TimeDuration() },
+        false);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("bounce_file", bounceFile.getFullPathName());
+        obj->setProperty ("start", startSec);
+        obj->setProperty ("end", endSec);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleRemovePlugin (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("plugin_index"))
+        return makeError ("Missing required parameters: track_id, plugin_index");
+
+    int trackId = params["track_id"];
+    int pluginIdx = params["plugin_index"];
+
+    auto* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
+    juce::Array<te::Plugin*> userPlugins;
+    for (auto* p : track->pluginList)
+    {
+        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
+            userPlugins.add (p);
+    }
+
+    if (pluginIdx < 0 || pluginIdx >= userPlugins.size())
+        return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");
+
+    auto* plugin = userPlugins[pluginIdx];
+    auto pluginName = plugin->getName();
+    plugin->deleteFromParent();
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("removed_plugin", pluginName);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleBypassPlugin (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("plugin_index") || ! params.hasProperty ("bypassed"))
+        return makeError ("Missing required parameters: track_id, plugin_index, bypassed");
+
+    int trackId = params["track_id"];
+    int pluginIdx = params["plugin_index"];
+    bool bypassed = params["bypassed"];
+
+    auto* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    juce::Array<te::Plugin*> userPlugins;
+    for (auto* p : track->pluginList)
+    {
+        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
+            userPlugins.add (p);
+    }
+
+    if (pluginIdx < 0 || pluginIdx >= userPlugins.size())
+        return makeError ("Plugin index out of range");
+
+    auto* plugin = userPlugins[pluginIdx];
+    plugin->setEnabled (! bypassed);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("plugin_name", plugin->getName());
+        obj->setProperty ("bypassed", bypassed);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleGetPluginParameters (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("plugin_index"))
+        return makeError ("Missing required parameters: track_id, plugin_index");
+
+    int trackId = params["track_id"];
+    int pluginIdx = params["plugin_index"];
+
+    auto* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    juce::Array<te::Plugin*> userPlugins;
+    for (auto* p : track->pluginList)
+    {
+        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
+            userPlugins.add (p);
+    }
+
+    if (pluginIdx < 0 || pluginIdx >= userPlugins.size())
+        return makeError ("Plugin index out of range");
+
+    auto* plugin = userPlugins[pluginIdx];
+
+    juce::Array<juce::var> paramList;
+    for (auto* param : plugin->getAutomatableParameters())
+    {
+        auto* pObj = new juce::DynamicObject();
+        pObj->setProperty ("param_id", param->paramID);
+        pObj->setProperty ("name", param->getParameterName());
+        pObj->setProperty ("value", (double) param->getCurrentValue());
+
+        // getDefaultValue returns std::optional<float>
+        auto defVal = param->getDefaultValue();
+        if (defVal.has_value())
+            pObj->setProperty ("default_value", (double) *defVal);
+
+        // Try to get value as text
+        pObj->setProperty ("value_text", param->getCurrentValueAsString());
+
+        paramList.add (juce::var (pObj));
+    }
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("plugin_name", plugin->getName());
+        obj->setProperty ("plugin_index", pluginIdx);
+        obj->setProperty ("enabled", plugin->isEnabled());
+        obj->setProperty ("parameters", paramList);
+        obj->setProperty ("parameter_count", paramList.size());
     }
     return result;
 }
