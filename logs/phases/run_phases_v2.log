@@ -812,3 +812,32 @@ Attach:  zeroshot attach flying-horizon-42
 [01:52:29]   [41m elapsed, 0m idle] cluster: running
 [01:52:59]   [42m] Activity detected, resetting stale timer
 [01:52:59]   [42m elapsed, 0m idle] cluster: running
+[01:53:29]   [42m] Activity detected, resetting stale timer
+[01:53:29]   [42m elapsed, 0m idle] cluster: running
+[01:53:59]   [43m] Activity detected, resetting stale timer
+[01:53:59]   [43m elapsed, 0m idle] cluster: running
+[01:54:29]   [43m] Activity detected, resetting stale timer
+[01:54:29]   [43m elapsed, 0m idle] cluster: running
+[01:54:59]   [44m] Activity detected, resetting stale timer
+[01:54:59]   [44m elapsed, 0m idle] cluster: running
+[01:55:29]   [44m] Activity detected, resetting stale timer
+[01:55:29]   [44m elapsed, 0m idle] cluster: running
+[01:55:59]   [45m] Activity detected, resetting stale timer
+[01:55:59] Hard timeout (45m) — stopping cluster
+Stopping cluster flying-horizon-42...
+Cluster stopped successfully
+[01:55:59] Phase 4 cluster done.
+[01:55:59] Running build + tests for phase 4...
+[01:55:59] Building with -j12 (cores: 24, max: 12)
+[100%] Built target Waive
+[01:55:59] Build: PASSED
+Test project /home/blaine/projects/waive/build
+    Start 1: WaiveCoreTests
+1/2 Test #1: WaiveCoreTests ...................   Passed    0.51 sec
+    Start 2: WaiveUiTests
+2/2 Test #2: WaiveUiTests .....................   Passed   89.93 sec
+
+100% tests passed, 0 tests failed out of 2
+
+Total Test time (real) =  90.44 sec
+[01:57:30] Tests: PASSED
