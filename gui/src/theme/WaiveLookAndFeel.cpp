@@ -109,8 +109,16 @@ void WaiveLookAndFeel::drawButtonBackground (juce::Graphics& g, juce::Button& bu
     g.setColour (colour);
     g.fillRoundedRectangle (bounds, 4.0f);
 
-    g.setColour (palette.borderSubtle);
-    g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
+    if (button.hasKeyboardFocus (true))
+    {
+        g.setColour (palette.primary);
+        g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 2.0f);
+    }
+    else
+    {
+        g.setColour (palette.borderSubtle);
+        g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
+    }
 }
 
 void WaiveLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int width, int height,
@@ -167,6 +175,14 @@ void WaiveLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int wi
         g.fillEllipse (thumbCentre.x - thumbSize * 0.5f,
                         thumbCentre.y - thumbSize * 0.5f,
                         thumbSize, thumbSize);
+
+        // Focus indicator
+        if (slider.hasKeyboardFocus (true))
+        {
+            g.setColour (palette.primary);
+            auto bounds = juce::Rectangle<float> ((float) x, (float) y, (float) width, (float) height);
+            g.drawRoundedRectangle (bounds.reduced (1.0f), 2.0f, 2.0f);
+        }
     }
     else
     {
@@ -177,7 +193,7 @@ void WaiveLookAndFeel::drawLinearSlider (juce::Graphics& g, int x, int y, int wi
 
 void WaiveLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int width, int height,
                                           float sliderPosProportional, float rotaryStartAngle,
-                                          float rotaryEndAngle, juce::Slider&)
+                                          float rotaryEndAngle, juce::Slider& slider)
 {
     auto bounds = juce::Rectangle<int> (x, y, width, height).toFloat().reduced (2.0f);
     auto radius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f;
@@ -205,6 +221,13 @@ void WaiveLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int wi
     auto pointerY = centreY + pointerLength * std::sin (angle - juce::MathConstants<float>::halfPi);
     g.setColour (palette.textPrimary);
     g.fillEllipse (pointerX - 3.0f, pointerY - 3.0f, 6.0f, 6.0f);
+
+    // Focus indicator
+    if (slider.hasKeyboardFocus (true))
+    {
+        g.setColour (palette.primary);
+        g.drawEllipse (bounds.reduced (2.0f), 2.0f);
+    }
 }
 
 void WaiveLookAndFeel::drawTabButton (juce::TabBarButton& button, juce::Graphics& g,
@@ -224,7 +247,7 @@ void WaiveLookAndFeel::drawTabButton (juce::TabBarButton& button, juce::Graphics
 
     // Text
     g.setColour (isFront ? palette.textPrimary : palette.textMuted);
-    g.setFont (waive::Fonts::body());
+    g.setFont (Fonts::body());
     g.drawText (button.getButtonText(), bounds.toNearestInt(), juce::Justification::centred, true);
 
     // Underline for active tab
@@ -256,7 +279,7 @@ void WaiveLookAndFeel::drawProgressBar (juce::Graphics& g, juce::ProgressBar&,
     if (textToShow.isNotEmpty())
     {
         g.setColour (palette.textPrimary);
-        g.setFont (waive::Fonts::body());
+        g.setFont (Fonts::body());
         g.drawText (textToShow, bounds.toNearestInt(), juce::Justification::centred, false);
     }
 }

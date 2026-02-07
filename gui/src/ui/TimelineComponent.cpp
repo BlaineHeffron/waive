@@ -41,6 +41,7 @@ TimelineComponent::TimelineComponent (EditSession& session)
     // Horizontal scrollbar
     horizontalScrollbar.setOrientation (false);
     horizontalScrollbar.addListener (this);
+    horizontalScrollbar.setTooltip ("Scroll timeline horizontally");
     addAndMakeVisible (horizontalScrollbar);
 
     rebuildTracks();
@@ -147,10 +148,10 @@ void TimelineComponent::mouseWheelMove (const juce::MouseEvent& e,
         resized();
         repaint();
     }
-    else
+    else if (e.mods.isShiftDown())
     {
-        // Horizontal scroll
-        scrollOffsetSeconds -= wheel.deltaY * 2.0;
+        // Shift+wheel: horizontal scroll
+        scrollOffsetSeconds -= wheel.deltaY * 2.0 / pixelsPerSecond;
         scrollOffsetSeconds = juce::jmax (0.0, scrollOffsetSeconds);
 
         // Update scrollbar position
@@ -159,6 +160,11 @@ void TimelineComponent::mouseWheelMove (const juce::MouseEvent& e,
 
         resized();
         repaint();
+    }
+    else
+    {
+        // Plain wheel: vertical scroll (handled by viewport)
+        // Do nothing, let parent viewport handle it
     }
 }
 
@@ -174,7 +180,11 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
     {
         auto file = fileTree->getSelectedFile();
         if (! file.existsAsFile())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                "Cannot Drop File", "The selected file does not exist.");
             return;
+        }
 
         auto localPos = details.localPosition;
         double dropTime = snapTimeToGrid (juce::jmax (0.0, xToTime (localPos.x)));
@@ -187,11 +197,22 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
             trackIdx = 0;
 
         if (tracks.isEmpty())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                "Cannot Drop File", "No tracks available. Add a track first.");
             return;
+        }
 
         auto* track = tracks[trackIdx];
         te::AudioFile audioFile (edit.engine, file);
         auto duration = audioFile.getLength();
+
+        if (duration <= 0.0)
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                "Cannot Drop File", "The file format is not supported or could not be read.");
+            return;
+        }
 
         editSession.performEdit ("Insert Audio Clip", [&] (te::Edit&)
         {

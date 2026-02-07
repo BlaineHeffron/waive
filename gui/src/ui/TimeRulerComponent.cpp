@@ -2,6 +2,7 @@
 #include "TimelineComponent.h"
 #include "EditSession.h"
 #include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
 
 #include <cmath>
 

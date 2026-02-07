@@ -4,6 +4,7 @@
 #include "UndoableCommandHandler.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
+#include "WaiveSpacing.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 #include <cmath>
@@ -308,31 +309,31 @@ void PluginBrowserComponent::setScanning (bool scanning)
 
 void PluginBrowserComponent::resized()
 {
-    auto bounds = getLocalBounds().reduced (8);
+    auto bounds = getLocalBounds().reduced (waive::Spacing::sm);
 
     auto topRow = bounds.removeFromTop (28);
     trackLabel.setBounds (topRow.removeFromLeft (44));
     trackCombo.setBounds (topRow.removeFromLeft (240));
-    topRow.removeFromLeft (8);
+    topRow.removeFromLeft (waive::Spacing::sm);
     insertButton.setBounds (topRow.removeFromLeft (90));
-    topRow.removeFromLeft (8);
+    topRow.removeFromLeft (waive::Spacing::sm);
     addReverbReturnButton.setBounds (topRow.removeFromLeft (160));
 
-    bounds.removeFromTop (8);
+    bounds.removeFromTop (waive::Spacing::sm);
 
     // Split: plugin browser (left), chain + routing/input (right)
     auto left = bounds.removeFromLeft (juce::jmax (360, bounds.getWidth() / 2));
     pluginList->setBounds (left);
 
-    bounds.removeFromLeft (8);
+    bounds.removeFromLeft (waive::Spacing::sm);
 
     auto right = bounds;
     auto ioRow = right.removeFromTop (28);
     inputLabel.setBounds (ioRow.removeFromLeft (44));
     inputCombo.setBounds (ioRow.removeFromLeft (220));
-    ioRow.removeFromLeft (8);
+    ioRow.removeFromLeft (waive::Spacing::sm);
     armButton.setBounds (ioRow.removeFromLeft (60));
-    ioRow.removeFromLeft (4);
+    ioRow.removeFromLeft (waive::Spacing::xs);
     monitorButton.setBounds (ioRow.removeFromLeft (84));
 
     right.removeFromTop (6);
@@ -341,13 +342,13 @@ void PluginBrowserComponent::resized()
     sendLabel.setBounds (sendRow.removeFromLeft (52));
     sendSlider.setBounds (sendRow);
 
-    right.removeFromTop (8);
+    right.removeFromTop (waive::Spacing::sm);
 
     auto buttonRow = right.removeFromTop (28);
     removeButton.setBounds (buttonRow.removeFromLeft (80));
     buttonRow.removeFromLeft (6);
     upButton.setBounds (buttonRow.removeFromLeft (50));
-    buttonRow.removeFromLeft (4);
+    buttonRow.removeFromLeft (waive::Spacing::xs);
     downButton.setBounds (buttonRow.removeFromLeft (60));
     buttonRow.removeFromLeft (6);
     bypassButton.setBounds (buttonRow.removeFromLeft (80));
@@ -356,7 +357,7 @@ void PluginBrowserComponent::resized()
     buttonRow.removeFromLeft (6);
     closeEditorButton.setBounds (buttonRow.removeFromLeft (80));
 
-    right.removeFromTop (8);
+    right.removeFromTop (waive::Spacing::sm);
     chainList.setBounds (right);
 }
 

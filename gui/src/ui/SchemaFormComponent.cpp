@@ -1,4 +1,6 @@
 #include "SchemaFormComponent.h"
+#include "WaiveFonts.h"
+#include "WaiveSpacing.h"
 
 //==============================================================================
 struct SchemaFormComponent::ParamField
@@ -105,6 +107,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
         field->toggle = std::make_unique<juce::ToggleButton>();
         field->toggle->setToggleState (defaultValue.isVoid() ? false : (bool) defaultValue,
                                        juce::dontSendNotification);
+        if (description.isNotEmpty())
+            field->toggle->setTooltip (description);
         addAndMakeVisible (field->toggle.get());
     }
     else if ((schemaType == "number" || schemaType == "integer") && field->hasMinMax)
@@ -121,6 +125,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
         if (! defaultValue.isVoid())
             field->slider->setValue ((double) defaultValue, juce::dontSendNotification);
 
+        if (description.isNotEmpty())
+            field->slider->setTooltip (description);
         addAndMakeVisible (field->slider.get());
     }
     else if (schemaType == "string" && field->hasEnum)
@@ -148,6 +154,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
                 field->combo->setSelectedItemIndex (0, juce::dontSendNotification);
             }
         }
+        if (description.isNotEmpty())
+            field->combo->setTooltip (description);
         addAndMakeVisible (field->combo.get());
     }
     else
@@ -162,6 +170,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
         if (! defaultValue.isVoid())
             field->textEditor->setText (defaultValue.toString(), false);
 
+        if (description.isNotEmpty())
+            field->textEditor->setTooltip (description);
         addAndMakeVisible (field->textEditor.get());
     }
 
@@ -236,19 +246,19 @@ void SchemaFormComponent::setParams (const juce::var& params)
 
 int SchemaFormComponent::getIdealHeight() const
 {
-    return (int) fields.size() * fieldHeight + padding;
+    return (int) fields.size() * fieldHeight + waive::Spacing::md;
 }
 
 void SchemaFormComponent::resized()
 {
-    auto bounds = getLocalBounds().reduced (padding, 0);
-    int y = padding;
+    auto bounds = getLocalBounds().reduced (waive::Spacing::md, 0);
+    int y = waive::Spacing::md;
 
     for (auto& f : fields)
     {
         auto row = bounds.withY (y).withHeight (fieldHeight);
 
-        auto labelRow = row.removeFromTop (16);
+        auto labelRow = row.removeFromTop (waive::Spacing::lg);
         f->label.setBounds (labelRow);
 
         auto controlRow = row.removeFromTop (22);
@@ -264,7 +274,7 @@ void SchemaFormComponent::resized()
 
         if (f->caption.getText().isNotEmpty())
         {
-            auto captionRow = row.removeFromTop (12);
+            auto captionRow = row.removeFromTop (waive::Spacing::md);
             f->caption.setBounds (captionRow);
         }
 

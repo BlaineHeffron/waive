@@ -1,6 +1,8 @@
 #include "MixerChannelStrip.h"
 #include "EditSession.h"
 #include "WaiveLookAndFeel.h"
+#include "WaiveFonts.h"
+#include "WaiveSpacing.h"
 
 //==============================================================================
 MixerChannelStrip::MixerChannelStrip (te::AudioTrack& t, EditSession& session)
@@ -32,13 +34,17 @@ MixerChannelStrip::~MixerChannelStrip()
     if (track != nullptr)
     {
         if (auto* meter = track->getLevelMeterPlugin())
+        {
             meter->measurer.removeClient (meterClient);
+        }
     }
     else if (masterEdit != nullptr)
     {
         auto meterPlugins = masterEdit->getMasterPluginList().getPluginsOfType<te::LevelMeterPlugin>();
         if (! meterPlugins.isEmpty() && meterPlugins.getFirst() != nullptr)
+        {
             meterPlugins.getFirst()->measurer.removeClient (meterClient);
+        }
     }
 }
 
@@ -169,21 +175,21 @@ void MixerChannelStrip::setupControls()
 
 void MixerChannelStrip::resized()
 {
-    auto bounds = getLocalBounds().reduced (2);
+    auto bounds = getLocalBounds().reduced (waive::Spacing::xxs);
 
     nameLabel.setBounds (bounds.removeFromTop (18));
-    bounds.removeFromTop (2);
+    bounds.removeFromTop (waive::Spacing::xxs);
 
     if (! isMaster)
     {
         auto buttonRow = bounds.removeFromTop (20);
         soloButton.setBounds (buttonRow.removeFromLeft (36));
-        buttonRow.removeFromLeft (2);
+        buttonRow.removeFromLeft (waive::Spacing::xxs);
         muteButton.setBounds (buttonRow.removeFromLeft (36));
-        bounds.removeFromTop (2);
+        bounds.removeFromTop (waive::Spacing::xxs);
 
         panKnob.setBounds (bounds.removeFromTop (36).withSizeKeepingCentre (36, 36));
-        bounds.removeFromTop (2);
+        bounds.removeFromTop (waive::Spacing::xxs);
     }
 
     faderSlider.setBounds (bounds.getX(), bounds.getY(),

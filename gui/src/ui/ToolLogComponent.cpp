@@ -1,5 +1,6 @@
 #include "ToolLogComponent.h"
 #include "JobQueue.h"
+#include "WaiveSpacing.h"
 
 //==============================================================================
 ToolLogComponent::ToolLogComponent (waive::JobQueue& queue)
@@ -53,22 +54,22 @@ ToolLogComponent::~ToolLogComponent()
 
 void ToolLogComponent::resized()
 {
-    auto bounds = getLocalBounds().reduced (12);
+    auto bounds = getLocalBounds().reduced (waive::Spacing::md);
 
     auto buttonRow = bounds.removeFromTop (32);
     demoButton.setBounds (buttonRow.removeFromLeft (100));
-    buttonRow.removeFromLeft (8);
+    buttonRow.removeFromLeft (waive::Spacing::sm);
     clearButton.setBounds (buttonRow.removeFromLeft (80));
 
-    bounds.removeFromTop (8);
-    activeJobsLabel.setBounds (bounds.removeFromTop (24));
-    bounds.removeFromTop (4);
+    bounds.removeFromTop (waive::Spacing::sm);
+    activeJobsLabel.setBounds (bounds.removeFromTop (waive::Spacing::xl));
+    bounds.removeFromTop (waive::Spacing::xs);
 
     // Active jobs area — height depends on number of active jobs
     int activeHeight = juce::jmax (0, (int) activeJobs.size() * 32);
     activeJobsArea.setBounds (bounds.removeFromTop (activeHeight));
 
-    bounds.removeFromTop (8);
+    bounds.removeFromTop (waive::Spacing::sm);
     logEditor.setBounds (bounds);
 }
 
@@ -180,15 +181,15 @@ void ToolLogComponent::updateActiveJobs()
     int y = 0;
     int areaWidth = activeJobsArea.getWidth();
     if (areaWidth <= 0)
-        areaWidth = getWidth() - 24;
+        areaWidth = getWidth() - waive::Spacing::xl;
 
     for (size_t i = 0; i < activeJobs.size(); ++i)
     {
         auto row = juce::Rectangle<int> (0, y, areaWidth, 28);
         progressLabels[i]->setBounds (row.removeFromLeft (200));
-        row.removeFromLeft (8);
+        row.removeFromLeft (waive::Spacing::sm);
         cancelButtons[i]->setBounds (row.removeFromRight (70));
-        row.removeFromRight (8);
+        row.removeFromRight (waive::Spacing::sm);
         progressBars[i]->setBounds (row);
         y += 32;
     }

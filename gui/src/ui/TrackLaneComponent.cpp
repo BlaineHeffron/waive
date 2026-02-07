@@ -36,6 +36,7 @@ TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl
 
     automationParamCombo.setTextWhenNothingSelected ("Automation: none");
     automationParamCombo.onChange = [this] { repaint(); };
+    automationParamCombo.setTooltip ("Select automation parameter to display");
     addAndMakeVisible (automationParamCombo);
 
     refreshAutomationParams();

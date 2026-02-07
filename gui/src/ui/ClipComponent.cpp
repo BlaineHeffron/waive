@@ -3,8 +3,10 @@
 #include "TrackLaneComponent.h"
 #include "EditSession.h"
 #include "SelectionManager.h"
+#include "WaiveFonts.h"
 #include "ClipEditActions.h"
 #include "WaiveLookAndFeel.h"
+#include "WaiveSpacing.h"
 
 //==============================================================================
 ClipComponent::ClipComponent (te::Clip& c, TimelineComponent& tl)
@@ -66,7 +68,7 @@ void ClipComponent::paint (juce::Graphics& g)
     if (thumbnail != nullptr && thumbnail->isFullyLoaded())
     {
         g.setColour (pal ? pal->waveform : juce::Colours::white.withAlpha (0.8f));
-        auto waveArea = bounds.reduced (2.0f, 14.0f);
+        auto waveArea = bounds.reduced ((float) waive::Spacing::xxs, 14.0f);
         thumbnail->drawChannels (g, waveArea.toNearestInt(),
                                  { te::TimePosition(), te::TimePosition::fromSeconds (
                                      clip.getPosition().getLength().inSeconds()) },
@@ -104,7 +106,7 @@ void ClipComponent::paint (juce::Graphics& g)
     // Clip name
     g.setColour (pal ? pal->textOnPrimary : juce::Colours::white);
     g.setFont (waive::Fonts::caption());
-    g.drawText (clip.getName(), bounds.reduced (4.0f, 1.0f).removeFromTop (14.0f),
+    g.drawText (clip.getName(), bounds.reduced ((float) waive::Spacing::xs, 1.0f).removeFromTop (14.0f),
                 juce::Justification::centredLeft, true);
 
     // Border

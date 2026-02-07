@@ -2,6 +2,7 @@
 #include "EditSession.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
+#include "WaiveSpacing.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -29,6 +30,7 @@ LibraryComponent::LibraryComponent (EditSession& session)
     goUpButton.onClick = [this] { goUp(); };
     goUpButton.setTitle ("Go Up");
     goUpButton.setDescription ("Navigate to parent directory");
+    goUpButton.setTooltip ("Navigate to parent directory");
     goUpButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (goUpButton);
 
@@ -36,6 +38,7 @@ LibraryComponent::LibraryComponent (EditSession& session)
     addFavButton.onClick = [this] { addCurrentToFavorites(); };
     addFavButton.setTitle ("Add Favorite");
     addFavButton.setDescription ("Add current directory to favorites");
+    addFavButton.setTooltip ("Add current directory to favorites");
     addFavButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (addFavButton);
 
@@ -48,6 +51,7 @@ LibraryComponent::LibraryComponent (EditSession& session)
     };
     favoritesCombo.setTitle ("Favorites");
     favoritesCombo.setDescription ("Navigate to favorite directory");
+    favoritesCombo.setTooltip ("Jump to a favorite directory");
     favoritesCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (favoritesCombo);
 
@@ -69,22 +73,22 @@ void LibraryComponent::paint (juce::Graphics& g)
             g.setColour (pal->textMuted);
         else
             g.setColour (juce::Colours::grey);
-        g.drawText ("Click '+ Folder' to add a media directory", getLocalBounds(), juce::Justification::centred, true);
+        g.drawText ("Click '+' to add a favorite directory", getLocalBounds(), juce::Justification::centred, true);
     }
 }
 
 void LibraryComponent::resized()
 {
-    auto bounds = getLocalBounds().reduced (8);
+    auto bounds = getLocalBounds().reduced (waive::Spacing::sm);
 
     auto topRow = bounds.removeFromTop (28);
     goUpButton.setBounds (topRow.removeFromLeft (32));
-    topRow.removeFromLeft (4);
+    topRow.removeFromLeft (waive::Spacing::xs);
     addFavButton.setBounds (topRow.removeFromRight (32));
-    topRow.removeFromRight (4);
+    topRow.removeFromRight (waive::Spacing::xs);
     favoritesCombo.setBounds (topRow);
 
-    bounds.removeFromTop (4);
+    bounds.removeFromTop (waive::Spacing::xs);
     fileTree->setBounds (bounds);
 }
 
@@ -97,18 +101,33 @@ void LibraryComponent::fileDoubleClicked (const juce::File& file)
     }
 
     if (! file.existsAsFile())
+    {
+        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+            "Cannot Load File", "The selected file could not be loaded.");
         return;
+    }
 
     auto& edit = editSession.getEdit();
     auto tracks = te::getAudioTracks (edit);
     if (tracks.isEmpty())
+    {
+        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+            "Cannot Load File", "No tracks available. Add a track first.");
         return;
+    }
 
     auto* track = tracks.getFirst();
     auto transportPos = edit.getTransport().getPosition().inSeconds();
 
     te::AudioFile audioFile (edit.engine, file);
     auto duration = audioFile.getLength();
+
+    if (duration <= 0.0)
+    {
+        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+            "Cannot Load File", "The selected file format is not supported or could not be read.");
+        return;
+    }
 
     editSession.performEdit ("Insert Audio Clip", [&] (te::Edit&)
     {
