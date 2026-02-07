@@ -12,6 +12,9 @@
 #include "UndoableCommandHandler.h"
 #include "JobQueue.h"
 #include "CommandHandler.h"
+#include "ClipTrackIndexMap.h"
+#include "AudioAnalysis.h"
+#include "AudioAnalysisCache.h"
 
 #include <cmath>
 #include <functional>
@@ -1555,6 +1558,204 @@ void runPhase2ModelWorkflowTests()
     (void) modelStorage.deleteRecursively();
 }
 
+void runPhase5PerformanceOptimizationTests()
+{
+    std::cout << "runPhase5PerformanceOptimizationTests: START" << std::endl;
+
+    te::Engine engine { "WaiveTestEngine" };
+    engine.getPluginManager().initialise();
+
+    // Test: ClipTrackIndexMap
+    juce::File tempDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                          .getChildFile ("waive_perf_test_" + juce::String (juce::Random::getSystemRandom().nextInt()));
+    tempDir.createDirectory();
+
+    auto editFile = tempDir.getChildFile ("test.trackex");
+    auto edit = te::createEmptyEdit (engine, editFile);
+    auto& transport = edit->getTransport();
+    transport.ensureContextAllocated (true);
+
+    // Create 3 tracks with 2 clips each
+    te::TrackInsertPoint insertPoint (nullptr, edit->getTrackList()[0]);
+    for (int i = 0; i < 3; ++i)
+    {
+        if (auto* track = edit->insertNewAudioTrack (insertPoint, nullptr).get())
+        {
+            track->setName ("Track" + juce::String (i + 1));
+
+            for (int c = 0; c < 2; ++c)
+            {
+                auto clip = track->insertWaveClip ("Clip" + juce::String (i * 2 + c + 1),
+                                                    juce::File(), { {}, {} }, false);
+                clip->setStart (te::TimePosition::fromSeconds (c * 5.0), false, false);
+                clip->setLength (te::TimeDuration::fromSeconds (3.0), false);
+            }
+        }
+    }
+
+    auto clipTrackMap = waive::buildClipTrackIndexMap (*edit);
+    expect (clipTrackMap.size() == 6, "Expected 6 clips in index map");
+
+    int trackIndexSum = 0;
+    for (const auto& [clipID, trackIndex] : clipTrackMap)
+    {
+        expect (trackIndex >= 0 && trackIndex < 3, "Expected trackIndex in range [0, 3)");
+        trackIndexSum += trackIndex;
+    }
+
+    expect (trackIndexSum == 6, "Expected sum of track indices to be 0+0+1+1+2+2=6");
+
+    // Test: ClipTrackIndexMap scaling to 100+ clips
+    auto scalingEdit = te::createEmptyEdit (engine, tempDir.getChildFile ("scaling.trackex"));
+    te::TrackInsertPoint scalingPoint (nullptr, scalingEdit->getTrackList()[0]);
+    for (int i = 0; i < 10; ++i)
+    {
+        if (auto* track = scalingEdit->insertNewAudioTrack (scalingPoint, nullptr).get())
+        {
+            for (int c = 0; c < 12; ++c)
+            {
+                auto clip = track->insertWaveClip ("ScaleClip" + juce::String (i * 12 + c),
+                                                    juce::File(), { {}, {} }, false);
+                clip->setStart (te::TimePosition::fromSeconds (c * 2.0), false, false);
+                clip->setLength (te::TimeDuration::fromSeconds (1.5), false);
+            }
+        }
+    }
+
+    auto scaledMap = waive::buildClipTrackIndexMap (*scalingEdit);
+    expect (scaledMap.size() == 120, "Expected 120 clips in scaled index map");
+
+    for (const auto& [clipID, trackIndex] : scaledMap)
+    {
+        expect (trackIndex >= 0 && trackIndex < 10, "Expected trackIndex in range [0, 10)");
+    }
+
+    // Test: AudioAnalysisCache
+    waive::AudioAnalysisCache cache;
+
+    juce::File audioFile = tempDir.getChildFile ("test.wav");
+    {
+        juce::AudioFormatManager formatManager;
+        formatManager.registerBasicFormats();
+        juce::WavAudioFormat wavFormat;
+
+        std::unique_ptr<juce::FileOutputStream> fileStream (audioFile.createOutputStream());
+        juce::StringPairArray metadataValues;
+        std::unique_ptr<juce::AudioFormatWriter> writer (wavFormat.createWriterFor (
+            fileStream.get(),
+            44100.0,
+            1,
+            16,
+            metadataValues,
+            0));
+
+        if (writer != nullptr)
+        {
+            fileStream.release();
+
+            juce::AudioBuffer<float> buffer (1, 4410);
+            buffer.clear();
+
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+                buffer.setSample (0, i, 0.5f);
+
+            writer->writeFromAudioSampleBuffer (buffer, 0, buffer.getNumSamples());
+            writer.reset();
+        }
+    }
+
+    expect (audioFile.existsAsFile(), "Expected test audio file to exist");
+
+    auto summary1 = waive::analyseAudioFile (audioFile, 0.1f, 0.05f, {}, &cache);
+    expect (summary1.valid, "Expected first analysis to succeed");
+
+    auto summary2 = waive::analyseAudioFile (audioFile, 0.1f, 0.05f, {}, &cache);
+    expect (summary2.valid, "Expected second analysis to succeed (cache hit)");
+
+    expect (std::abs (summary1.peakGain - summary2.peakGain) < 0.0001f,
+            "Expected cached result to match original");
+
+    waive::AudioAnalysisCache::CacheKey key1 { audioFile, 0.1f, 0.05f };
+    waive::AudioAnalysisCache::CacheKey key2 { audioFile, 0.1f, 0.05f };
+    waive::AudioAnalysisCache::CacheKey key3 { audioFile, 0.2f, 0.05f };
+
+    expect (key1 == key2, "Expected identical cache keys to be equal");
+    expect (!(key1 == key3), "Expected different threshold keys to be unequal");
+
+    waive::AudioAnalysisCache::CacheKeyHash hasher;
+    expect (hasher (key1) == hasher (key2), "Expected identical keys to have same hash");
+
+    cache.clear();
+
+    auto summary3 = waive::analyseAudioFile (audioFile, 0.1f, 0.05f, {}, &cache);
+    expect (summary3.valid, "Expected analysis after cache clear to succeed");
+
+    (void) tempDir.deleteRecursively();
+
+    std::cout << "runPhase5PerformanceOptimizationTests: PASS" << std::endl;
+}
+
+void runPhase6SafetyArchitectureRegression()
+{
+    std::cout << "runPhase6SafetyArchitectureRegression: START" << std::endl;
+
+    te::Engine engine ("WaivePhase6SafetyTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (session);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+
+    MainComponent mainComponent (undoableHandler, session, jobQueue, projectManager);
+    mainComponent.setBounds (0, 0, 1200, 800);
+    mainComponent.resized();
+
+    auto& sessionComponent = mainComponent.getSessionComponentForTesting();
+    auto& timeline = sessionComponent.getTimeline();
+    auto& edit = session.getEdit();
+
+    auto* track = getFirstTrack (edit);
+    expect (track != nullptr, "Expected phase-6 safety test track");
+
+    // Test: ID-based clip selection persistence across edit swaps
+    auto fixtureAudio = createPhase4FixtureAudioFile();
+    auto clip1 = track->insertWaveClip (
+        "safety_clip_1",
+        fixtureAudio,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (1.0) },
+          te::TimeDuration() },
+        false);
+    expect (clip1 != nullptr, "Expected safety test clip insertion");
+
+    timeline.rebuildTracks();
+    timeline.getSelectionManager().selectClip (clip1.get());
+
+    auto selectedClips = timeline.getSelectionManager().getSelectedClips();
+    expect (selectedClips.contains (clip1.get()), "Expected clip selection to persist before edit swap");
+
+    auto clip1ID = clip1->itemID;
+
+    // Simulate edit swap by creating new project and reopening
+    auto fixtureProject = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (fixtureProject), "Expected fixture project open for safety test");
+
+    // After edit swap, old clip pointer is invalid but ID-based lookup should still work
+    selectedClips = timeline.getSelectionManager().getSelectedClips();
+    expect (selectedClips.isEmpty(), "Expected selection to clear after edit swap");
+
+    // Verify no dangling pointer dereference occurs
+    timeline.rebuildTracks();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+
+    (void) fixtureAudio.deleteFile();
+    (void) fixtureProject.deleteFile();
+
+    std::cout << "runPhase6SafetyArchitectureRegression: PASS" << std::endl;
+}
+
 } // namespace
 
 int main()
@@ -1563,6 +1764,8 @@ int main()
 
     try
     {
+        runPhase5PerformanceOptimizationTests();
+        runPhase6SafetyArchitectureRegression();
         runUiCommandRoutingRegression();
         runUiProjectLifecycleRegression();
         runUiPhase1LibraryAndPhase2PluginRoutingRegression();

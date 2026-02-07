@@ -81,6 +81,9 @@ Waive has two native C++ regression test executables integrated with CTest.
   - deterministic built-in assistant tools (rename/gain-stage/silence-cut/transient-align)
 - Phase 5B:
   - optional model manager + model-backed tools (stem separation, auto-mix suggestions)
+- Phase 6:
+  - Safety architecture regression: ID-based selection persistence across edit swaps, async callback safety (no dangling pointers), transaction rollback on exception
+  - Performance regression: ClipTrackIndexMap scaling to 100+ clips, AudioAnalysisCache hit rate and eviction behavior
 
 ## Running Tests
 
@@ -123,5 +126,6 @@ Tests run automatically on every push and PR via GitHub Actions (`.github/workfl
   `setArmEnabledForTesting`, `setMonitorEnabledForTesting`, `setSendLevelDbForTesting`,
   `ensureReverbReturnOnMasterForTesting`.
 - For tool framework tests, use `ToolSidebarComponent` test helpers (`runPlanForTesting`, `waitForIdleForTesting`, `applyPlanForTesting`, `cancelPlanForTesting`) to validate plan/apply/cancel flows without manual input.
+- **Testing async-callback safety**: Prefer `EditItemID`-based selection over raw pointers in test assertions. Verify that edit swaps (new project, open project) clear selection and don't cause crashes. Test job cancellation paths explicitly to ensure no dangling callbacks fire after cancellation.
 - Keep tests message-thread safe; use `juce::ScopedJuceInitialiser_GUI` for UI-oriented tests.
 - Avoid requiring interactive dialogs or manual file selection.

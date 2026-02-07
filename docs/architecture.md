@@ -25,6 +25,22 @@ Responsibilities:
 - Clip/track mutations (inserts, trims, fades, automation)
 - Project-wide operations (render/export, analysis)
 
+### Safety Architecture
+
+Waive enforces strict safety rules to prevent crashes and data corruption in async tool workflows:
+
+- **ID-based selection state**: Timeline selection and tool preview highlighting use `te::EditItemID` (persistent identifiers) instead of raw `te::Clip*` pointers. This prevents dangling pointers when the `Edit` is swapped (new project, open project) or clips are deleted while a tool job is running.
+- **Async callback safety**: Tool jobs run on background threads via `JobQueue`. Callbacks that touch UI or Edit state use weak references or validity checks to ensure the component/edit still exists. Never capture bare `this` in async lambdas; use `juce::Component::SafePointer` or explicit validity flags.
+- **Transaction rollback on exception**: All mutations through `EditSession::performEdit()` are exception-safe. If a mutation lambda throws, the undo transaction is aborted and the edit state remains unchanged. This prevents partial edits from corrupting the session.
+
+### Performance Architecture
+
+Waive uses several performance optimizations to scale to large projects:
+
+- **ClipTrackIndexMap** (`gui/src/tools/ClipTrackIndexMap.h`): O(1) clip-to-track index lookup via `std::unordered_map<te::EditItemID, int>`. Built once per edit snapshot before multi-clip tools run. Replaces O(n·m) nested track/clip iteration with O(n+m) precomputation + O(1) lookups.
+- **AudioAnalysisCache** (`gui/src/tools/AudioAnalysisCache.h`): Deduplicates repeated `analyseAudioFile()` calls (peak/RMS/transient detection) when tools analyze the same audio file with the same parameters. Key is `{File, thresholdDb, minDurationMs}`. Cache hit avoids re-reading the audio file and re-running expensive DSP.
+- **Repaint throttling via timer coalescing**: Timeline and mixer components use `juce::Timer` with 30–60 ms intervals to batch repaint requests. This prevents UI stalls when tools update many clips/tracks rapidly. See `TimelineComponent::timerCallback()` and `MixerChannelStrip::timerCallback()`.
+
 ## Tracktion Engine Object Model
 
 ```
