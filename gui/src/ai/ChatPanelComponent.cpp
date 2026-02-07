@@ -109,8 +109,8 @@ void ChatPanelComponent::resized()
 {
     auto bounds = getLocalBounds().reduced (Spacing::xs);
 
-    // Header bar (28px)
-    auto header = bounds.removeFromTop (28);
+    // Header bar
+    auto header = bounds.removeFromTop (Spacing::controlHeightDefault);
     settingsButton.setBounds (header.removeFromLeft (70));
     header.removeFromLeft (Spacing::xs);
     providerCombo.setBounds (header.removeFromLeft (110));
@@ -121,8 +121,8 @@ void ChatPanelComponent::resized()
 
     bounds.removeFromTop (Spacing::xs);
 
-    // Input bar at bottom (28px)
-    auto inputBar = bounds.removeFromBottom (28);
+    // Input bar at bottom
+    auto inputBar = bounds.removeFromBottom (Spacing::controlHeightDefault);
     autoApplyToggle.setBounds (inputBar.removeFromLeft (100));
     inputBar.removeFromLeft (Spacing::xs);
     clearButton.setBounds (inputBar.removeFromRight (50));
@@ -133,10 +133,10 @@ void ChatPanelComponent::resized()
 
     bounds.removeFromBottom (Spacing::xs);
 
-    // Approval bar (28px, conditional)
+    // Approval bar (conditional)
     if (showApprovalBar)
     {
-        auto approvalBar = bounds.removeFromBottom (28);
+        auto approvalBar = bounds.removeFromBottom (Spacing::controlHeightDefault);
         approveButton.setBounds (approvalBar.removeFromLeft (70));
         approvalBar.removeFromLeft (Spacing::xs);
         rejectButton.setBounds (approvalBar.removeFromLeft (60));

@@ -172,9 +172,9 @@ void TrackLaneComponent::resized()
 {
     auto bounds = getLocalBounds();
     auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth).reduced (waive::Spacing::xs);
-    headerLabel.setBounds (headerBounds.removeFromTop (20));
+    headerLabel.setBounds (headerBounds.removeFromTop (waive::Spacing::controlHeightSmall));
     headerBounds.removeFromTop (waive::Spacing::xxs);
-    automationParamCombo.setBounds (headerBounds.removeFromTop (20));
+    automationParamCombo.setBounds (headerBounds.removeFromTop (waive::Spacing::controlHeightSmall));
 
     layoutClipComponents();
 }

@@ -16,6 +16,7 @@
 #include "ToolRegistry.h"
 #include "AiAgent.h"
 #include "AiSettings.h"
+#include "WaiveSpacing.h"
 
 //==============================================================================
 MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& session,
@@ -92,7 +93,7 @@ bool MainComponent::invokeCommandForTesting (juce::CommandID commandID)
 void MainComponent::resized()
 {
     auto bounds = getLocalBounds();
-    menuBar.setBounds (bounds.removeFromTop (24));
+    menuBar.setBounds (bounds.removeFromTop (waive::Spacing::menuBarHeight));
     tabs.setBounds (bounds);
 }
 

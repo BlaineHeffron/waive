@@ -58,7 +58,7 @@ void ConsoleComponent::resized()
     requestEditor.setBounds (requestArea);
     bounds.removeFromTop (waive::Spacing::sm);
 
-    auto buttonRow = bounds.removeFromTop (32);
+    auto buttonRow = bounds.removeFromTop (waive::Spacing::controlHeightLarge);
     sendButton.setBounds (buttonRow.removeFromLeft (100));
     buttonRow.removeFromLeft (waive::Spacing::sm);
     clearButton.setBounds (buttonRow.removeFromLeft (100));

@@ -248,13 +248,14 @@ void SchemaFormComponent::setParams (const juce::var& params)
 
 int SchemaFormComponent::getIdealHeight() const
 {
-    return (int) fields.size() * fieldHeight + waive::Spacing::md;
+    // fieldHeight = lg (16) + controlHeightMedium (24) + md (12) = 52
+    return (int) fields.size() * fieldHeight + waive::Spacing::sm;
 }
 
 void SchemaFormComponent::resized()
 {
-    auto bounds = getLocalBounds().reduced (waive::Spacing::md, 0);
-    int y = waive::Spacing::md;
+    auto bounds = getLocalBounds().reduced (waive::Spacing::sm, 0);
+    int y = waive::Spacing::sm;
 
     for (auto& f : fields)
     {

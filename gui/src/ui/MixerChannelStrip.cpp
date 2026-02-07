@@ -256,25 +256,25 @@ void MixerChannelStrip::resized()
 {
     auto bounds = getLocalBounds().reduced (waive::Spacing::xxs);
 
-    nameLabel.setBounds (bounds.removeFromTop (18));
+    nameLabel.setBounds (bounds.removeFromTop (waive::Spacing::labelHeight));
     bounds.removeFromTop (waive::Spacing::xxs);
 
     if (! isMaster)
     {
-        auto buttonRow = bounds.removeFromTop (20);
-        soloButton.setBounds (buttonRow.removeFromLeft (36));
+        auto buttonRow = bounds.removeFromTop (waive::Spacing::controlHeightSmall);
+        soloButton.setBounds (buttonRow.removeFromLeft (waive::Spacing::toolbarRowHeight));
         buttonRow.removeFromLeft (waive::Spacing::xxs);
-        muteButton.setBounds (buttonRow.removeFromLeft (36));
+        muteButton.setBounds (buttonRow.removeFromLeft (waive::Spacing::toolbarRowHeight));
         bounds.removeFromTop (waive::Spacing::xxs);
 
         // Arm + input row
-        auto armRow = bounds.removeFromTop (24);
-        armButton.setBounds (armRow.removeFromLeft (24));
+        auto armRow = bounds.removeFromTop (waive::Spacing::controlHeightMedium);
+        armButton.setBounds (armRow.removeFromLeft (waive::Spacing::controlHeightMedium));
         armRow.removeFromLeft (waive::Spacing::xxs);
         inputCombo.setBounds (armRow);
         bounds.removeFromTop (waive::Spacing::xxs);
 
-        panKnob.setBounds (bounds.removeFromTop (36).withSizeKeepingCentre (36, 36));
+        panKnob.setBounds (bounds.removeFromTop (waive::Spacing::toolbarRowHeight).withSizeKeepingCentre (36, 36));
         bounds.removeFromTop (waive::Spacing::xxs);
     }
 
@@ -312,9 +312,15 @@ void MixerChannelStrip::paint (juce::Graphics& g)
 
     // Professional meter bars (beside the fader)
     auto meterBounds = getLocalBounds().reduced (2);
-    // Skip name (18) + solo/mute row (20+xxs) + arm/input row (24+xxs) + pan (36+xxs) ≈ 104px
-    meterBounds.removeFromTop (isMaster ? 58 : 104);
-    meterBounds = meterBounds.removeFromRight (20);  // wider for 6px bars + scale
+    // Skip name + controls based on strip type
+    constexpr int masterHeaderHeight = waive::Spacing::labelHeight + waive::Spacing::xxs + waive::Spacing::toolbarRowHeight;  // 58
+    constexpr int trackHeaderHeight = waive::Spacing::labelHeight + waive::Spacing::xxs
+                                    + waive::Spacing::controlHeightSmall + waive::Spacing::xxs
+                                    + waive::Spacing::controlHeightMedium + waive::Spacing::xxs
+                                    + waive::Spacing::toolbarRowHeight + waive::Spacing::xxs;  // 104
+    meterBounds.removeFromTop (isMaster ? masterHeaderHeight : trackHeaderHeight);
+    constexpr int meterWidth = 20;  // component-specific: 6px bars + scale + padding
+    meterBounds = meterBounds.removeFromRight (meterWidth);
     lastMeterBounds = meterBounds;
 
     int meterHeight = meterBounds.getHeight() - 20;

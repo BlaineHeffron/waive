@@ -114,7 +114,7 @@ public:
     {
         auto bounds = getLocalBounds().reduced (waive::Spacing::xs);
 
-        auto headerRow = bounds.removeFromTop (20);
+        auto headerRow = bounds.removeFromTop (waive::Spacing::controlHeightSmall);
         titleLabel.setBounds (headerRow.removeFromLeft (60));
         settingsButton.setBounds (headerRow.removeFromRight (70));
 
@@ -124,7 +124,7 @@ public:
 
         for (auto& entry : modelEntries)
         {
-            auto row = bounds.removeFromTop (24);
+            auto row = bounds.removeFromTop (waive::Spacing::controlHeightMedium);
             entry->nameLabel.setBounds (row.removeFromLeft (120));
             entry->statusLabel.setBounds (row.removeFromLeft (100));
             row.removeFromLeft (waive::Spacing::xs);
@@ -136,7 +136,12 @@ public:
 
     int getIdealHeight() const
     {
-        return 20 + 2 + 16 + 4 + (int) modelEntries.size() * 24 + 8;
+        return waive::Spacing::controlHeightSmall
+             + waive::Spacing::xxs
+             + waive::Spacing::lg
+             + waive::Spacing::xs
+             + (int) modelEntries.size() * waive::Spacing::controlHeightMedium
+             + waive::Spacing::sm;
     }
 
 private:
@@ -384,14 +389,14 @@ void ToolSidebarComponent::resized()
     {
         auto modelSectionHeight = juce::jlimit (120, 240, modelManagerSection->getIdealHeight());
         modelManagerSection->setBounds (bounds.removeFromTop (modelSectionHeight));
-        bounds.removeFromTop (6);
+        bounds.removeFromTop (waive::Spacing::sm);
     }
 
-    auto toolRow = bounds.removeFromTop (24);
-    toolLabel.setBounds (toolRow.removeFromLeft (36));
+    auto toolRow = bounds.removeFromTop (waive::Spacing::controlHeightMedium);
+    toolLabel.setBounds (toolRow.removeFromLeft (waive::Spacing::toolbarRowHeight));
     toolCombo.setBounds (toolRow);
 
-    bounds.removeFromTop (6);
+    bounds.removeFromTop (waive::Spacing::sm);
 
     // Schema form in viewport
     auto schemaHeight = juce::jmin (schemaForm.getIdealHeight(), bounds.getHeight() / 3);
@@ -400,22 +405,22 @@ void ToolSidebarComponent::resized()
     schemaForm.setSize (schemaViewport.getWidth() - (schemaViewport.isVerticalScrollBarShown() ? 10 : 0),
                          juce::jmax (schemaForm.getIdealHeight(), schemaHeight));
 
-    bounds.removeFromTop (6);
-    auto actionRow = bounds.removeFromTop (26);
-    int btnW = (actionRow.getWidth() - 12) / 4;
+    bounds.removeFromTop (waive::Spacing::sm);
+    auto actionRow = bounds.removeFromTop (waive::Spacing::controlHeightMedium);
+    int btnW = (actionRow.getWidth() - 3 * waive::Spacing::xs) / 4;
     planButton.setBounds (actionRow.removeFromLeft (btnW));
-    actionRow.removeFromLeft (4);
+    actionRow.removeFromLeft (waive::Spacing::xs);
     applyButton.setBounds (actionRow.removeFromLeft (btnW));
-    actionRow.removeFromLeft (4);
+    actionRow.removeFromLeft (waive::Spacing::xs);
     rejectButton.setBounds (actionRow.removeFromLeft (btnW));
-    actionRow.removeFromLeft (4);
+    actionRow.removeFromLeft (waive::Spacing::xs);
     cancelButton.setBounds (actionRow);
 
-    bounds.removeFromTop (6);
-    statusLabel.setBounds (bounds.removeFromTop (18));
-    bounds.removeFromTop (4);
-    previewLabel.setBounds (bounds.removeFromTop (18));
-    bounds.removeFromTop (2);
+    bounds.removeFromTop (waive::Spacing::sm);
+    statusLabel.setBounds (bounds.removeFromTop (waive::Spacing::labelHeight));
+    bounds.removeFromTop (waive::Spacing::xs);
+    previewLabel.setBounds (bounds.removeFromTop (waive::Spacing::labelHeight));
+    bounds.removeFromTop (waive::Spacing::xxs);
     previewEditor.setBounds (bounds);
 }
 

@@ -319,7 +319,7 @@ void PluginBrowserComponent::resized()
 {
     auto bounds = getLocalBounds().reduced (waive::Spacing::sm);
 
-    auto topRow = bounds.removeFromTop (28);
+    auto topRow = bounds.removeFromTop (waive::Spacing::controlHeightDefault);
     trackLabel.setBounds (topRow.removeFromLeft (44));
     trackCombo.setBounds (topRow.removeFromLeft (240));
     topRow.removeFromLeft (waive::Spacing::sm);
@@ -330,13 +330,14 @@ void PluginBrowserComponent::resized()
     bounds.removeFromTop (waive::Spacing::sm);
 
     // Split: plugin browser (left), chain + routing/input (right)
-    auto left = bounds.removeFromLeft (juce::jmax (360, bounds.getWidth() / 2));
+    constexpr int leftPanelMinWidth = 360;  // component-specific panel division
+    auto left = bounds.removeFromLeft (juce::jmax (leftPanelMinWidth, bounds.getWidth() / 2));
     pluginList->setBounds (left);
 
     bounds.removeFromLeft (waive::Spacing::sm);
 
     auto right = bounds;
-    auto ioRow = right.removeFromTop (28);
+    auto ioRow = right.removeFromTop (waive::Spacing::controlHeightDefault);
     inputLabel.setBounds (ioRow.removeFromLeft (44));
     inputCombo.setBounds (ioRow.removeFromLeft (220));
     ioRow.removeFromLeft (waive::Spacing::sm);
@@ -344,25 +345,25 @@ void PluginBrowserComponent::resized()
     ioRow.removeFromLeft (waive::Spacing::xs);
     monitorButton.setBounds (ioRow.removeFromLeft (84));
 
-    right.removeFromTop (6);
+    right.removeFromTop (waive::Spacing::sm);
 
-    auto sendRow = right.removeFromTop (28);
+    auto sendRow = right.removeFromTop (waive::Spacing::controlHeightDefault);
     sendLabel.setBounds (sendRow.removeFromLeft (52));
     sendSlider.setBounds (sendRow);
 
     right.removeFromTop (waive::Spacing::sm);
 
-    auto buttonRow = right.removeFromTop (28);
+    auto buttonRow = right.removeFromTop (waive::Spacing::controlHeightDefault);
     removeButton.setBounds (buttonRow.removeFromLeft (80));
-    buttonRow.removeFromLeft (6);
+    buttonRow.removeFromLeft (waive::Spacing::sm);
     upButton.setBounds (buttonRow.removeFromLeft (50));
     buttonRow.removeFromLeft (waive::Spacing::xs);
     downButton.setBounds (buttonRow.removeFromLeft (60));
-    buttonRow.removeFromLeft (6);
+    buttonRow.removeFromLeft (waive::Spacing::sm);
     bypassButton.setBounds (buttonRow.removeFromLeft (80));
-    buttonRow.removeFromLeft (6);
+    buttonRow.removeFromLeft (waive::Spacing::sm);
     openEditorButton.setBounds (buttonRow.removeFromLeft (80));
-    buttonRow.removeFromLeft (6);
+    buttonRow.removeFromLeft (waive::Spacing::sm);
     closeEditorButton.setBounds (buttonRow.removeFromLeft (80));
 
     right.removeFromTop (waive::Spacing::sm);

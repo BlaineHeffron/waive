@@ -81,10 +81,10 @@ void LibraryComponent::resized()
 {
     auto bounds = getLocalBounds().reduced (waive::Spacing::sm);
 
-    auto topRow = bounds.removeFromTop (28);
-    goUpButton.setBounds (topRow.removeFromLeft (32));
+    auto topRow = bounds.removeFromTop (waive::Spacing::controlHeightDefault);
+    goUpButton.setBounds (topRow.removeFromLeft (waive::Spacing::controlHeightLarge));
     topRow.removeFromLeft (waive::Spacing::xs);
-    addFavButton.setBounds (topRow.removeFromRight (32));
+    addFavButton.setBounds (topRow.removeFromRight (waive::Spacing::controlHeightLarge));
     topRow.removeFromRight (waive::Spacing::xs);
     favoritesCombo.setBounds (topRow);
 

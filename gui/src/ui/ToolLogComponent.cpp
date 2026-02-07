@@ -57,7 +57,7 @@ void ToolLogComponent::resized()
 {
     auto bounds = getLocalBounds().reduced (waive::Spacing::md);
 
-    auto buttonRow = bounds.removeFromTop (32);
+    auto buttonRow = bounds.removeFromTop (waive::Spacing::controlHeightLarge);
     demoButton.setBounds (buttonRow.removeFromLeft (100));
     buttonRow.removeFromLeft (waive::Spacing::sm);
     clearButton.setBounds (buttonRow.removeFromLeft (80));
@@ -67,7 +67,7 @@ void ToolLogComponent::resized()
     bounds.removeFromTop (waive::Spacing::xs);
 
     // Active jobs area — height depends on number of active jobs
-    int activeHeight = juce::jmax (0, (int) activeJobs.size() * 32);
+    int activeHeight = juce::jmax (0, (int) activeJobs.size() * waive::Spacing::controlHeightLarge);
     activeJobsArea.setBounds (bounds.removeFromTop (activeHeight));
 
     bounds.removeFromTop (waive::Spacing::sm);
@@ -201,13 +201,13 @@ void ToolLogComponent::updateActiveJobs()
 
     for (size_t i = 0; i < activeJobs.size(); ++i)
     {
-        auto row = juce::Rectangle<int> (0, y, areaWidth, 28);
+        auto row = juce::Rectangle<int> (0, y, areaWidth, waive::Spacing::controlHeightDefault);
         progressLabels[i]->setBounds (row.removeFromLeft (200));
         row.removeFromLeft (waive::Spacing::sm);
         cancelButtons[i]->setBounds (row.removeFromRight (70));
         row.removeFromRight (waive::Spacing::sm);
         progressBars[i]->setBounds (row);
-        y += 32;
+        y += waive::Spacing::controlHeightLarge;
     }
 
     activeJobsArea.setSize (areaWidth, y);

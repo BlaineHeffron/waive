@@ -6,6 +6,7 @@
 #include "ClipEditActions.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
+#include "WaiveSpacing.h"
 
 #include <cmath>
 
@@ -65,10 +66,10 @@ void TimelineComponent::resized()
 {
     auto bounds = getLocalBounds();
 
-    ruler->setBounds (bounds.removeFromTop (rulerHeight));
+    ruler->setBounds (bounds.removeFromTop (waive::Spacing::rulerHeight));
 
     // Reserve space for horizontal scrollbar
-    auto scrollbarArea = bounds.removeFromBottom (14);
+    auto scrollbarArea = bounds.removeFromBottom (waive::Spacing::scrollbarThickness);
     horizontalScrollbar.setBounds (scrollbarArea);
 
     trackViewport.setBounds (bounds);
@@ -79,7 +80,7 @@ void TimelineComponent::resized()
     // Size track container
     int totalHeight = (int) trackLanes.size() * trackLaneHeight;
     int contentWidth = juce::jmax (bounds.getWidth(),
-                                   trackHeaderWidth + (int) (pixelsPerSecond * 60.0));
+                                   waive::Spacing::trackHeaderWidth + (int) (pixelsPerSecond * 60.0));
     trackContainer.setSize (contentWidth, juce::jmax (totalHeight, bounds.getHeight()));
 
     int y = 0;
@@ -126,7 +127,7 @@ void TimelineComponent::mouseWheelMove (const juce::MouseEvent& e,
     if (e.mods.isCommandDown())
     {
         // Check if over track area for track height zoom
-        if (e.y > rulerHeight && e.x < trackHeaderWidth)
+        if (e.y > waive::Spacing::rulerHeight && e.x < waive::Spacing::trackHeaderWidth)
         {
             // Track height zoom
             int delta = wheel.deltaY > 0 ? 10 : -10;
@@ -187,7 +188,7 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
 
         auto localPos = details.localPosition;
         double dropTime = snapTimeToGrid (juce::jmax (0.0, xToTime (localPos.x)));
-        int trackIdx = trackIndexAtY (localPos.y - rulerHeight);
+        int trackIdx = trackIndexAtY (localPos.y - waive::Spacing::rulerHeight);
 
         auto& edit = editSession.getEdit();
         auto tracks = te::getAudioTracks (edit);
@@ -227,12 +228,12 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
 //==============================================================================
 int TimelineComponent::timeToX (double seconds) const
 {
-    return trackHeaderWidth + (int) ((seconds - scrollOffsetSeconds) * pixelsPerSecond);
+    return waive::Spacing::trackHeaderWidth + (int) ((seconds - scrollOffsetSeconds) * pixelsPerSecond);
 }
 
 double TimelineComponent::xToTime (int x) const
 {
-    return scrollOffsetSeconds + (x - trackHeaderWidth) / pixelsPerSecond;
+    return scrollOffsetSeconds + (x - waive::Spacing::trackHeaderWidth) / pixelsPerSecond;
 }
 
 int TimelineComponent::trackIndexAtY (int y) const

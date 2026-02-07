@@ -385,11 +385,14 @@ void SessionComponent::resized()
     const int viewportWidth = bounds.getWidth();
     const bool showSecondaryControls = viewportWidth >= 900;
 
-    auto toolbar = bounds.removeFromTop (showSecondaryControls ? 68 : 36);
-    toolbar = toolbar.reduced (8, 4);
+    const int toolbarH = showSecondaryControls
+                            ? (waive::Spacing::controlHeightDefault * 2 + waive::Spacing::md)
+                            : waive::Spacing::toolbarRowHeight;
+    auto toolbar = bounds.removeFromTop (toolbarH);
+    toolbar = toolbar.reduced (waive::Spacing::sm, waive::Spacing::xs);
 
     // Primary row (always visible)
-    auto topRow = toolbar.removeFromTop (28);
+    auto topRow = toolbar.removeFromTop (waive::Spacing::controlHeightDefault);
     juce::FlexBox primaryFlex;
     primaryFlex.flexDirection = juce::FlexBox::Direction::row;
     primaryFlex.justifyContent = juce::FlexBox::JustifyContent::flexStart;
@@ -426,7 +429,7 @@ void SessionComponent::resized()
     // Secondary row (visible when width >= 900px)
     if (showSecondaryControls)
     {
-        auto bottomRow = toolbar.removeFromTop (28);
+        auto bottomRow = toolbar.removeFromTop (waive::Spacing::controlHeightDefault);
         juce::FlexBox secondaryFlex;
         secondaryFlex.flexDirection = juce::FlexBox::Direction::row;
         secondaryFlex.justifyContent = juce::FlexBox::JustifyContent::flexStart;
@@ -476,8 +479,8 @@ void SessionComponent::resized()
 
     if (toolSidebar != nullptr && sidebarVisible)
     {
-        auto sidebarBounds = contentBounds.removeFromRight (defaultSidebarWidth);
-        auto resizerBounds = contentBounds.removeFromRight (4);
+        auto sidebarBounds = contentBounds.removeFromRight (waive::Spacing::sidebarWidth);
+        auto resizerBounds = contentBounds.removeFromRight (waive::Spacing::resizerBarThickness);
         if (sidebarResizer)
             sidebarResizer->setBounds (resizerBounds);
         toolSidebar->setBounds (sidebarBounds);
@@ -498,9 +501,9 @@ void SessionComponent::resized()
     {
         // 5-component layout: timeline | resizer | chat | resizer2 | mixer
         layoutManager.setItemLayout (0, 100, -1.0, -0.55);    // timeline
-        layoutManager.setItemLayout (1, 4, 4, 4);              // resizer
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);              // resizer
         layoutManager.setItemLayout (2, 60, 300, 150);         // chat panel
-        layoutManager.setItemLayout (3, 4, 4, 4);              // resizer2
+        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);              // resizer2
         layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
 
         chatPanel->setVisible (true);
@@ -515,7 +518,7 @@ void SessionComponent::resized()
     {
         // 3-component layout: timeline | resizer | mixer
         layoutManager.setItemLayout (0, 100, -1.0, -0.75);
-        layoutManager.setItemLayout (1, 4, 4, 4);
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
         layoutManager.setItemLayout (2, 80, 300, 160);
 
         if (chatPanel)
