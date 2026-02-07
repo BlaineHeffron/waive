@@ -24,7 +24,6 @@ TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl
 {
     headerLabel.setText (track.getName(), juce::dontSendNotification);
     headerLabel.setJustificationType (juce::Justification::centredLeft);
-    headerLabel.setColour (juce::Label::textColourId, juce::Colours::lightgrey);
     headerLabel.setEditable (false, true, false);
     headerLabel.onTextChange = [this]
     {
@@ -78,7 +77,7 @@ void TrackLaneComponent::paint (juce::Graphics& g)
     }
 
     // Lane background
-    g.setColour (pal ? pal->panelBg : juce::Colour (0xff222222));
+    g.setColour (pal ? pal->panelBg : juce::Colour (0xff1a1a1a));
     g.fillRect (bounds);
 
     // Grid lines (clip + automation area) - use cache
@@ -107,16 +106,16 @@ void TrackLaneComponent::paint (juce::Graphics& g)
     // Draw cached grid lines
     for (const auto& gridLine : cachedGridLines)
     {
-        g.setColour (gridLine.isMinor ? (pal ? pal->gridMinor : juce::Colours::grey.withAlpha (0.12f))
-                                      : (pal ? pal->gridMajor : juce::Colours::lightgrey.withAlpha (0.2f)));
+        g.setColour (gridLine.isMinor ? (pal ? pal->gridMinor : juce::Colour (0xff333333))
+                                      : (pal ? pal->gridMajor : juce::Colour (0xff555555)));
         g.drawVerticalLine (gridLine.x, 0.0f, (float) getHeight());
     }
 
     // Automation lane background
     auto automationBounds = getAutomationBounds();
-    g.setColour (pal ? pal->insetBg : juce::Colour (0xff1f1f1f));
+    g.setColour (pal ? pal->insetBg : juce::Colour (0xff202020));
     g.fillRect (automationBounds);
-    g.setColour (pal ? pal->borderSubtle : juce::Colour (0xff303030));
+    g.setColour (pal ? pal->borderSubtle : juce::Colour (0xff444444));
     g.drawRect (automationBounds);
 
     if (auto* param = getSelectedAutomationParameter())
@@ -139,7 +138,7 @@ void TrackLaneComponent::paint (juce::Graphics& g)
                     path.lineTo (x, y);
             }
 
-            g.setColour (pal ? pal->automationCurve : juce::Colour (0xff77b7ff));
+            g.setColour (pal ? pal->automationCurve : juce::Colour (0xff4477aa));
             g.strokePath (path, juce::PathStrokeType (1.5f));
 
             for (int i = 0; i < curve.getNumPoints(); ++i)
@@ -147,14 +146,14 @@ void TrackLaneComponent::paint (juce::Graphics& g)
                 const auto ptTime = curve.getPointTime (i).inSeconds();
                 const auto x = (float) timeline.timeToX (ptTime);
                 const auto y = (float) automationYForNormalisedValue (toNormalised (curve.getPointValue (i), valueRange));
-                g.setColour (pal ? pal->automationPoint : juce::Colours::white.withAlpha (0.9f));
+                g.setColour (pal ? pal->automationPoint : juce::Colour (0xe6ffffff));
                 g.fillEllipse (x - 3.0f, y - 3.0f, 6.0f, 6.0f);
             }
         }
     }
 
     // Bottom separator
-    g.setColour (pal ? pal->border : juce::Colour (0xff3a3a3a));
+    g.setColour (pal ? pal->border : juce::Colour (0xff555555));
     g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
 }
 

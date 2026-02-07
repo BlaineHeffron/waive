@@ -1,6 +1,7 @@
 #include "SchemaFormComponent.h"
 #include "WaiveFonts.h"
 #include "WaiveSpacing.h"
+#include "WaiveLookAndFeel.h"
 
 //==============================================================================
 struct SchemaFormComponent::ParamField
@@ -91,7 +92,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
     {
         field->caption.setText (description, juce::dontSendNotification);
         field->caption.setFont (waive::Fonts::caption());
-        field->caption.setColour (juce::Label::textColourId, juce::Colours::grey);
+        auto* pal = waive::getWaivePalette (*this);
+        field->caption.setColour (juce::Label::textColourId, pal ? pal->textMuted : juce::Colour (0xff808080));
         field->caption.setJustificationType (juce::Justification::centredLeft);
         addAndMakeVisible (field->caption);
     }

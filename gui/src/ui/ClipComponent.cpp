@@ -45,7 +45,7 @@ void ClipComponent::paint (juce::Graphics& g)
     auto* pal = waive::getWaivePalette (*this);
 
     // Get track color using cached index
-    juce::Colour trackColor = juce::Colours::grey;
+    juce::Colour trackColor = pal ? pal->textMuted : juce::Colour (0xff808080);
     if (pal)
     {
         const juce::Colour* trackColors[] = {
@@ -57,8 +57,9 @@ void ClipComponent::paint (juce::Graphics& g)
     }
 
     // Background with 20% track color blend
-    auto bgColour = highlighted ? (pal ? pal->clipSelected : juce::Colour (0xff4477aa))
-                                : (pal ? pal->clipDefault : juce::Colour (0xff3a5a3a));
+    juce::Colour bgColour = highlighted
+        ? (pal ? pal->clipSelected : juce::Colour (0xff4477aa))
+        : (pal ? pal->clipDefault : juce::Colour (0xff3a5a3a));
     auto blendedBgColour = bgColour.interpolatedWith (trackColor, 0.2f);
     g.setColour (blendedBgColour);
     g.fillRoundedRectangle (bounds, 4.0f);
@@ -66,7 +67,7 @@ void ClipComponent::paint (juce::Graphics& g)
     // Waveform
     if (thumbnail != nullptr && thumbnail->isFullyLoaded())
     {
-        g.setColour (pal ? pal->waveform : juce::Colours::white.withAlpha (0.8f));
+        g.setColour (pal ? pal->waveform : juce::Colour (0xccffffff));
         auto waveArea = bounds.reduced ((float) waive::Spacing::xxs, 14.0f);
         thumbnail->drawChannels (g, waveArea.toNearestInt(),
                                  { te::TimePosition(), te::TimePosition::fromSeconds (
@@ -81,7 +82,7 @@ void ClipComponent::paint (juce::Graphics& g)
         const double fadeOutSec = waveClip->getFadeOut().inSeconds();
         const double clipLengthSec = clip.getPosition().getLength().inSeconds();
 
-        g.setColour (pal ? pal->panelBg.withAlpha (0.3f) : juce::Colours::black.withAlpha (0.3f));
+        g.setColour (pal ? pal->panelBg.withAlpha (0.3f) : juce::Colour (0x4d000000));
 
         // Fade-in triangle
         if (fadeInSec > 0.001)
@@ -107,27 +108,27 @@ void ClipComponent::paint (juce::Graphics& g)
     }
 
     // Clip name
-    g.setColour (pal ? pal->textOnPrimary : juce::Colours::white);
+    g.setColour (pal ? pal->textOnPrimary : juce::Colour (0xffffffff));
     g.setFont (waive::Fonts::caption());
     g.drawText (clip.getName(), bounds.reduced ((float) waive::Spacing::xs, 1.0f).removeFromTop (14.0f),
                 juce::Justification::centredLeft, true);
 
     // Border
-    g.setColour (highlighted ? (pal ? pal->selectionBorder : juce::Colours::white)
-                             : (pal ? pal->border : juce::Colours::grey));
+    g.setColour (highlighted ? (pal ? pal->selectionBorder : juce::Colour (0xffffffff))
+                             : (pal ? pal->border : juce::Colour (0xff555555)));
     g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
 
     // Hover border
     if (isHovered && ! highlighted)
     {
-        g.setColour (pal ? pal->primary.brighter() : juce::Colours::white.withAlpha (0.5f));
+        g.setColour (pal ? pal->primary.brighter() : juce::Colour (0x804477aa));
         g.drawRoundedRectangle (bounds.reduced (1.0f), 4.0f, 2.0f);
     }
 
     // Trim handles
     if (isMouseOver())
     {
-        g.setColour (pal ? pal->trimHandle : juce::Colours::white.withAlpha (0.3f));
+        g.setColour (pal ? pal->trimHandle : juce::Colour (0x4dffffff));
         g.fillRect (bounds.removeFromLeft ((float) trimZoneWidth));
         g.fillRect (getLocalBounds().toFloat().removeFromRight ((float) trimZoneWidth));
     }
@@ -136,13 +137,13 @@ void ClipComponent::paint (juce::Graphics& g)
     if (ghostDragBounds.has_value())
     {
         auto ghostBounds = ghostDragBounds.value();
-        g.setColour (pal ? pal->primary.withAlpha (0.3f) : juce::Colour (0x4c4488cc));
+        g.setColour (pal ? pal->primary.withAlpha (0.3f) : juce::Colour (0x4d4477aa));
         g.drawRoundedRectangle (ghostBounds, 4.0f, 2.0f);
 
         // Draw snap line if snapping is enabled
         if (timeline.isSnapEnabled())
         {
-            g.setColour (pal ? pal->primary : juce::Colour (0xff4488cc));
+            g.setColour (pal ? pal->primary : juce::Colour (0xff4477aa));
             g.drawLine (ghostBounds.getX(), 0.0f, ghostBounds.getX(), (float) getParentComponent()->getHeight(), 1.0f);
         }
     }

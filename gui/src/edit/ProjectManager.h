@@ -6,7 +6,7 @@ class EditSession;
 
 //==============================================================================
 /** Manages project file operations: new, open, save, save-as, recent files. */
-class ProjectManager : private juce::Timer
+class ProjectManager
 {
 public:
     /** Listener interface for project state changes. */
@@ -34,9 +34,10 @@ public:
     void addListener (Listener* listener);
     void removeListener (Listener* listener);
 
-private:
     void notifyDirtyChanged();
-    void timerCallback() override;
+
+private:
+    void checkDirtyState();
     bool confirmSaveIfDirty();
     void addToRecentFiles (const juce::File& file);
 

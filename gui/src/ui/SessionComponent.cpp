@@ -533,8 +533,8 @@ void SessionComponent::timerCallback()
     {
         auto* pal = waive::getWaivePalette (*this);
         recordButton.setColour (juce::TextButton::buttonColourId,
-                                transport.isRecording() ? (pal ? pal->record : juce::Colours::darkred)
-                                                        : (pal ? pal->surfaceBg : juce::Colours::darkgrey));
+                                transport.isRecording() ? (pal ? pal->record : juce::Colour (0xff8b0000))
+                                                        : (pal ? pal->surfaceBg : juce::Colour (0xffa9a9a9)));
     }
 
     juce::ScopedValueSetter<bool> sv (suppressControlCallbacks, true);

@@ -220,7 +220,7 @@ void MixerChannelStrip::paint (juce::Graphics& g)
 
     if (highlighted)
     {
-        g.setColour (pal ? pal->accent : juce::Colour (0xfff0b429));
+        g.setColour (pal ? pal->accent : juce::Colour (0xff4477aa));
         g.drawRoundedRectangle (bounds.reduced (1.5f), 3.0f, 2.0f);
     }
 
@@ -235,7 +235,7 @@ void MixerChannelStrip::paint (juce::Graphics& g)
     {
         // dB scale markings
         const float dbMarks[] = {-60.0f, -40.0f, -20.0f, -10.0f, -6.0f, -3.0f, 0.0f, 6.0f};
-        g.setColour (pal ? pal->textMuted : juce::Colour (0xff777777));
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff999999));
         g.setFont (waive::Fonts::meter());
 
         for (float db : dbMarks)
@@ -256,15 +256,15 @@ void MixerChannelStrip::paint (juce::Graphics& g)
             auto meterRect = juce::Rectangle<int> (meterBounds.getX() + xOffset, barY, 6, barH);
 
             juce::ColourGradient gradient (
-                pal ? pal->meterClip : juce::Colours::red,
+                pal ? pal->meterClip : juce::Colour (0xffff0000),
                 (float) meterRect.getX(), (float) meterRect.getY(),
-                pal ? pal->meterNormal : juce::Colours::limegreen,
+                pal ? pal->meterNormal : juce::Colour (0xff00ff00),
                 (float) meterRect.getX(), (float) meterRect.getBottom(),
                 false);
 
             // Add intermediate color stops
-            gradient.addColour (0.05, pal ? pal->meterClip : juce::Colours::red);        // -3dB
-            gradient.addColour (0.45, pal ? pal->meterWarning : juce::Colours::yellow);  // -12dB
+            gradient.addColour (0.05, pal ? pal->meterClip : juce::Colour (0xffff0000));        // -3dB
+            gradient.addColour (0.45, pal ? pal->meterWarning : juce::Colour (0xffffff00));  // -12dB
 
             g.setGradientFill (gradient);
             g.fillRect (meterRect);
@@ -272,7 +272,7 @@ void MixerChannelStrip::paint (juce::Graphics& g)
             // Peak hold line
             float peakHoldNorm = juce::jlimit (0.0f, 1.0f, (peakHoldDB + 60.0f) / 66.0f);
             int peakHoldY = meterBounds.getY() + (int) (meterHeight * (1.0f - peakHoldNorm));
-            g.setColour (juce::Colours::white);
+            g.setColour (pal ? pal->textOnPrimary : juce::Colour (0xffffffff));
             g.fillRect (meterBounds.getX() + xOffset, peakHoldY, 6, 2);
         };
 

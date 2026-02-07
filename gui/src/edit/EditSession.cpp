@@ -84,6 +84,7 @@ bool EditSession::performEdit (const juce::String& actionName,
     {
         mutation (*edit);
         edit->markAsChanged();
+        listeners.call (&Listener::editStateChanged);
         return true;
     }
     catch (const std::exception& e)

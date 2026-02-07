@@ -122,7 +122,7 @@ struct PluginBrowserComponent::ChainModel : public juce::ListBoxModel
         if (selected)
         {
             auto* pal = waive::getWaivePalette (owner);
-            g.fillAll (pal ? pal->selection : juce::Colours::darkslategrey);
+            g.fillAll (pal ? pal->selection : juce::Colour (0xff2f4f4f));
         }
 
         juce::String text = p->getName();
@@ -131,7 +131,7 @@ struct PluginBrowserComponent::ChainModel : public juce::ListBoxModel
 
         {
             auto* pal = waive::getWaivePalette (owner);
-            g.setColour (pal ? pal->textPrimary : juce::Colours::white);
+            g.setColour (pal ? pal->textPrimary : juce::Colour (0xffffffff));
         }
         g.drawFittedText (text, 6, 0, width - 12, height, juce::Justification::centredLeft, 1);
     }
@@ -281,10 +281,8 @@ void PluginBrowserComponent::paint (juce::Graphics& g)
     if (scanningInProgress)
     {
         g.setFont (waive::Fonts::body());
-        if (auto* pal = waive::getWaivePalette (*this))
-            g.setColour (pal->textMuted);
-        else
-            g.setColour (juce::Colours::grey);
+        auto* pal = waive::getWaivePalette (*this);
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
         g.drawText ("Scanning plugins...", getLocalBounds(), juce::Justification::centred, true);
         return;
     }
@@ -293,10 +291,8 @@ void PluginBrowserComponent::paint (juce::Graphics& g)
     if (knownPlugins.getNumTypes() == 0)
     {
         g.setFont (waive::Fonts::body());
-        if (auto* pal = waive::getWaivePalette (*this))
-            g.setColour (pal->textMuted);
-        else
-            g.setColour (juce::Colours::grey);
+        auto* pal = waive::getWaivePalette (*this);
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
         g.drawText ("Click 'Scan' to find installed plugins", getLocalBounds(), juce::Justification::centred, true);
     }
 }

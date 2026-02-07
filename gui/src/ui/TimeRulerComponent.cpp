@@ -17,11 +17,11 @@ void TimeRulerComponent::paint (juce::Graphics& g)
 {
     auto* pal = waive::getWaivePalette (*this);
 
-    g.fillAll (pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a));
+    g.fillAll (pal ? pal->surfaceBg : juce::Colour (0xff1a1a1a));
 
     auto bounds = getLocalBounds();
     auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth);
-    g.setColour (pal ? pal->surfaceBgAlt : juce::Colour (0xff252525));
+    g.setColour (pal ? pal->surfaceBgAlt : juce::Colour (0xff222222));
     g.fillRect (headerBounds);
 
     const double pps = timeline.getPixelsPerSecond();
@@ -29,7 +29,7 @@ void TimeRulerComponent::paint (juce::Graphics& g)
     const double startTime = scrollOffset;
     const double endTime = scrollOffset + bounds.getWidth() / pps;
 
-    g.setColour (pal ? pal->textMuted : juce::Colours::grey.withAlpha (0.45f));
+    g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
     g.setFont (waive::Fonts::caption());
 
     if (timeline.getShowBarsBeatsRuler())
@@ -37,14 +37,14 @@ void TimeRulerComponent::paint (juce::Graphics& g)
         juce::Array<double> majorLines, minorLines;
         timeline.getGridLineTimes (startTime, endTime, majorLines, minorLines);
 
-        g.setColour (pal ? pal->gridMinor.withAlpha (0.35f) : juce::Colours::grey.withAlpha (0.35f));
+        g.setColour (pal ? pal->gridMinor.withAlpha (0.35f) : juce::Colour (0xff2a2a2a));
         for (auto t : minorLines)
         {
             const int x = timeline.timeToX (t);
             g.drawVerticalLine (x, (float) bounds.getHeight() * 0.6f, (float) bounds.getHeight());
         }
 
-        g.setColour (pal ? pal->gridMajor.withAlpha (0.7f) : juce::Colours::lightgrey.withAlpha (0.7f));
+        g.setColour (pal ? pal->gridMajor.withAlpha (0.7f) : juce::Colour (0xff3a3a3a));
         for (auto t : majorLines)
         {
             const int x = timeline.timeToX (t);
@@ -95,7 +95,7 @@ void TimeRulerComponent::paint (juce::Graphics& g)
         const int x2 = timeline.timeToX (loopRange.getEnd().inSeconds());
 
         // Draw loop region bar
-        g.setColour ((pal ? pal->primary : juce::Colour (0xff4477aa)).withAlpha (0.2f));
+        g.setColour (pal ? pal->primary.withAlpha (0.2f) : juce::Colour (0xff4477aa).withAlpha (0.2f));
         g.fillRect (x1, 0, x2 - x1, getHeight());
 
         // Draw loop markers as triangles

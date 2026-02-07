@@ -72,7 +72,7 @@ void LibraryComponent::paint (juce::Graphics& g)
         if (auto* pal = waive::getWaivePalette (*this))
             g.setColour (pal->textMuted);
         else
-            g.setColour (juce::Colours::grey);
+            g.setColour (juce::Colour (0xff808080));
         g.drawText ("Click '+' to add a favorite directory", getLocalBounds(), juce::Justification::centred, true);
     }
 }

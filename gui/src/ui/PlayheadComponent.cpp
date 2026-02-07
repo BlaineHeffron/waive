@@ -27,7 +27,7 @@ void PlayheadComponent::paint (juce::Graphics& g)
         const int x1 = timeline.timeToX (loopRange.getStart().inSeconds());
         const int x2 = timeline.timeToX (loopRange.getEnd().inSeconds());
 
-        g.setColour ((pal ? pal->primary : juce::Colour (0xff4477aa)).withAlpha (0.08f));
+        g.setColour (pal ? pal->primary.withAlpha (0.08f) : juce::Colour (0xff4477aa).withAlpha (0.08f));
         g.fillRect (x1, 0, x2 - x1, getHeight());
     }
 
@@ -37,7 +37,7 @@ void PlayheadComponent::paint (juce::Graphics& g)
 
     if (x >= 0 && x < getWidth())
     {
-        g.setColour (pal ? pal->playhead : juce::Colours::white);
+        g.setColour (pal ? pal->playhead : juce::Colour (0xffff6600));
         g.drawVerticalLine (x, 0.0f, (float) getHeight());
     }
 }

@@ -115,7 +115,7 @@ void TimelineComponent::paint (juce::Graphics& g)
     if (trackLanes.empty())
     {
         g.setFont (waive::Fonts::body());
-        g.setColour (pal ? pal->textMuted : juce::Colours::grey);
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
         g.drawText ("Click '+ Track' to add your first track", getLocalBounds(), juce::Justification::centred, true);
     }
 }

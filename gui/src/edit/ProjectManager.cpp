@@ -14,14 +14,10 @@ ProjectManager::ProjectManager (EditSession& session)
     opts.filenameSuffix       = ".settings";
     opts.osxLibrarySubFolder = "Application Support/Waive";
     appProperties.setStorageParameters (opts);
-
-    // Poll dirty state at 2Hz
-    startTimerHz (2);
 }
 
 ProjectManager::~ProjectManager()
 {
-    stopTimer();
 }
 
 //==============================================================================
@@ -32,6 +28,7 @@ bool ProjectManager::newProject()
 
     editSession.createNew();
     currentFile = juce::File();
+    checkDirtyState();
     return true;
 }
 
@@ -57,6 +54,7 @@ bool ProjectManager::openProject (const juce::File& file)
     currentFile = file;
     editSession.resetChangedStatus();
     addToRecentFiles (file);
+    checkDirtyState();
     return true;
 }
 
@@ -68,6 +66,7 @@ bool ProjectManager::save()
     editSession.flushState();
     te::EditFileOperations (editSession.getEdit()).saveAs (currentFile);
     editSession.resetChangedStatus();
+    checkDirtyState();
     return true;
 }
 
@@ -87,6 +86,7 @@ bool ProjectManager::saveAs()
     currentFile = file;
     editSession.resetChangedStatus();
     addToRecentFiles (file);
+    checkDirtyState();
     return true;
 }
 
@@ -108,10 +108,13 @@ void ProjectManager::removeListener (Listener* listener)
 
 void ProjectManager::notifyDirtyChanged()
 {
-    // Deferred to timer to avoid issues during operations
+    juce::MessageManager::callAsync ([this]
+    {
+        checkDirtyState();
+    });
 }
 
-void ProjectManager::timerCallback()
+void ProjectManager::checkDirtyState()
 {
     bool currentDirty = isDirty();
     if (currentDirty != lastDirtyState)

@@ -1,0 +1,96 @@
+[06:38:41] Starting from phase 1 of 3
+[06:38:41] Config: STALE_MINUTES=8 PHASE_TIMEOUT=45m POLL_INTERVAL=30s
+
+[06:38:41] ═══════════════════════════════════════════════════════════════
+[06:38:41]   PHASE 1: phase_01_security_hardening.md
+[06:38:41]   Timeout: 45m | Stale kill: 8m
+[06:38:41] ═══════════════════════════════════════════════════════════════
+✓ Preflight checks passed
+Started wild-eclipse-24
+Monitor: zeroshot logs wild-eclipse-24 -f
+Attach:  zeroshot attach wild-eclipse-24
+[06:38:41] Cluster started: wild-eclipse-24
+[06:38:41] Logs: zeroshot logs wild-eclipse-24 -f
+[06:39:11]   [0m] Activity detected, resetting stale timer
+[06:39:11]   [0m elapsed, 0m idle] cluster: running
+[06:39:41]   [1m] Activity detected, resetting stale timer
+[06:39:41]   [1m elapsed, 0m idle] cluster: running
+[06:40:12]   [1m] Activity detected, resetting stale timer
+[06:40:12]   [1m elapsed, 0m idle] cluster: running
+[06:40:42]   [2m] Activity detected, resetting stale timer
+[06:40:42]   [2m elapsed, 0m idle] cluster: running
+[06:41:12]   [2m] Activity detected, resetting stale timer
+[06:41:12]   [2m elapsed, 0m idle] cluster: running
+[06:41:42]   [3m] Activity detected, resetting stale timer
+[06:41:42]   [3m elapsed, 0m idle] cluster: running
+[06:42:12]   [3m] Activity detected, resetting stale timer
+[06:42:12]   [3m elapsed, 0m idle] cluster: running
+[06:42:42]   [4m] Activity detected, resetting stale timer
+[06:42:42]   [4m elapsed, 0m idle] cluster: running
+[06:43:12]   [4m] Activity detected, resetting stale timer
+[06:43:12]   [4m elapsed, 0m idle] cluster: running
+[06:43:42]   [5m] Activity detected, resetting stale timer
+[06:43:42]   [5m elapsed, 0m idle] cluster: running
+[06:44:12]   [5m] Activity detected, resetting stale timer
+[06:44:12]   [5m elapsed, 0m idle] cluster: running
+[06:44:42]   [6m] Activity detected, resetting stale timer
+[06:44:42]   [6m elapsed, 0m idle] cluster: running
+[06:45:13]   [6m] Activity detected, resetting stale timer
+[06:45:13]   [6m elapsed, 0m idle] cluster: running
+[06:45:43]   [7m] Activity detected, resetting stale timer
+[06:45:43]   [7m elapsed, 0m idle] cluster: running
+[06:46:13]   [7m] Activity detected, resetting stale timer
+[06:46:13]   [7m elapsed, 0m idle] cluster: running
+[06:46:43]   [8m] Activity detected, resetting stale timer
+[06:46:43]   [8m elapsed, 0m idle] cluster: running
+[06:47:13]   [8m] Activity detected, resetting stale timer
+[06:47:13]   [8m elapsed, 0m idle] cluster: running
+[06:47:43]   [9m] Activity detected, resetting stale timer
+[06:47:43]   [9m elapsed, 0m idle] cluster: running
+[06:48:13]   [9m] Activity detected, resetting stale timer
+[06:48:13]   [9m elapsed, 0m idle] cluster: running
+[06:48:43]   [10m] Activity detected, resetting stale timer
+[06:48:43]   [10m elapsed, 0m idle] cluster: running
+[06:49:13]   [10m] Activity detected, resetting stale timer
+[06:49:13]   [10m elapsed, 0m idle] cluster: running
+[06:49:44]   [11m] Activity detected, resetting stale timer
+[06:49:44]   [11m elapsed, 0m idle] cluster: running
+[06:50:14]   [11m] Activity detected, resetting stale timer
+[06:50:14]   [11m elapsed, 0m idle] cluster: running
+[06:50:44]   [12m] Activity detected, resetting stale timer
+[06:50:44]   [12m elapsed, 0m idle] cluster: running
+[06:51:14]   [12m] Activity detected, resetting stale timer
+[06:51:14]   [12m elapsed, 0m idle] cluster: running
+[06:51:44]   [13m] Activity detected, resetting stale timer
+[06:51:44]   [13m elapsed, 0m idle] cluster: running
+[06:52:14] Cluster wild-eclipse-24 finished naturally (state: stopped)
+[06:52:14] Phase 1 cluster done.
+[06:52:14] Running build + tests for phase 1...
+[06:52:14] Building with -j12 (cores: 24, max: 12)
+[  9%] Building CXX object gui/CMakeFiles/Waive.dir/src/ui/PlayheadComponent.cpp.o
+[  9%] Building CXX object gui/CMakeFiles/Waive.dir/src/ui/TimeRulerComponent.cpp.o
+[ 12%] Building CXX object gui/CMakeFiles/Waive.dir/src/ui/MixerComponent.cpp.o
+[ 15%] Linking CXX executable Waive_artefacts/Release/Waive
+[100%] Built target Waive
+[06:52:21] Build: PASSED
+Wave Out: channel 21 + 22 (enabled): 20 (L), 21 (R)
+Wave Out: channel 23 + 24 (enabled): 22 (L), 23 (R)
+Wave Out: channel 25 + 26 (enabled): 24 (L), 25 (R)
+Wave Out: channel 27 + 28 (enabled): 26 (L), 27 (R)
+Wave Out: channel 29 + 30 (enabled): 28 (L), 29 (R)
+Wave Out: channel 31 + 32 (enabled): 30 (L), 31 (R)
+Default Wave Out: channel 1 + 2
+Default MIDI Out: 
+Default Wave In: channel 1
+Default MIDI In: 
+runPhase6SafetyArchitectureRegression: PASS
+
+
+50% tests passed, 1 tests failed out of 2
+
+Total Test time (real) =   1.17 sec
+
+The following tests FAILED:
+	  2 - WaiveUiTests (SEGFAULT)
+Errors while running CTest
+[06:52:22] Tests: SOME FAILURES (continuing)

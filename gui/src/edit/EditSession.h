@@ -23,6 +23,7 @@ public:
         virtual ~Listener() = default;
         virtual void editAboutToChange() {}
         virtual void editChanged() {}
+        virtual void editStateChanged() {}
     };
 
     void addListener (Listener* l)       { listeners.add (l); }

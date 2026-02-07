@@ -56,12 +56,12 @@ void MixerComponent::paint (juce::Graphics& g)
 {
     auto* pal = waive::getWaivePalette (*this);
 
-    g.fillAll (pal ? pal->windowBg : juce::Colour (0xff1a1a1a));
+    g.fillAll (pal ? pal->windowBg : juce::Colour (0xff121212));
 
     if (strips.empty())
     {
         g.setFont (waive::Fonts::body());
-        g.setColour (pal ? pal->textMuted : juce::Colours::grey);
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xff808080));
         g.drawText ("Add tracks to see the mixer", getLocalBounds(), juce::Justification::centred, true);
         return;
     }
@@ -69,7 +69,7 @@ void MixerComponent::paint (juce::Graphics& g)
     // Separator before master
     auto bounds = getLocalBounds();
     int masterX = bounds.getRight() - MixerChannelStrip::stripWidth - 4;
-    g.setColour (pal ? pal->border.brighter (0.15f) : juce::Colour (0xff4a4a4a));
+    g.setColour (pal ? pal->border.brighter (0.15f) : juce::Colour (0xff3a3a3a));
     g.drawVerticalLine (masterX, 0.0f, (float) getHeight());
 }
 

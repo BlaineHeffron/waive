@@ -18,7 +18,8 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
     responseEditor.setReadOnly (true);
     responseEditor.setReturnKeyStartsNewLine (true);
     responseEditor.setText ("Enter a JSON command above and click Send.\nSee docs/command_schema.json for available commands.");
-    responseEditor.setColour (juce::TextEditor::textColourId, juce::Colours::grey);
+    if (auto* pal = waive::getWaivePalette (*this))
+        responseEditor.setColour (juce::TextEditor::textColourId, pal->textMuted);
 
     sendButton.setButtonText ("Send");
     sendButton.setTooltip ("Send command (Enter)");
@@ -73,22 +74,19 @@ void ConsoleComponent::appendLog (const juce::String& text)
     if (firstAppend)
     {
         responseEditor.clear();
-        responseEditor.setColour (juce::TextEditor::textColourId, juce::Colours::white);
+        if (auto* pal = waive::getWaivePalette (*this))
+            responseEditor.setColour (juce::TextEditor::textColourId, pal->textPrimary);
         firstAppend = false;
     }
 
     // Check if response contains error key
     auto parsed = juce::JSON::parse (text);
-    if (parsed.isObject() && parsed.hasProperty ("error"))
+    if (auto* pal = waive::getWaivePalette (*this))
     {
-        if (auto* pal = waive::getWaivePalette (*this))
+        if (parsed.isObject() && parsed.hasProperty ("error"))
             responseEditor.setColour (juce::TextEditor::textColourId, pal->danger);
         else
-            responseEditor.setColour (juce::TextEditor::textColourId, juce::Colours::red);
-    }
-    else
-    {
-        responseEditor.setColour (juce::TextEditor::textColourId, juce::Colours::white);
+            responseEditor.setColour (juce::TextEditor::textColourId, pal->textPrimary);
     }
 
     responseEditor.moveCaretToEnd();

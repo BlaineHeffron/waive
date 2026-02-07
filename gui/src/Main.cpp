@@ -114,6 +114,12 @@ public:
         updateWindowTitle();
     }
 
+    void editStateChanged() override
+    {
+        if (projectManager)
+            projectManager->notifyDirtyChanged();
+    }
+
     //==============================================================================
     // ProjectManager::Listener
     void projectDirtyChanged() override
