@@ -94,6 +94,18 @@ target_sources(Waive PRIVATE
     src/tools/AutoMixSuggestionsTool.h
     src/tools/AutoMixSuggestionsTool.cpp
 
+    # AI
+    src/ai/AiSettings.h
+    src/ai/AiSettings.cpp
+    src/ai/AiProvider.h
+    src/ai/AiProvider.cpp
+    src/ai/AiToolSchema.h
+    src/ai/AiToolSchema.cpp
+    src/ai/AiAgent.h
+    src/ai/AiAgent.cpp
+    src/ai/ChatPanelComponent.h
+    src/ai/ChatPanelComponent.cpp
+
     # Utilities
     src/util/CommandHelpers.h
     src/util/CommandHelpers.cpp
@@ -120,6 +132,7 @@ target_include_directories(Waive PRIVATE
     src/tools
     src/util
     src/theme
+    src/ai
 )
 
 target_link_libraries(Waive PRIVATE

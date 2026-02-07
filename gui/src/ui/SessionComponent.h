@@ -10,7 +10,8 @@ class MixerComponent;
 class ToolSidebarComponent;
 class ProjectManager;
 
-namespace waive { class ToolRegistry; class ModelManager; class JobQueue; }
+namespace waive { class ToolRegistry; class ModelManager; class JobQueue;
+                  class AiAgent; class AiSettings; class ChatPanelComponent; }
 
 //==============================================================================
 /** Transport toolbar + timeline + mixer. */
@@ -23,7 +24,9 @@ public:
                       waive::ToolRegistry* toolReg = nullptr,
                       waive::ModelManager* modelMgr = nullptr,
                       waive::JobQueue* jobQueue = nullptr,
-                      ProjectManager* projectMgr = nullptr);
+                      ProjectManager* projectMgr = nullptr,
+                      waive::AiAgent* aiAgent = nullptr,
+                      waive::AiSettings* aiSettings = nullptr);
     ~SessionComponent() override;
 
     void resized() override;
@@ -32,6 +35,8 @@ public:
     ToolSidebarComponent* getToolSidebar();
 
     void toggleToolSidebar();
+    void toggleChatPanel();
+    waive::ChatPanelComponent* getChatPanelForTesting();
     void play();
     void stop();
     void record();
@@ -103,6 +108,11 @@ private:
     juce::StretchableLayoutManager horizontalLayout;
     bool sidebarVisible = true;
     static constexpr int defaultSidebarWidth = 280;
+
+    // Chat panel
+    std::unique_ptr<waive::ChatPanelComponent> chatPanel;
+    std::unique_ptr<juce::StretchableLayoutResizerBar> chatResizerBar;
+    bool chatPanelVisible = false;
 
     // Cache for change detection in timerCallback
     double lastTempo = -1.0;

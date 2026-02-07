@@ -12,7 +12,8 @@ class LibraryComponent;
 class PluginBrowserComponent;
 class ToolSidebarComponent;
 
-namespace waive { class JobQueue; class ToolRegistry; class ModelManager; }
+namespace waive { class JobQueue; class ToolRegistry; class ModelManager;
+                  class AiAgent; class AiSettings; }
 
 //==============================================================================
 class MainComponent : public juce::Component,
@@ -21,7 +22,9 @@ class MainComponent : public juce::Component,
 {
 public:
     MainComponent (UndoableCommandHandler& handler, EditSession& session,
-                   waive::JobQueue& jobQueue, ProjectManager& projectMgr);
+                   waive::JobQueue& jobQueue, ProjectManager& projectMgr,
+                   waive::AiAgent* aiAgent = nullptr,
+                   waive::AiSettings* aiSettings = nullptr);
     ~MainComponent() override;
 
     void resized() override;
@@ -57,6 +60,7 @@ public:
         cmdSplit   = 0x2012,
         cmdDeleteTrack = 0x2013,
         cmdToggleToolSidebar = 0x2020,
+        cmdToggleChatPanel = 0x2021,
         cmdPlay    = 0x2030,
         cmdStop    = 0x2031,
         cmdRecord  = 0x2032,

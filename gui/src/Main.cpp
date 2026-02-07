@@ -7,7 +7,10 @@
 #include "UndoableCommandHandler.h"
 #include "ProjectManager.h"
 #include "JobQueue.h"
+#include "ToolRegistry.h"
 #include "WaiveLookAndFeel.h"
+#include "AiSettings.h"
+#include "AiAgent.h"
 
 namespace te = tracktion;
 
@@ -17,14 +20,16 @@ class MainWindow : public juce::DocumentWindow
 public:
     MainWindow (juce::String name, UndoableCommandHandler& handler,
                 EditSession& session, waive::JobQueue& queue,
-                ProjectManager& projectMgr)
+                ProjectManager& projectMgr,
+                waive::AiAgent* aiAgent = nullptr,
+                waive::AiSettings* aiSettings = nullptr)
         : DocumentWindow (std::move (name),
                           juce::Desktop::getInstance().getDefaultLookAndFeel()
                               .findColour (juce::ResizableWindow::backgroundColourId),
                           juce::DocumentWindow::allButtons)
     {
         setUsingNativeTitleBar (true);
-        setContentOwned (new MainComponent (handler, session, queue, projectMgr), true);
+        setContentOwned (new MainComponent (handler, session, queue, projectMgr, aiAgent, aiSettings), true);
         centreWithSize (1200, 800);
         setResizeLimits (1024, 600, 4096, 2160);
         setVisible (true);
@@ -64,11 +69,29 @@ public:
         commandHandler = std::make_unique<CommandHandler> (editSession->getEdit());
         undoableHandler = std::make_unique<UndoableCommandHandler> (*commandHandler, *editSession);
 
+        // Application properties for settings persistence
+        juce::PropertiesFile::Options propOpts;
+        propOpts.applicationName = "Waive";
+        propOpts.folderName = "Waive";
+        propOpts.filenameSuffix = ".settings";
+        propOpts.osxLibrarySubFolder = "Application Support";
+        appProperties = std::make_unique<juce::ApplicationProperties>();
+        appProperties->setStorageParameters (propOpts);
+
+        // AI system
+        aiSettings = std::make_unique<waive::AiSettings>();
+        aiSettings->loadFromProperties (*appProperties);
+
+        toolRegistry = std::make_unique<waive::ToolRegistry>();
+        aiAgent = std::make_unique<waive::AiAgent> (*aiSettings, *undoableHandler,
+                                                     *toolRegistry, *jobQueue);
+
         editSession->addListener (this);
         projectManager->addListener (this);
 
         mainWindow = std::make_unique<MainWindow> (getWindowTitle(), *undoableHandler,
-                                                   *editSession, *jobQueue, *projectManager);
+                                                   *editSession, *jobQueue, *projectManager,
+                                                   aiAgent.get(), aiSettings.get());
 
         // Schedule plugin scan in background after UI shown
         jobQueue->submit ({"ScanPlugins", "System"},
@@ -81,11 +104,18 @@ public:
 
     void shutdown() override
     {
+        if (aiSettings && appProperties)
+            aiSettings->saveToProperties (*appProperties);
+
         if (projectManager)
             projectManager->removeListener (this);
         if (editSession)
             editSession->removeListener (this);
         mainWindow.reset();
+        aiAgent.reset();
+        toolRegistry.reset();
+        aiSettings.reset();
+        appProperties.reset();
         undoableHandler.reset();
         commandHandler.reset();
         projectManager.reset();
@@ -133,7 +163,7 @@ private:
         juce::String title = "Waive";
         if (projectManager)
         {
-            title += " \u2014 " + projectManager->getProjectName();
+            title += " - " + projectManager->getProjectName();
             if (projectManager->isDirty())
                 title += " *";
         }
@@ -153,6 +183,11 @@ private:
 
     std::unique_ptr<CommandHandler> commandHandler;
     std::unique_ptr<UndoableCommandHandler> undoableHandler;
+
+    std::unique_ptr<juce::ApplicationProperties> appProperties;
+    std::unique_ptr<waive::AiSettings> aiSettings;
+    std::unique_ptr<waive::ToolRegistry> toolRegistry;
+    std::unique_ptr<waive::AiAgent> aiAgent;
 
     std::unique_ptr<waive::WaiveLookAndFeel> lookAndFeel;
     std::unique_ptr<MainWindow> mainWindow;

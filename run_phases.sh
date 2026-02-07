@@ -24,11 +24,13 @@ STALE_MINUTES="${STALE_MINUTES:-8}"      # stop after N minutes of no file chang
 PHASE_TIMEOUT="${PHASE_TIMEOUT:-45}"     # hard timeout per phase in minutes
 POLL_INTERVAL="${POLL_INTERVAL:-30}"     # seconds between status checks
 
-# Ordered phase files (v4 — post-third-audit)
+# Ordered phase files (v5 — chat history, recording, external tools, python tools, AI tool execution)
 PHASE_FILES=(
-    "phase_01_security_hardening.md"
-    "phase_02_ux_foundations.md"
-    "phase_03_core_missing_features.md"
+    "phase_01_chat_history_persistence.md"
+    "phase_02_recording_improvements.md"
+    "phase_03_external_tool_runner.md"
+    "phase_04_python_tools.md"
+    "phase_05_ai_tool_execution.md"
 )
 
 mkdir -p "$PHASE_LOG_DIR"

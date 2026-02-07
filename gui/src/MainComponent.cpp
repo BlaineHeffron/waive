@@ -14,10 +14,13 @@
 #include "JobQueue.h"
 #include "ModelManager.h"
 #include "ToolRegistry.h"
+#include "AiAgent.h"
+#include "AiSettings.h"
 
 //==============================================================================
 MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& session,
-                              waive::JobQueue& jobQueue, ProjectManager& projectMgr)
+                              waive::JobQueue& jobQueue, ProjectManager& projectMgr,
+                              waive::AiAgent* aiAgent, waive::AiSettings* aiSettings)
     : commandHandler (handler),
       editSession (session),
       projectManager (projectMgr)
@@ -26,7 +29,8 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
     toolRegistry = std::make_unique<waive::ToolRegistry>();
     sessionComponent = std::make_unique<SessionComponent> (editSession, commandHandler,
                                                             toolRegistry.get(), modelManager.get(),
-                                                            &jobQueue, &projectManager);
+                                                            &jobQueue, &projectManager,
+                                                            aiAgent, aiSettings);
     libraryComponent = std::make_unique<LibraryComponent> (editSession);
     pluginBrowser = std::make_unique<PluginBrowserComponent> (editSession, commandHandler);
     console = std::make_unique<ConsoleComponent> (commandHandler);
@@ -156,6 +160,7 @@ juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::Strin
     else if (menuIndex == 3) // View
     {
         menu.addCommandItem (&commandManager, cmdToggleToolSidebar);
+        menu.addCommandItem (&commandManager, cmdToggleChatPanel);
     }
 
     return menu;
@@ -206,6 +211,7 @@ void MainComponent::getAllCommands (juce::Array<juce::CommandID>& commands)
     commands.add (cmdSplit);
     commands.add (cmdDeleteTrack);
     commands.add (cmdToggleToolSidebar);
+    commands.add (cmdToggleChatPanel);
     commands.add (cmdPlay);
     commands.add (cmdStop);
     commands.add (cmdRecord);
@@ -278,6 +284,11 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
         case cmdToggleToolSidebar:
             result.setInfo ("Toggle Tool Sidebar", "Show or hide the tool sidebar", "View", 0);
             result.addDefaultKeypress ('t', juce::ModifierKeys::commandModifier);
+            break;
+        case cmdToggleChatPanel:
+            result.setInfo ("AI Chat", "Show or hide the AI chat panel", "View", 0);
+            result.addDefaultKeypress ('c', juce::ModifierKeys::commandModifier
+                                                | juce::ModifierKeys::shiftModifier);
             break;
         case cmdPlay:
             result.setInfo ("Play", "Start or stop playback", "Transport", 0);
@@ -459,6 +470,9 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         }
         case cmdToggleToolSidebar:
             sessionComponent->toggleToolSidebar();
+            return true;
+        case cmdToggleChatPanel:
+            sessionComponent->toggleChatPanel();
             return true;
         case cmdPlay:
             sessionComponent->play();

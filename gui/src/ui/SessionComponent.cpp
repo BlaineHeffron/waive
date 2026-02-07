@@ -5,6 +5,7 @@
 #include "TimelineComponent.h"
 #include "MixerComponent.h"
 #include "ToolSidebarComponent.h"
+#include "ChatPanelComponent.h"
 #include "ToolDiff.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
@@ -13,6 +14,8 @@
 #include "ModelManager.h"
 #include "JobQueue.h"
 #include "ProjectManager.h"
+#include "AiAgent.h"
+#include "AiSettings.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -26,7 +29,9 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
                                     waive::ToolRegistry* toolReg,
                                     waive::ModelManager* modelMgr,
                                     waive::JobQueue* jq,
-                                    ProjectManager* projectMgr)
+                                    ProjectManager* projectMgr,
+                                    waive::AiAgent* aiAgent,
+                                    waive::AiSettings* aiSettings)
     : editSession (session), commandHandler (handler)
 {
     playButton.setButtonText ("Play");
@@ -341,6 +346,16 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
         addAndMakeVisible (sidebarResizer.get());
     }
 
+    // Chat panel (optional — only created if AI agent is provided)
+    if (aiAgent != nullptr && aiSettings != nullptr)
+    {
+        chatPanel = std::make_unique<waive::ChatPanelComponent> (*aiAgent, *aiSettings);
+        addChildComponent (chatPanel.get());  // hidden by default
+
+        chatResizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager, 3, false);
+        addChildComponent (chatResizerBar.get());
+    }
+
     startTimerHz (10);
 }
 
@@ -464,10 +479,40 @@ void SessionComponent::resized()
             sidebarResizer->setVisible (false);
     }
 
-    // Layout: timeline + resizer + mixer (vertical)
-    juce::Component* comps[] = { timeline.get(), resizerBar.get(), mixer.get() };
-    layoutManager.layOutComponents (comps, 3, contentBounds.getX(), contentBounds.getY(),
-                                    contentBounds.getWidth(), contentBounds.getHeight(), true, true);
+    // Layout: timeline + resizer + [chat + resizer +] mixer (vertical)
+    if (chatPanel != nullptr && chatPanelVisible)
+    {
+        // 5-component layout: timeline | resizer | chat | resizer2 | mixer
+        layoutManager.setItemLayout (0, 100, -1.0, -0.55);    // timeline
+        layoutManager.setItemLayout (1, 4, 4, 4);              // resizer
+        layoutManager.setItemLayout (2, 60, 300, 150);         // chat panel
+        layoutManager.setItemLayout (3, 4, 4, 4);              // resizer2
+        layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
+
+        chatPanel->setVisible (true);
+        chatResizerBar->setVisible (true);
+
+        juce::Component* comps[] = { timeline.get(), resizerBar.get(),
+                                     chatPanel.get(), chatResizerBar.get(), mixer.get() };
+        layoutManager.layOutComponents (comps, 5, contentBounds.getX(), contentBounds.getY(),
+                                        contentBounds.getWidth(), contentBounds.getHeight(), true, true);
+    }
+    else
+    {
+        // 3-component layout: timeline | resizer | mixer
+        layoutManager.setItemLayout (0, 100, -1.0, -0.75);
+        layoutManager.setItemLayout (1, 4, 4, 4);
+        layoutManager.setItemLayout (2, 80, 300, 160);
+
+        if (chatPanel)
+            chatPanel->setVisible (false);
+        if (chatResizerBar)
+            chatResizerBar->setVisible (false);
+
+        juce::Component* comps[] = { timeline.get(), resizerBar.get(), mixer.get() };
+        layoutManager.layOutComponents (comps, 3, contentBounds.getX(), contentBounds.getY(),
+                                        contentBounds.getWidth(), contentBounds.getHeight(), true, true);
+    }
 }
 
 TimelineComponent& SessionComponent::getTimeline()
@@ -484,6 +529,17 @@ void SessionComponent::toggleToolSidebar()
 {
     sidebarVisible = ! sidebarVisible;
     resized();
+}
+
+void SessionComponent::toggleChatPanel()
+{
+    chatPanelVisible = ! chatPanelVisible;
+    resized();
+}
+
+waive::ChatPanelComponent* SessionComponent::getChatPanelForTesting()
+{
+    return chatPanel.get();
 }
 
 void SessionComponent::play()
