@@ -1,0 +1,33 @@
+{
+  "name": "music_generation",
+  "displayName": "Music Generation",
+  "version": "1.0.0",
+  "description": "Generate audio from a text prompt. Produces a clip of the specified duration.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "prompt": {
+        "type": "string",
+        "description": "Text description of the music to generate"
+      },
+      "duration_seconds": {
+        "type": "number",
+        "description": "Duration of generated audio in seconds (1-30)",
+        "minimum": 1,
+        "maximum": 30
+      },
+      "temperature": {
+        "type": "number",
+        "description": "Generation temperature (0.1-2.0, higher = more creative)",
+        "minimum": 0.1,
+        "maximum": 2.0
+      }
+    },
+    "required": ["prompt"]
+  },
+  "executable": "python3",
+  "arguments": ["music_generation.py"],
+  "acceptsAudioInput": false,
+  "producesAudioOutput": true,
+  "timeoutMs": 600000
+}

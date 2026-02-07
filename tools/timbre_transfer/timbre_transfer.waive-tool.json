@@ -1,0 +1,22 @@
+{
+  "name": "timbre_transfer",
+  "displayName": "Timbre Transfer",
+  "version": "1.0.0",
+  "description": "Transform the timbre of an audio clip to sound like a different instrument. Select a clip and choose the target instrument.",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "target_instrument": {
+        "type": "string",
+        "description": "Target instrument timbre",
+        "enum": ["trumpet", "violin", "flute", "saxophone", "cello", "piano"]
+      }
+    },
+    "required": ["target_instrument"]
+  },
+  "executable": "python3",
+  "arguments": ["timbre_transfer.py"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": true,
+  "timeoutMs": 600000
+}
