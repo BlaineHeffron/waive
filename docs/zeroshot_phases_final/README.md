@@ -1,24 +1,16 @@
-# Waive Final Synthesized Phase Plan
+# Waive Post-Audit Phase Plan (v2)
 
-This directory is the deduplicated synthesis of:
-- Original phases `01-05` from `docs/zeroshot_phases/`
-- Post-audit phases `06-10` from `docs/zeroshot_phases/`
+Generated from comprehensive audit on 2026-02-06 covering:
+- Feature completeness (~65% → target 85%)
+- UI/UX design quality (C+ → target B+)
+- Performance and efficiency
+- Security hardening
 
-## Final Phase Order
+## Phase Order
 
-1. `phase_01_critical_correctness_and_safety.md`
-2. `phase_02_model_workflow_completeness.md`
-3. `phase_03_essential_daw_workflows.md`
-4. `phase_04_uiux_and_design_polish.md`
-5. `phase_05_performance_and_scalability.md`
-6. `phase_06_validation_docs_and_release_readiness.md`
-
-## Deduping Decisions
-
-- Merged **01 + 06** into final phase 01 (safety/correctness hardening).
-- Kept model lifecycle work from **02** as final phase 02.
-- Kept core DAW feature expansion from **07** as final phase 03.
-- Merged **03 + 08** into final phase 04 (UI/UX + design polish).
-- Merged **04 + 09** into final phase 05 (performance/scalability).
-- Merged **05 + 10** into final phase 06 (tests/docs/CI/release).
-
+1. `phase_01_security_hardening.md` — Path traversal, input validation, command server auth
+2. `phase_02_ux_foundations.md` — Tooltips, empty states, hover/focus, selection feedback
+3. `phase_03_core_missing_features.md` — Track delete, clip fades, auto-save, loop viz
+4. `phase_04_performance_optimization.md` — Timer consolidation, cache bounds, deferred plugin scan
+5. `phase_05_timeline_and_mixer_polish.md` — Scrollbar, meters, track colors, responsive layout
+6. `phase_06_accessibility_and_validation.md` — Keyboard nav, accessibility labels, test expansion

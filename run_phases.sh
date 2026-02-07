@@ -24,14 +24,14 @@ STALE_MINUTES="${STALE_MINUTES:-8}"      # stop after N minutes of no file chang
 PHASE_TIMEOUT="${PHASE_TIMEOUT:-45}"     # hard timeout per phase in minutes
 POLL_INTERVAL="${POLL_INTERVAL:-30}"     # seconds between status checks
 
-# Ordered phase files
+# Ordered phase files (v2 — post-audit)
 PHASE_FILES=(
-    "phase_01_critical_correctness_and_safety.md"
-    "phase_02_model_workflow_completeness.md"
-    "phase_03_essential_daw_workflows.md"
-    "phase_04_uiux_and_design_polish.md"
-    "phase_05_performance_and_scalability.md"
-    "phase_06_validation_docs_and_release_readiness.md"
+    "phase_01_security_hardening.md"
+    "phase_02_ux_foundations.md"
+    "phase_03_core_missing_features.md"
+    "phase_04_performance_optimization.md"
+    "phase_05_timeline_and_mixer_polish.md"
+    "phase_06_accessibility_and_validation.md"
 )
 
 mkdir -p "$PHASE_LOG_DIR"
