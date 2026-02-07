@@ -53,6 +53,13 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "trim_clip")        result = handleTrimClip (parsed);
     else if (action == "set_clip_gain")    result = handleSetClipGain (parsed);
     else if (action == "rename_clip")      result = handleRenameClip (parsed);
+    else if (action == "rename_track")        result = handleRenameTrack (parsed);
+    else if (action == "solo_track")          result = handleSoloTrack (parsed);
+    else if (action == "mute_track")          result = handleMuteTrack (parsed);
+    else if (action == "duplicate_track")     result = handleDuplicateTrack (parsed);
+    else if (action == "get_transport_state") result = handleGetTransportState();
+    else if (action == "set_tempo")           result = handleSetTempo (parsed);
+    else if (action == "set_loop_region")     result = handleSetLoopRegion (parsed);
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -93,6 +100,8 @@ juce::var CommandHandler::handleGetTracks()
         trackObj->setProperty ("name", track->getName());
         trackObj->setProperty ("track_id", trackId);
         trackObj->setProperty ("index", track->getIndexInEditTrackList());
+        trackObj->setProperty ("solo", track->isSolo (false));
+        trackObj->setProperty ("mute", track->isMuted (false));
 
         // Clip info
         juce::Array<juce::var> clipList;
@@ -821,6 +830,224 @@ juce::var CommandHandler::handleRenameClip (const juce::var& params)
         obj->setProperty ("track_id", trackId);
         obj->setProperty ("clip_index", clipIdx);
         obj->setProperty ("name", newName);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleRenameTrack (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("name"))
+        return makeError ("Missing required parameters: track_id, name");
+
+    int trackId = params["track_id"];
+    auto newName = params["name"].toString();
+
+    auto* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    track->setName (newName);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("name", newName);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleSoloTrack (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("solo"))
+        return makeError ("Missing required parameters: track_id, solo");
+
+    int trackId = params["track_id"];
+    bool solo = params["solo"];
+
+    auto* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    track->setSolo (solo);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("solo", solo);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleMuteTrack (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("mute"))
+        return makeError ("Missing required parameters: track_id, mute");
+
+    int trackId = params["track_id"];
+    bool mute = params["mute"];
+
+    auto* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    track->setMute (mute);
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_id", trackId);
+        obj->setProperty ("mute", mute);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
+{
+    if (! params.hasProperty ("track_id"))
+        return makeError ("Missing required parameter: track_id");
+
+    int trackId = params["track_id"];
+
+    auto* sourceTrack = getTrackById (trackId);
+    if (sourceTrack == nullptr)
+        return makeError ("Track not found: " + juce::String (trackId));
+
+    // Create a new track
+    auto trackCount = te::getAudioTracks (edit).size();
+    edit.ensureNumberOfAudioTracks (trackCount + 1);
+    auto* newTrack = te::getAudioTracks (edit).getLast();
+    if (newTrack == nullptr)
+        return makeError ("Failed to create new track");
+
+    newTrack->setName (sourceTrack->getName() + " copy");
+
+    // Copy volume and pan
+    auto srcVolPlugins = sourceTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+    auto dstVolPlugins = newTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+    if (! srcVolPlugins.isEmpty() && ! dstVolPlugins.isEmpty())
+    {
+        dstVolPlugins.getFirst()->volParam->setParameter (
+            srcVolPlugins.getFirst()->volParam->getCurrentValue(), juce::dontSendNotification);
+        dstVolPlugins.getFirst()->panParam->setParameter (
+            srcVolPlugins.getFirst()->panParam->getCurrentValue(), juce::dontSendNotification);
+    }
+
+    // Copy all clips from source to new track
+    for (auto* clip : sourceTrack->getClips())
+    {
+        auto clipState = clip->state.createCopy();
+        edit.createNewItemID().writeID (clipState, nullptr);
+        te::assignNewIDsToAutomationCurveModifiers (edit, clipState);
+        newTrack->insertClipWithState (clipState);
+    }
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("source_track_id", trackId);
+        obj->setProperty ("new_track_index", (int) (trackCount));
+        obj->setProperty ("new_track_name", newTrack->getName());
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleGetTransportState()
+{
+    auto& transport = edit.getTransport();
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("position", transport.getPosition().inSeconds());
+        obj->setProperty ("is_playing", transport.isPlaying());
+        obj->setProperty ("is_recording", transport.isRecording());
+
+        // Tempo
+        auto& tempoSeq = edit.tempoSequence;
+        if (tempoSeq.getNumTempos() > 0)
+            obj->setProperty ("tempo_bpm", tempoSeq.getTempo (0)->getBpm());
+        else
+            obj->setProperty ("tempo_bpm", 120.0);
+
+        // Time signature
+        if (tempoSeq.getNumTimeSigs() > 0)
+        {
+            auto* ts = tempoSeq.getTimeSig (0);
+            obj->setProperty ("time_sig_numerator", ts->numerator.get());
+            obj->setProperty ("time_sig_denominator", ts->denominator.get());
+        }
+        else
+        {
+            obj->setProperty ("time_sig_numerator", 4);
+            obj->setProperty ("time_sig_denominator", 4);
+        }
+
+        // Loop region
+        auto loopRange = transport.getLoopRange();
+        obj->setProperty ("loop_enabled", transport.looping.get());
+        obj->setProperty ("loop_start", loopRange.getStart().inSeconds());
+        obj->setProperty ("loop_end", loopRange.getEnd().inSeconds());
+
+        // Edit length
+        obj->setProperty ("edit_length", edit.getLength().inSeconds());
+
+        // Track count
+        obj->setProperty ("track_count", (int) te::getAudioTracks (edit).size());
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleSetTempo (const juce::var& params)
+{
+    if (! params.hasProperty ("bpm"))
+        return makeError ("Missing required parameter: bpm");
+
+    double bpm = params["bpm"];
+    if (bpm < 20.0 || bpm > 999.0)
+        return makeError ("BPM must be between 20 and 999");
+
+    auto& tempoSeq = edit.tempoSequence;
+    if (tempoSeq.getNumTempos() > 0)
+        tempoSeq.getTempo (0)->setBpm (bpm);
+    else
+        return makeError ("No tempo settings in edit");
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+        obj->setProperty ("bpm", bpm);
+    return result;
+}
+
+juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
+{
+    if (! params.hasProperty ("enabled"))
+        return makeError ("Missing required parameter: enabled");
+
+    bool enabled = params["enabled"];
+    auto& transport = edit.getTransport();
+
+    transport.looping.setValue (enabled, nullptr);
+
+    if (enabled && params.hasProperty ("start") && params.hasProperty ("end"))
+    {
+        double startSec = params["start"];
+        double endSec = params["end"];
+        if (startSec >= endSec)
+            return makeError ("Loop start must be less than end");
+
+        transport.setLoopRange ({ te::TimePosition::fromSeconds (startSec),
+                                  te::TimePosition::fromSeconds (endSec) });
+    }
+
+    auto loopRange = transport.getLoopRange();
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("enabled", enabled);
+        obj->setProperty ("loop_start", loopRange.getStart().inSeconds());
+        obj->setProperty ("loop_end", loopRange.getEnd().inSeconds());
     }
     return result;
 }

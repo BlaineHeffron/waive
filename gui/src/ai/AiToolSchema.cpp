@@ -223,6 +223,58 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                                     { "name", prop ("string", "New name for the clip") } },
                                   { "track_id", "clip_index", "name" }) });
 
+    // rename_track
+    defs.push_back ({ "cmd_rename_track",
+                      "Rename an audio track.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "name", prop ("string", "New track name") } },
+                                  { "track_id", "name" }) });
+
+    // solo_track
+    defs.push_back ({ "cmd_solo_track",
+                      "Solo or unsolo a track.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "solo", prop ("boolean", "true to solo, false to unsolo") } },
+                                  { "track_id", "solo" }) });
+
+    // mute_track
+    defs.push_back ({ "cmd_mute_track",
+                      "Mute or unmute a track.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "mute", prop ("boolean", "true to mute, false to unmute") } },
+                                  { "track_id", "mute" }) });
+
+    // duplicate_track
+    defs.push_back ({ "cmd_duplicate_track",
+                      "Duplicate a track including all its clips.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index to duplicate") } },
+                                  { "track_id" }) });
+
+    // get_transport_state
+    defs.push_back ({ "cmd_get_transport_state",
+                      "Get transport state: position, tempo, playing/recording status, loop region, track count.",
+                      makeSchema ("object") });
+
+    // set_tempo
+    defs.push_back ({ "cmd_set_tempo",
+                      "Set the project tempo in BPM.",
+                      makeSchema ("object",
+                                  { { "bpm", prop ("number", "Tempo in beats per minute (20-999)") } },
+                                  { "bpm" }) });
+
+    // set_loop_region
+    defs.push_back ({ "cmd_set_loop_region",
+                      "Enable/disable looping and optionally set loop start/end points.",
+                      makeSchema ("object",
+                                  { { "enabled", prop ("boolean", "true to enable looping, false to disable") },
+                                    { "start", prop ("number", "Loop start in seconds (required when enabling)") },
+                                    { "end", prop ("number", "Loop end in seconds (required when enabling)") } },
+                                  { "enabled" }) });
+
     return defs;
 }
 
@@ -251,6 +303,9 @@ juce::String generateSystemPrompt()
            "- Volume is in decibels (dB). 0 dB is unity gain.\n"
            "- Pan ranges from -1.0 (full left) to 1.0 (full right).\n"
            "- When asked about the project state, use cmd_get_tracks first.\n"
+           "- Use cmd_get_transport_state to check playback position, tempo, and loop settings.\n"
+           "- Clips are addressed by track_id + clip_index (both 0-based).\n"
+           "- Use cmd_get_tracks to see solo/mute state per track.\n"
            "- Do not invent file paths. Ask the user for paths if needed.\n"
            "- tool_* tools run a Plan/Apply workflow: they analyze the current selection, preview changes, then apply them.\n"
            "- Available tool_* tools include audio processing (normalize, stem separation, gain staging, etc.).\n"

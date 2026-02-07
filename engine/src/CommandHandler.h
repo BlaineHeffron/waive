@@ -50,6 +50,13 @@ private:
     juce::var handleTrimClip (const juce::var& params);
     juce::var handleSetClipGain (const juce::var& params);
     juce::var handleRenameClip (const juce::var& params);
+    juce::var handleRenameTrack (const juce::var& params);
+    juce::var handleSoloTrack (const juce::var& params);
+    juce::var handleMuteTrack (const juce::var& params);
+    juce::var handleDuplicateTrack (const juce::var& params);
+    juce::var handleGetTransportState();
+    juce::var handleSetTempo (const juce::var& params);
+    juce::var handleSetLoopRegion (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::AudioTrack* getTrackById (int trackIndex);
