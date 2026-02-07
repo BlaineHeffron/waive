@@ -556,6 +556,11 @@ waive::ChatPanelComponent* SessionComponent::getChatPanelForTesting()
     return chatPanel.get();
 }
 
+MixerComponent& SessionComponent::getMixerForTesting()
+{
+    return *mixer;
+}
+
 void SessionComponent::play()
 {
     auto& transport = editSession.getEdit().getTransport();

@@ -13,6 +13,7 @@
 #include "AiSettings.h"
 #include "AiAgent.h"
 #include "Tool.h"
+#include "ScreenshotCapture.h"
 
 namespace te = tracktion;
 
@@ -57,6 +58,18 @@ public:
     {
         if (te::PluginManager::startChildProcessPluginScan (commandLine))
             return;
+
+        // Parse command line for screenshot mode
+        auto args = juce::StringArray::fromTokens (commandLine, true);
+        int ssIdx = args.indexOf ("--screenshot");
+        if (ssIdx >= 0 && ssIdx + 1 < args.size())
+        {
+            screenshotMode = true;
+            screenshotOutputDir = juce::File (args[ssIdx + 1]);
+            // Remove these args so plugin scan doesn't see them
+            args.remove (ssIdx + 1);
+            args.remove (ssIdx);
+        }
 
         lookAndFeel = std::make_unique<waive::WaiveLookAndFeel>();
         juce::LookAndFeel::setDefaultLookAndFeel (lookAndFeel.get());
@@ -136,6 +149,36 @@ public:
         // Restore chat history for the initial (unsaved) project
         if (aiAgent)
             aiAgent->loadConversation (getChatHistoryFile());
+
+        // Screenshot mode: defer capture then exit
+        if (screenshotMode)
+        {
+            juce::Timer::callAfterDelay (1500, [this]()
+            {
+                if (mainWindow == nullptr) return;
+
+                auto* mc = dynamic_cast<MainComponent*> (mainWindow->getContentComponent());
+                if (mc == nullptr) return;
+
+                // Seed demo content so screenshots aren't empty
+                seedDemoContent();
+
+                // Give demo content a moment to render
+                juce::Timer::callAfterDelay (500, [this, mc]()
+                {
+                    waive::ScreenshotCapture::Options opts;
+                    opts.outputDir = screenshotOutputDir;
+                    opts.maxWidth = 1400;
+                    opts.jpegQuality = 0.70f;
+
+                    int captured = waive::ScreenshotCapture::captureAll (*mc, opts);
+                    DBG ("Screenshot mode: captured " + juce::String (captured) + " images to "
+                         + screenshotOutputDir.getFullPathName());
+
+                    quit();
+                });
+            });
+        }
     }
 
     void shutdown() override
@@ -204,6 +247,26 @@ public:
     }
 
 private:
+    void seedDemoContent()
+    {
+        if (! editSession) return;
+        auto& edit = editSession->getEdit();
+
+        // Ensure at least 4 tracks exist
+        int numTracks = static_cast<int> (te::getAudioTracks (edit).size());
+        if (numTracks < 4)
+            edit.ensureNumberOfAudioTracks (4);
+
+        // Name them so the mixer looks populated
+        auto tracks = te::getAudioTracks (edit);
+        juce::StringArray names = { "Drums", "Bass", "Guitar", "Vocals" };
+        for (int i = 0; i < juce::jmin (tracks.size(), names.size()); ++i)
+            tracks[i]->setName (names[i]);
+
+        // Set a reasonable tempo
+        edit.tempoSequence.getTempo (0)->setBpm (120.0);
+    }
+
     juce::File getChatHistoryFile() const
     {
         if (projectManager && projectManager->getCurrentFile().existsAsFile())
@@ -253,6 +316,9 @@ private:
 
     std::unique_ptr<waive::WaiveLookAndFeel> lookAndFeel;
     std::unique_ptr<MainWindow> mainWindow;
+
+    bool screenshotMode = false;
+    juce::File screenshotOutputDir;
 };
 
 START_JUCE_APPLICATION (WaiveApplication)

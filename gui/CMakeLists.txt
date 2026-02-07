@@ -119,6 +119,8 @@ target_sources(Waive PRIVATE
     src/util/CommandHelpers.cpp
     src/util/PathSanitizer.h
     src/util/PathSanitizer.cpp
+    src/util/ScreenshotCapture.h
+    src/util/ScreenshotCapture.cpp
 
     # Reuse the command handler for the in-app console.
     ../engine/src/CommandHandler.h

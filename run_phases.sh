@@ -24,13 +24,20 @@ STALE_MINUTES="${STALE_MINUTES:-8}"      # stop after N minutes of no file chang
 PHASE_TIMEOUT="${PHASE_TIMEOUT:-45}"     # hard timeout per phase in minutes
 POLL_INTERVAL="${POLL_INTERVAL:-30}"     # seconds between status checks
 
-# Ordered phase files (v5 — chat history, recording, external tools, python tools, AI tool execution)
+# Ordered phase files (v5+v6 — full DAW command set, AI tools, dynamic discovery)
 PHASE_FILES=(
     "phase_01_chat_history_persistence.md"
     "phase_02_recording_improvements.md"
     "phase_03_external_tool_runner.md"
     "phase_04_python_tools.md"
     "phase_05_ai_tool_execution.md"
+    "phase_06_ui_screenshot_review.md"
+    "phase_07_clip_editing_commands.md"
+    "phase_08_track_and_transport_commands.md"
+    "phase_09_export_and_plugin_management.md"
+    "phase_10_dynamic_tool_discovery.md"
+    "phase_11_ai_audio_analysis_tools.md"
+    "phase_12_ai_audio_processing_tools.md"
 )
 
 mkdir -p "$PHASE_LOG_DIR"

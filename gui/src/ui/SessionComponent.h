@@ -37,6 +37,7 @@ public:
     void toggleToolSidebar();
     void toggleChatPanel();
     waive::ChatPanelComponent* getChatPanelForTesting();
+    MixerComponent& getMixerForTesting();
     void play();
     void stop();
     void record();
