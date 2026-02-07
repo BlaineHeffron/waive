@@ -51,4 +51,8 @@ private:
     int lastClipCount = -1;
     int lastAutomatableParamCount = -1;
     int draggingAutomationPointIndex = -1;
+
+    bool layoutDirty = true;
+    double lastScrollOffset = 0.0;
+    double lastPixelsPerSecond = 0.0;
 };

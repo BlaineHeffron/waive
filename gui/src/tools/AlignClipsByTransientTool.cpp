@@ -5,6 +5,7 @@
 #include <tracktion_engine/tracktion_engine.h>
 
 #include "AudioAnalysis.h"
+#include "ClipTrackIndexMap.h"
 #include "EditSession.h"
 #include "JobQueue.h"
 #include "ProjectManager.h"
@@ -62,23 +63,6 @@ int parseAnalysisDelayMs (const juce::var& params)
     }
 
     return delayMs;
-}
-
-int findTrackIndexForClip (te::Edit& edit, const te::Clip& clip)
-{
-    auto tracks = te::getAudioTracks (edit);
-    for (int i = 0; i < tracks.size(); ++i)
-    {
-        auto* track = tracks.getUnchecked (i);
-        if (track == nullptr)
-            continue;
-
-        for (auto* trackClip : track->getClips())
-            if (trackClip == &clip)
-                return i;
-    }
-
-    return -1;
 }
 
 void sleepWithCancellation (waive::ProgressReporter& reporter, int delayMs)
@@ -169,6 +153,7 @@ juce::Result AlignClipsByTransientTool::preparePlan (const ToolExecutionContext&
         return juce::Result::fail ("Select at least two clips for transient alignment");
 
     auto& edit = context.editSession.getEdit();
+    const auto clipToTrackMap = waive::buildClipTrackIndexMap (edit);
     std::vector<ClipPlanInput> clipsToProcess;
     clipsToProcess.reserve ((size_t) selectedClips.size());
 
@@ -185,15 +170,18 @@ juce::Result AlignClipsByTransientTool::preparePlan (const ToolExecutionContext&
         if (! sourceFile.existsAsFile())
             continue;
 
+        const auto found = clipToTrackMap.find (clip->itemID);
+        if (found == clipToTrackMap.end())
+            continue;
+
         ClipPlanInput input;
         input.clipID = clip->itemID;
         input.clipName = clip->getName();
         input.sourceFile = sourceFile;
-        input.trackIndex = findTrackIndexForClip (edit, *clip);
+        input.trackIndex = found->second;
         input.clipStartSeconds = clip->getPosition().getStart().inSeconds();
 
-        if (input.trackIndex >= 0)
-            clipsToProcess.push_back (std::move (input));
+        clipsToProcess.push_back (std::move (input));
     }
 
     if (clipsToProcess.size() < 2)

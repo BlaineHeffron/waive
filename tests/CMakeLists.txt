@@ -106,6 +106,10 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/tools/ModelManager.cpp
     ../gui/src/tools/AudioAnalysis.h
     ../gui/src/tools/AudioAnalysis.cpp
+    ../gui/src/tools/AudioAnalysisCache.h
+    ../gui/src/tools/AudioAnalysisCache.cpp
+    ../gui/src/tools/ClipTrackIndexMap.h
+    ../gui/src/tools/ClipTrackIndexMap.cpp
     ../gui/src/tools/Tool.h
     ../gui/src/tools/ToolDiff.h
     ../gui/src/tools/ToolDiff.cpp

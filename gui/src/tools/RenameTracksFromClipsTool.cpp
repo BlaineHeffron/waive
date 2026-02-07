@@ -4,6 +4,7 @@
 #include <map>
 #include <tracktion_engine/tracktion_engine.h>
 
+#include "ClipTrackIndexMap.h"
 #include "EditSession.h"
 #include "JobQueue.h"
 #include "ProjectManager.h"
@@ -33,23 +34,6 @@ bool parseSelectedOnly (const juce::var& params)
     }
 
     return selectedOnly;
-}
-
-int findTrackIndexForClip (te::Edit& edit, const te::Clip& clip)
-{
-    auto tracks = te::getAudioTracks (edit);
-    for (int i = 0; i < tracks.size(); ++i)
-    {
-        auto* track = tracks.getUnchecked (i);
-        if (track == nullptr)
-            continue;
-
-        for (auto* trackClip : track->getClips())
-            if (trackClip == &clip)
-                return i;
-    }
-
-    return -1;
 }
 
 juce::String sanitiseTrackName (const juce::String& clipName)
@@ -129,6 +113,7 @@ juce::Result RenameTracksFromClipsTool::preparePlan (const ToolExecutionContext&
         if (selectedClips.isEmpty())
             return juce::Result::fail ("No clips selected");
 
+        const auto clipToTrackMap = waive::buildClipTrackIndexMap (edit);
         std::map<int, std::pair<double, juce::String>> earliestClipByTrack;
 
         for (auto* clip : selectedClips)
@@ -136,13 +121,14 @@ juce::Result RenameTracksFromClipsTool::preparePlan (const ToolExecutionContext&
             if (clip == nullptr)
                 continue;
 
-            const int trackIndex = findTrackIndexForClip (edit, *clip);
-            if (trackIndex < 0)
+            const auto clipIt = clipToTrackMap.find (clip->itemID);
+            if (clipIt == clipToTrackMap.end())
                 continue;
+            const int trackIndex = clipIt->second;
 
             const auto clipStart = clip->getPosition().getStart().inSeconds();
-            auto found = earliestClipByTrack.find (trackIndex);
-            if (found == earliestClipByTrack.end() || clipStart < found->second.first)
+            auto trackIt = earliestClipByTrack.find (trackIndex);
+            if (trackIt == earliestClipByTrack.end() || clipStart < trackIt->second.first)
                 earliestClipByTrack[trackIndex] = { clipStart, clip->getName() };
         }
 

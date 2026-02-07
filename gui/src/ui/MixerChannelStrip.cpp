@@ -208,6 +208,7 @@ void MixerChannelStrip::paint (juce::Graphics& g)
     auto meterBounds = getLocalBounds().reduced (2);
     meterBounds.removeFromTop (58);  // skip name + pan
     meterBounds = meterBounds.removeFromRight (8);
+    lastMeterBounds = meterBounds;
 
     int meterHeight = meterBounds.getHeight() - 20;
     if (meterHeight > 0)
@@ -262,5 +263,15 @@ void MixerChannelStrip::timerCallback()
     peakL = juce::jmax (levelL.dB, peakL - 1.5f);
     peakR = juce::jmax (levelR.dB, peakR - 1.5f);
 
-    repaint();
+    // Repaint only meter region if levels changed meaningfully (>0.5 dB)
+    constexpr float threshold = 0.5f;
+    bool metersChanged = std::abs (peakL - lastPeakL) > threshold ||
+                         std::abs (peakR - lastPeakR) > threshold;
+
+    if (metersChanged && ! lastMeterBounds.isEmpty())
+    {
+        lastPeakL = peakL;
+        lastPeakR = peakR;
+        repaint (lastMeterBounds);
+    }
 }

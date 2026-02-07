@@ -1,4 +1,5 @@
 #include "AudioAnalysis.h"
+#include "AudioAnalysisCache.h"
 
 #include <algorithm>
 #include <cmath>
@@ -9,8 +10,34 @@ namespace waive
 AudioAnalysisSummary analyseAudioFile (const juce::File& sourceFile,
                                        float activityThresholdGain,
                                        float transientRiseThresholdGain,
-                                       const std::function<bool()>& shouldCancel)
+                                       const std::function<bool()>& shouldCancel,
+                                       AudioAnalysisCache* cache)
 {
+#ifdef WAIVE_PROFILE_TOOLS
+    const auto startTime = juce::Time::getMillisecondCounterHiRes();
+    const auto fileSize = sourceFile.getSize();
+    DBG ("AudioAnalysis: Starting analysis of " << sourceFile.getFileName()
+         << " (" << (fileSize / 1024) << " KB)");
+#endif
+
+    if (cache != nullptr)
+    {
+        AudioAnalysisCache::CacheKey key { sourceFile, activityThresholdGain, transientRiseThresholdGain };
+        if (auto cached = cache->get (key))
+        {
+#ifdef WAIVE_PROFILE_TOOLS
+            DBG ("AudioAnalysis: Cache HIT for " << sourceFile.getFileName());
+#endif
+            return *cached;
+        }
+#ifdef WAIVE_PROFILE_TOOLS
+        else
+        {
+            DBG ("AudioAnalysis: Cache MISS for " << sourceFile.getFileName());
+        }
+#endif
+    }
+
     AudioAnalysisSummary summary;
 
     if (! sourceFile.existsAsFile())
@@ -87,6 +114,18 @@ AudioAnalysisSummary analyseAudioFile (const juce::File& sourceFile,
 
     if (summary.firstTransientSample < 0)
         summary.firstTransientSample = summary.firstAboveSample;
+
+    if (cache != nullptr && summary.valid)
+    {
+        AudioAnalysisCache::CacheKey key { sourceFile, activityThresholdGain, transientRiseThresholdGain };
+        cache->put (key, summary);
+    }
+
+#ifdef WAIVE_PROFILE_TOOLS
+    const auto elapsed = juce::Time::getMillisecondCounterHiRes() - startTime;
+    DBG ("AudioAnalysis: Completed in " << juce::String (elapsed, 2) << " ms"
+         << " (" << juce::String (summary.totalSamples / summary.sampleRate, 2) << " s duration)");
+#endif
 
     return summary;
 }

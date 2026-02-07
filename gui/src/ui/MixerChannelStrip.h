@@ -47,6 +47,9 @@ private:
     te::LevelMeasurer::Client meterClient;
     float peakL = 0.0f;
     float peakR = 0.0f;
+    float lastPeakL = 0.0f;
+    float lastPeakR = 0.0f;
+    juce::Rectangle<int> lastMeterBounds;
     bool isMaster = false;
     bool highlighted = false;
     bool suppressControlCallbacks = false;

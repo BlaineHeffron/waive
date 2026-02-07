@@ -155,6 +155,7 @@ void TrackLaneComponent::updateClips()
     }
 
     lastClipCount = track.getClips().size();
+    layoutDirty = true;
     resized();
 }
 
@@ -169,8 +170,20 @@ void TrackLaneComponent::timerCallback()
     if (automatableCount != lastAutomatableParamCount)
         refreshAutomationParams();
 
-    layoutClipComponents();
-    repaint();
+    const double currentScroll = timeline.getScrollOffsetSeconds();
+    const double currentPPS = timeline.getPixelsPerSecond();
+
+    const bool viewportChanged = (std::abs (currentScroll - lastScrollOffset) > 0.001) ||
+                                  (std::abs (currentPPS - lastPixelsPerSecond) > 0.001);
+
+    if (layoutDirty || viewportChanged)
+    {
+        layoutClipComponents();
+        layoutDirty = false;
+        lastScrollOffset = currentScroll;
+        lastPixelsPerSecond = currentPPS;
+        repaint();
+    }
 }
 
 void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)

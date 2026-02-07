@@ -6,6 +6,8 @@
 namespace waive
 {
 
+class AudioAnalysisCache;
+
 struct AudioAnalysisSummary
 {
     bool valid = false;
@@ -21,6 +23,7 @@ struct AudioAnalysisSummary
 AudioAnalysisSummary analyseAudioFile (const juce::File& sourceFile,
                                        float activityThresholdGain,
                                        float transientRiseThresholdGain,
-                                       const std::function<bool()>& shouldCancel = {});
+                                       const std::function<bool()>& shouldCancel = {},
+                                       AudioAnalysisCache* cache = nullptr);
 
 } // namespace waive

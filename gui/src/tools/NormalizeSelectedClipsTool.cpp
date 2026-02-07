@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <tracktion_engine/tracktion_engine.h>
 
+#include "ClipTrackIndexMap.h"
 #include "EditSession.h"
 #include "ProjectManager.h"
 #include "SessionComponent.h"
@@ -87,23 +88,6 @@ float analysePeakGain (const juce::File& sourceFile)
     return peak;
 }
 
-int findTrackIndexForClip (te::Edit& edit, const te::Clip& clip)
-{
-    auto tracks = te::getAudioTracks (edit);
-    for (int i = 0; i < tracks.size(); ++i)
-    {
-        auto* track = tracks.getUnchecked (i);
-        if (track == nullptr)
-            continue;
-
-        for (auto* trackClip : track->getClips())
-            if (trackClip == &clip)
-                return i;
-    }
-
-    return -1;
-}
-
 void sleepWithCancellation (waive::ProgressReporter& reporter, int delayMs)
 {
     if (delayMs <= 0)
@@ -170,6 +154,7 @@ juce::Result NormalizeSelectedClipsTool::preparePlan (const ToolExecutionContext
         return juce::Result::fail ("No clips selected");
 
     auto& edit = context.editSession.getEdit();
+    const auto clipToTrackMap = waive::buildClipTrackIndexMap (edit);
     std::vector<ClipPlanInput> clipsToProcess;
     clipsToProcess.reserve ((size_t) selectedClips.size());
 
@@ -188,15 +173,18 @@ juce::Result NormalizeSelectedClipsTool::preparePlan (const ToolExecutionContext
         if (! sourceFile.existsAsFile())
             continue;
 
+        const auto found = clipToTrackMap.find (clip->itemID);
+        if (found == clipToTrackMap.end())
+            continue;
+
         ClipPlanInput input;
         input.clipID = clip->itemID;
         input.clipName = clip->getName();
         input.sourceFile = sourceFile;
-        input.trackIndex = findTrackIndexForClip (edit, *clip);
+        input.trackIndex = found->second;
         input.currentGainDb = audioClip->getGainDB();
 
-        if (input.trackIndex >= 0)
-            clipsToProcess.push_back (std::move (input));
+        clipsToProcess.push_back (std::move (input));
     }
 
     if (clipsToProcess.empty())

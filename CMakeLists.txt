@@ -4,6 +4,8 @@ project(Waive VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
+option(WAIVE_PROFILE_TOOLS "Enable tool profiling instrumentation" OFF)
+
 # ── Fetch JUCE ──────────────────────────────────────────────────────────────
 include(FetchContent)
 include(CTest)

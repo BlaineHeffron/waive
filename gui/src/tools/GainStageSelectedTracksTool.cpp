@@ -5,6 +5,7 @@
 #include <tracktion_engine/tracktion_engine.h>
 
 #include "AudioAnalysis.h"
+#include "ClipTrackIndexMap.h"
 #include "EditSession.h"
 #include "JobQueue.h"
 #include "ProjectManager.h"
@@ -56,22 +57,6 @@ int parseAnalysisDelayMs (const juce::var& params)
     return delayMs;
 }
 
-int findTrackIndexForClip (te::Edit& edit, const te::Clip& clip)
-{
-    auto tracks = te::getAudioTracks (edit);
-    for (int i = 0; i < tracks.size(); ++i)
-    {
-        auto* track = tracks.getUnchecked (i);
-        if (track == nullptr)
-            continue;
-
-        for (auto* trackClip : track->getClips())
-            if (trackClip == &clip)
-                return i;
-    }
-
-    return -1;
-}
 
 void sleepWithCancellation (waive::ProgressReporter& reporter, int delayMs)
 {
@@ -153,6 +138,7 @@ juce::Result GainStageSelectedTracksTool::preparePlan (const ToolExecutionContex
 
     auto& edit = context.editSession.getEdit();
     auto tracks = te::getAudioTracks (edit);
+    auto clipToTrack = buildClipTrackIndexMap (edit);
 
     std::map<int, TrackPlanInput> trackPlans;
 
@@ -167,7 +153,11 @@ juce::Result GainStageSelectedTracksTool::preparePlan (const ToolExecutionContex
         if (waveClip == nullptr || audioClip == nullptr)
             continue;
 
-        const int trackIndex = findTrackIndexForClip (edit, *clip);
+        auto it = clipToTrack.find (clip->itemID);
+        if (it == clipToTrack.end())
+            continue;
+
+        const int trackIndex = it->second;
         if (! juce::isPositiveAndBelow (trackIndex, tracks.size()))
             continue;
 

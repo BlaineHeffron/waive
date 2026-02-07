@@ -21,4 +21,5 @@ private:
 
     EditSession& editSession;
     TimelineComponent& timeline;
+    int lastPlayheadX = -1;
 };

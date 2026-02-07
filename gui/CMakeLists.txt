@@ -68,6 +68,10 @@ target_sources(Waive PRIVATE
     src/tools/ModelManager.cpp
     src/tools/AudioAnalysis.h
     src/tools/AudioAnalysis.cpp
+    src/tools/AudioAnalysisCache.h
+    src/tools/AudioAnalysisCache.cpp
+    src/tools/ClipTrackIndexMap.h
+    src/tools/ClipTrackIndexMap.cpp
     src/tools/Tool.h
     src/tools/ToolDiff.h
     src/tools/ToolDiff.cpp
@@ -127,3 +131,7 @@ target_compile_definitions(Waive PRIVATE
     JUCE_WEB_BROWSER=0
     JUCE_MODAL_LOOPS_PERMITTED=1
 )
+
+if(WAIVE_PROFILE_TOOLS)
+    target_compile_definitions(Waive PRIVATE WAIVE_PROFILE_TOOLS=1)
+endif()

@@ -5,6 +5,7 @@
 #include <tracktion_engine/tracktion_engine.h>
 
 #include "AudioAnalysis.h"
+#include "ClipTrackIndexMap.h"
 #include "EditSession.h"
 #include "JobQueue.h"
 #include "ModelManager.h"
@@ -93,23 +94,6 @@ juce::String parseRequestedModelVersion (const juce::var& params)
             version = paramsObj->getProperty ("model_version").toString().trim();
     }
     return version;
-}
-
-int findTrackIndexForClip (te::Edit& edit, const te::Clip& clip)
-{
-    auto tracks = te::getAudioTracks (edit);
-    for (int i = 0; i < tracks.size(); ++i)
-    {
-        auto* track = tracks.getUnchecked (i);
-        if (track == nullptr)
-            continue;
-
-        for (auto* trackClip : track->getClips())
-            if (trackClip == &clip)
-                return i;
-    }
-
-    return -1;
 }
 
 void sleepWithCancellation (waive::ProgressReporter& reporter, int delayMs)
@@ -232,6 +216,7 @@ juce::Result AutoMixSuggestionsTool::preparePlan (const ToolExecutionContext& co
 
     auto& edit = context.editSession.getEdit();
     auto tracks = te::getAudioTracks (edit);
+    const auto clipToTrackMap = waive::buildClipTrackIndexMap (edit);
     std::map<int, TrackPlanInput> trackPlans;
 
     for (auto* clip : selectedClips)
@@ -244,7 +229,10 @@ juce::Result AutoMixSuggestionsTool::preparePlan (const ToolExecutionContext& co
         if (waveClip == nullptr || audioClip == nullptr)
             continue;
 
-        const auto trackIndex = findTrackIndexForClip (edit, *clip);
+        const auto found = clipToTrackMap.find (clip->itemID);
+        if (found == clipToTrackMap.end())
+            continue;
+        const auto trackIndex = found->second;
         if (! juce::isPositiveAndBelow (trackIndex, tracks.size()))
             continue;
 
@@ -260,21 +248,21 @@ juce::Result AutoMixSuggestionsTool::preparePlan (const ToolExecutionContext& co
         if (! sourceFile.existsAsFile())
             continue;
 
-        auto found = trackPlans.find (trackIndex);
-        if (found == trackPlans.end())
+        auto trackPlanIter = trackPlans.find (trackIndex);
+        if (trackPlanIter == trackPlans.end())
         {
             TrackPlanInput input;
             input.trackIndex = trackIndex;
             input.trackName = track->getName();
             input.currentVolumeDb = te::volumeFaderPositionToDB (volumePlugin->volParam->getCurrentValue());
             input.currentPan = volumePlugin->panParam->getCurrentValue() * 2.0f - 1.0f;
-            found = trackPlans.emplace (trackIndex, std::move (input)).first;
+            trackPlanIter = trackPlans.emplace (trackIndex, std::move (input)).first;
         }
 
         ClipAnalysisInput clipInput;
         clipInput.sourceFile = sourceFile;
         clipInput.clipGainDb = audioClip->getGainDB();
-        found->second.clips.push_back (clipInput);
+        trackPlanIter->second.clips.push_back (clipInput);
     }
 
     if (trackPlans.empty())

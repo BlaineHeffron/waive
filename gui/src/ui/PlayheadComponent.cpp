@@ -30,5 +30,16 @@ void PlayheadComponent::paint (juce::Graphics& g)
 
 void PlayheadComponent::timerCallback()
 {
-    repaint();
+    auto pos = editSession.getEdit().getTransport().getPosition().inSeconds();
+    int x = timeline.timeToX (pos);
+
+    if (x != lastPlayheadX)
+    {
+        // Repaint old line region + new line region
+        if (lastPlayheadX >= 0)
+            repaint (lastPlayheadX - 1, 0, 3, getHeight());
+        if (x >= 0)
+            repaint (x - 1, 0, 3, getHeight());
+        lastPlayheadX = x;
+    }
 }
