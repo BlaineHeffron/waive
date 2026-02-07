@@ -3,6 +3,7 @@
 #include "EditSession.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
+#include "WaiveSpacing.h"
 
 //==============================================================================
 MixerComponent::MixerComponent (EditSession& session)
@@ -31,10 +32,10 @@ void MixerComponent::resized()
     auto bounds = getLocalBounds();
 
     // Master strip on the right
-    int masterWidth = MixerChannelStrip::stripWidth + 4;
+    int masterWidth = MixerChannelStrip::stripWidth + waive::Spacing::xs;
     auto masterBounds = bounds.removeFromRight (masterWidth);
     if (masterStrip)
-        masterStrip->setBounds (masterBounds.reduced (2));
+        masterStrip->setBounds (masterBounds.reduced (waive::Spacing::xxs));
 
     // Track strips in viewport
     stripViewport.setBounds (bounds);

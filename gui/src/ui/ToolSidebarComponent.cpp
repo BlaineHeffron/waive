@@ -11,6 +11,7 @@
 #include "SessionComponent.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
+#include "WaiveSpacing.h"
 
 namespace
 {
@@ -111,24 +112,24 @@ public:
 
     void resized() override
     {
-        auto bounds = getLocalBounds().reduced (4);
+        auto bounds = getLocalBounds().reduced (waive::Spacing::xs);
 
         auto headerRow = bounds.removeFromTop (20);
         titleLabel.setBounds (headerRow.removeFromLeft (60));
         settingsButton.setBounds (headerRow.removeFromRight (70));
 
-        bounds.removeFromTop (2);
-        usageLabel.setBounds (bounds.removeFromTop (16));
-        bounds.removeFromTop (4);
+        bounds.removeFromTop (waive::Spacing::xxs);
+        usageLabel.setBounds (bounds.removeFromTop (waive::Spacing::lg));
+        bounds.removeFromTop (waive::Spacing::xs);
 
         for (auto& entry : modelEntries)
         {
             auto row = bounds.removeFromTop (24);
             entry->nameLabel.setBounds (row.removeFromLeft (120));
             entry->statusLabel.setBounds (row.removeFromLeft (100));
-            row.removeFromLeft (4);
+            row.removeFromLeft (waive::Spacing::xs);
             entry->pinButton.setBounds (row.removeFromLeft (50));
-            row.removeFromLeft (4);
+            row.removeFromLeft (waive::Spacing::xs);
             entry->installButton.setBounds (row);
         }
     }
@@ -378,7 +379,7 @@ void ToolSidebarComponent::paint (juce::Graphics& g)
 
 void ToolSidebarComponent::resized()
 {
-    auto bounds = getLocalBounds().reduced (8);
+    auto bounds = getLocalBounds().reduced (waive::Spacing::sm);
 
     // Model manager section at top
     if (modelManagerSection != nullptr)

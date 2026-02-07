@@ -1,6 +1,7 @@
 #include "ConsoleComponent.h"
 #include "UndoableCommandHandler.h"
 #include "WaiveSpacing.h"
+#include "WaiveLookAndFeel.h"
 
 //==============================================================================
 ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
@@ -74,6 +75,20 @@ void ConsoleComponent::appendLog (const juce::String& text)
         responseEditor.clear();
         responseEditor.setColour (juce::TextEditor::textColourId, juce::Colours::white);
         firstAppend = false;
+    }
+
+    // Check if response contains error key
+    auto parsed = juce::JSON::parse (text);
+    if (parsed.isObject() && parsed.hasProperty ("error"))
+    {
+        if (auto* pal = waive::getWaivePalette (*this))
+            responseEditor.setColour (juce::TextEditor::textColourId, pal->error);
+        else
+            responseEditor.setColour (juce::TextEditor::textColourId, juce::Colours::red);
+    }
+    else
+    {
+        responseEditor.setColour (juce::TextEditor::textColourId, juce::Colours::white);
     }
 
     responseEditor.moveCaretToEnd();

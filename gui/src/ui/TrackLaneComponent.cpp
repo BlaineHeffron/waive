@@ -2,6 +2,7 @@
 #include "ClipComponent.h"
 #include "TimelineComponent.h"
 #include "WaiveLookAndFeel.h"
+#include "WaiveSpacing.h"
 
 #include <cmath>
 
@@ -160,9 +161,9 @@ void TrackLaneComponent::paint (juce::Graphics& g)
 void TrackLaneComponent::resized()
 {
     auto bounds = getLocalBounds();
-    auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth).reduced (4);
+    auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth).reduced (waive::Spacing::xs);
     headerLabel.setBounds (headerBounds.removeFromTop (20));
-    headerBounds.removeFromTop (2);
+    headerBounds.removeFromTop (waive::Spacing::xxs);
     automationParamCombo.setBounds (headerBounds.removeFromTop (20));
 
     layoutClipComponents();
