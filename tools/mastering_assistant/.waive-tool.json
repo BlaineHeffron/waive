@@ -1,0 +1,30 @@
+{
+  "name": "mastering_assistant",
+  "displayName": "Mastering Assistant",
+  "version": "0.1.0",
+  "description": "Analyze a mix and apply loudness normalization with optional soft limiting. Outputs a mastered audio file with consistent loudness targeting a specified LUFS level.",
+  "category": "ai",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "target_lufs": {
+        "type": "number",
+        "description": "Target integrated loudness in LUFS (default: -14). Streaming: -14, CD: -9, broadcast: -23.",
+        "default": -14
+      },
+      "apply_limiter": {
+        "type": "boolean",
+        "description": "Apply soft limiter to prevent clipping (default: true).",
+        "default": true
+      },
+      "ceiling_db": {
+        "type": "number",
+        "description": "Limiter ceiling in dBFS (default: -1.0). Peak level will not exceed this.",
+        "default": -1.0
+      }
+    }
+  },
+  "command": ["python3", "-m", "mastering_assistant"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": true
+}

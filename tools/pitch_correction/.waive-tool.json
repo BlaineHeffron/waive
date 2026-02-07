@@ -1,0 +1,25 @@
+{
+  "name": "pitch_correction",
+  "displayName": "Pitch Correction",
+  "version": "0.1.0",
+  "description": "Correct pitch of a monophonic audio source (vocals, single instruments) to the nearest semitone. Similar to auto-tune but more subtle.",
+  "category": "ai",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "correction_strength": {
+        "type": "number",
+        "description": "How strongly to correct pitch 0.0-1.0 (default: 0.5). 1.0 = hard snap to nearest note.",
+        "default": 0.5
+      },
+      "key": {
+        "type": "string",
+        "description": "Optional key constraint (e.g., 'C major', 'A minor'). If set, only corrects to notes in this key.",
+        "default": ""
+      }
+    }
+  },
+  "command": ["python3", "-m", "pitch_correction"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": true
+}

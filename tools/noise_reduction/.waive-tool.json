@@ -1,0 +1,25 @@
+{
+  "name": "noise_reduction",
+  "displayName": "Noise Reduction",
+  "version": "0.1.0",
+  "description": "Reduce background noise from an audio recording using spectral gating. Works best on recordings with steady-state noise (hiss, hum, fan noise).",
+  "category": "ai",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "strength": {
+        "type": "number",
+        "description": "Noise reduction strength 0.0-1.0 (default: 0.5). Higher = more aggressive.",
+        "default": 0.5
+      },
+      "noise_profile_seconds": {
+        "type": "number",
+        "description": "Seconds of audio from the start to use as noise profile (default: 0.5). Use a quiet section.",
+        "default": 0.5
+      }
+    }
+  },
+  "command": ["python3", "-m", "noise_reduction"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": true
+}

@@ -1,0 +1,25 @@
+{
+  "name": "auto_eq",
+  "displayName": "Auto EQ Suggestions",
+  "version": "0.1.0",
+  "description": "Analyze audio frequency spectrum and suggest corrective EQ settings. Returns a list of frequency bands with suggested gain adjustments to achieve a balanced mix. Does NOT modify audio — returns suggestions for the AI to apply via plugin parameters.",
+  "category": "ai",
+  "inputSchema": {
+    "type": "object",
+    "properties": {
+      "target_curve": {
+        "type": "string",
+        "description": "Target frequency response: 'flat' (neutral), 'warm' (boosted lows, rolled highs), 'bright' (boosted highs), 'vocal' (presence boost). Default: 'flat'.",
+        "default": "flat"
+      },
+      "max_boost_db": {
+        "type": "number",
+        "description": "Maximum EQ boost in dB (default: 6). Limits how aggressive corrections are.",
+        "default": 6
+      }
+    }
+  },
+  "command": ["python3", "-m", "auto_eq"],
+  "acceptsAudioInput": true,
+  "producesAudioOutput": false
+}
