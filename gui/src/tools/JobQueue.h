@@ -100,7 +100,7 @@ private:
     juce::ThreadPool threadPool;
     std::mutex jobsMutex;
     std::vector<std::shared_ptr<JobInfo>> jobs;
-    int nextJobId = 1;
+    int64_t nextJobId = 1;
 
     juce::ListenerList<Listener> listeners;
 };

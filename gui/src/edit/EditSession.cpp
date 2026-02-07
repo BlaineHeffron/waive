@@ -72,6 +72,9 @@ bool EditSession::performEdit (const juce::String& actionName,
                                bool coalesce,
                                std::function<void (te::Edit&)> mutation)
 {
+    if (edit == nullptr)
+        return false;
+
     if (! coalesce || lastTransactionName != actionName)
         edit->getUndoManager().beginNewTransaction (actionName);
 

@@ -9,6 +9,14 @@ class TimelineComponent;
 class ClipComponent;
 
 //==============================================================================
+/** Grid line representation with minor/major flag. */
+struct GridLine
+{
+    int x;
+    bool isMinor;
+};
+
+//==============================================================================
 /** Single track's horizontal clip lane. */
 class TrackLaneComponent : public juce::Component,
                            private juce::Timer
@@ -65,7 +73,7 @@ private:
     double lastPixelsPerSecond = 0.0;
 
     // Grid line cache
-    std::vector<int> cachedGridLines;
+    std::vector<GridLine> cachedGridLines;
     double cachedScrollOffsetForGrid = -1.0;
     double cachedPixelsPerSecondForGrid = -1.0;
 };

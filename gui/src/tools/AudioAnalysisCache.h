@@ -47,6 +47,7 @@ public:
 private:
     std::unordered_map<CacheKey, AudioAnalysisSummary, CacheKeyHash> cache;
     std::list<CacheKey> accessOrder;
+    std::unordered_map<CacheKey, std::list<CacheKey>::iterator, CacheKeyHash> iterMap;
     int maxEntries;
     juce::CriticalSection lock;
 };

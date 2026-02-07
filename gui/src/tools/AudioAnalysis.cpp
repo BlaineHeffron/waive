@@ -50,6 +50,10 @@ AudioAnalysisSummary analyseAudioFile (const juce::File& sourceFile,
     if (reader == nullptr || reader->numChannels <= 0 || reader->lengthInSamples <= 0)
         return summary;
 
+    // Validate sample rate to prevent division by zero downstream
+    if (reader->sampleRate <= 0)
+        return summary;
+
     summary.valid = true;
     summary.sampleRate = reader->sampleRate;
     summary.totalSamples = reader->lengthInSamples;

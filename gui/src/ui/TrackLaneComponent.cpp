@@ -98,22 +98,20 @@ void TrackLaneComponent::paint (juce::Graphics& g)
 
         cachedGridLines.clear();
         for (auto t : minorLines)
-            cachedGridLines.push_back (timeline.timeToX (t) | 0x80000000);  // Mark minor with high bit
+            cachedGridLines.push_back ({ timeline.timeToX (t), true });
         for (auto t : majorLines)
-            cachedGridLines.push_back (timeline.timeToX (t));
+            cachedGridLines.push_back ({ timeline.timeToX (t), false });
 
         cachedScrollOffsetForGrid = currentScroll;
         cachedPixelsPerSecondForGrid = currentPPS;
     }
 
     // Draw cached grid lines
-    for (auto x : cachedGridLines)
+    for (const auto& gridLine : cachedGridLines)
     {
-        const bool isMinor = (x & 0x80000000) != 0;
-        const int xPos = x & 0x7FFFFFFF;
-        g.setColour (isMinor ? (pal ? pal->gridMinor : juce::Colours::grey.withAlpha (0.12f))
-                              : (pal ? pal->gridMajor : juce::Colours::lightgrey.withAlpha (0.2f)));
-        g.drawVerticalLine (xPos, 0.0f, (float) getHeight());
+        g.setColour (gridLine.isMinor ? (pal ? pal->gridMinor : juce::Colours::grey.withAlpha (0.12f))
+                                      : (pal ? pal->gridMajor : juce::Colours::lightgrey.withAlpha (0.2f)));
+        g.drawVerticalLine (gridLine.x, 0.0f, (float) getHeight());
     }
 
     // Automation lane background

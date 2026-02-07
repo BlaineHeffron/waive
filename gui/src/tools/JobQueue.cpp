@@ -138,17 +138,56 @@ void JobQueue::removeListener (Listener* listener)
 void JobQueue::timerCallback()
 {
     // Coalesce progress updates — deliver on message thread at ~10Hz.
-    std::vector<std::shared_ptr<JobInfo>> snapshot;
+    std::vector<std::shared_ptr<JobInfo>> completedJobs;
+    std::vector<std::shared_ptr<JobInfo>> updatedJobs;
+
     {
         std::lock_guard<std::mutex> lock (jobsMutex);
-        snapshot = jobs;
+
+        // Collect jobs with updates and move completed jobs to local list
+        for (auto& info : jobs)
+        {
+            if (! info->hasUpdate.exchange (false))
+                continue;
+
+            auto status = static_cast<JobStatus> (info->status.load());
+            if (status == JobStatus::Completed || status == JobStatus::Failed || status == JobStatus::Cancelled)
+                completedJobs.push_back (info);
+            else
+                updatedJobs.push_back (info);
+        }
+
+        // Remove completed jobs from active list while holding lock
+        if (! completedJobs.empty())
+        {
+            jobs.erase (std::remove_if (jobs.begin(), jobs.end(),
+                                        [&completedJobs] (const auto& j)
+                                        {
+                                            return std::find (completedJobs.begin(), completedJobs.end(), j) != completedJobs.end();
+                                        }),
+                        jobs.end());
+        }
     }
 
-    for (auto& info : snapshot)
+    // Fire events for updated jobs
+    for (auto& info : updatedJobs)
     {
-        if (! info->hasUpdate.exchange (false))
-            continue;
+        JobEvent event;
+        event.jobId = info->id;
+        event.descriptor = info->descriptor;
+        event.status = static_cast<JobStatus> (info->status.load());
+        event.progress = info->lastProgress.load();
+        {
+            std::lock_guard<std::mutex> messageLock (info->messageMutex);
+            event.message = info->lastMessage;
+        }
 
+        notifyListeners (event);
+    }
+
+    // Fire completion events and callbacks
+    for (auto& info : completedJobs)
+    {
         auto status = static_cast<JobStatus> (info->status.load());
 
         JobEvent event;
@@ -163,19 +202,8 @@ void JobQueue::timerCallback()
 
         notifyListeners (event);
 
-        // Deliver completion callback on message thread
-        if (status == JobStatus::Completed || status == JobStatus::Failed
-            || status == JobStatus::Cancelled)
-        {
-            if (info->onComplete)
-                info->onComplete (info->id, status);
-
-            // Remove finished job from active list
-            std::lock_guard<std::mutex> lock (jobsMutex);
-            jobs.erase (std::remove_if (jobs.begin(), jobs.end(),
-                                        [&] (auto& j) { return j->id == info->id; }),
-                        jobs.end());
-        }
+        if (info->onComplete)
+            info->onComplete (info->id, status);
     }
 }
 

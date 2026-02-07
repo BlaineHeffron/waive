@@ -28,7 +28,7 @@ MixerChannelStrip::MixerChannelStrip (te::Edit& edit, EditSession& session)
 
 MixerChannelStrip::~MixerChannelStrip()
 {
-    // Unregister meter client
+    // Unregister meter client - check validity to avoid dangling pointer access
     if (track != nullptr)
     {
         if (auto* meter = track->getLevelMeterPlugin())
@@ -37,7 +37,7 @@ MixerChannelStrip::~MixerChannelStrip()
     else if (masterEdit != nullptr)
     {
         auto meterPlugins = masterEdit->getMasterPluginList().getPluginsOfType<te::LevelMeterPlugin>();
-        if (! meterPlugins.isEmpty())
+        if (! meterPlugins.isEmpty() && meterPlugins.getFirst() != nullptr)
             meterPlugins.getFirst()->measurer.removeClient (meterClient);
     }
 }

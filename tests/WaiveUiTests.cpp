@@ -72,7 +72,6 @@ float getTrackVolumeDb (te::AudioTrack& track)
 
     float faderPos = volumePlugin->volume.get();
     float volumeDb = te::volumeFaderPositionToDB (faderPos);
-    juce::File ("/tmp/gainstage_debug.txt").appendText ("getTrackVolumeDb: faderPos=" + juce::String (faderPos, 4) + " volumeDb=" + juce::String (volumeDb, 4) + "\n");
     return volumeDb;
 }
 
@@ -962,7 +961,6 @@ void runUiPhase5BuiltInToolsRegression()
     expect (track1->getName() == renamedTrackName, "Expected redo to restore renamed track name");
 
     // 5A.2: Gain-stage selected tracks to target peak.
-    juce::File ("/tmp/gainstage_debug.txt").replaceWithText ("Starting gain-stage test\n");
     timeline.getSelectionManager().selectClip (renameAndGainClip.get());
     toolsComponent.selectToolForTesting ("gain_stage_selected_tracks");
 
@@ -972,15 +970,12 @@ void runUiPhase5BuiltInToolsRegression()
     toolsComponent.setParamsForTesting (juce::var (gainParams));
 
     const auto volumeBeforeGainStage = getTrackVolumeDb (*track1);
-    juce::File ("/tmp/gainstage_debug.txt").appendText ("volumeBeforeGainStage = " + juce::String (volumeBeforeGainStage, 4) + " dB\n");
     expect (toolsComponent.runPlanForTesting(), "Expected phase-5 gain-stage plan start");
     expect (toolsComponent.waitForIdleForTesting(), "Expected phase-5 gain-stage plan completion");
     expect (toolsComponent.hasPendingPlanForTesting(), "Expected pending gain-stage plan");
     expect (toolsComponent.applyPlanForTesting(), "Expected phase-5 gain-stage apply to succeed");
 
     const auto volumeAfterGainStage = getTrackVolumeDb (*track1);
-    juce::File ("/tmp/gainstage_debug.txt").appendText ("volumeAfterGainStage = " + juce::String (volumeAfterGainStage, 4) + " dB\n");
-    juce::File ("/tmp/gainstage_debug.txt").appendText ("delta = " + juce::String (volumeAfterGainStage - volumeBeforeGainStage, 4) + " dB\n");
 
     expect (volumeAfterGainStage < volumeBeforeGainStage - 1.0f,
             "Expected gain-stage apply to lower track volume materially");
@@ -1993,6 +1988,33 @@ void runPhase5TimelineMixerPolishTests()
     std::cout << "runPhase5TimelineMixerPolishTests: PASS" << std::endl;
 }
 
+void testGridLineStruct()
+{
+    // Test that GridLine struct correctly stores x and isMinor without bit-packing issues
+    GridLine major { 100, false };
+    GridLine minor { -50, true };
+    GridLine largeX { 2147483647, false };  // INT_MAX, would overflow with bit-packing
+
+    expect (major.x == 100 && ! major.isMinor, "Expected major line at x=100");
+    expect (minor.x == -50 && minor.isMinor, "Expected minor line at x=-50 (negative x)");
+    expect (largeX.x == 2147483647 && ! largeX.isMinor, "Expected large x without overflow");
+
+    // Test vector storage
+    std::vector<GridLine> gridLines;
+    gridLines.push_back ({ 0, false });
+    gridLines.push_back ({ 100, true });
+    gridLines.push_back ({ -100, true });
+    gridLines.push_back ({ 1000000, false });
+
+    expect (gridLines.size() == 4, "Expected 4 grid lines");
+    expect (gridLines[0].x == 0 && ! gridLines[0].isMinor, "Expected major at 0");
+    expect (gridLines[1].x == 100 && gridLines[1].isMinor, "Expected minor at 100");
+    expect (gridLines[2].x == -100 && gridLines[2].isMinor, "Expected minor at -100");
+    expect (gridLines[3].x == 1000000 && ! gridLines[3].isMinor, "Expected major at 1000000");
+
+    std::cout << "testGridLineStruct: PASS (GridLine struct handles all X values correctly)" << std::endl;
+}
+
 } // namespace
 
 int main()
@@ -2020,6 +2042,7 @@ int main()
         testTooltipKeyboardShortcuts();
         testTrackColorDeterminism();
         runPhase5TimelineMixerPolishTests();
+        testGridLineStruct();
         std::cout << "WaiveUiTests: PASS" << std::endl;
         return 0;
     }

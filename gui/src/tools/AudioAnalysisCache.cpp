@@ -15,9 +15,13 @@ std::optional<AudioAnalysisSummary> AudioAnalysisCache::get (const CacheKey& key
     auto it = cache.find (key);
     if (it != cache.end())
     {
-        // Move accessed key to front (most recently used)
-        accessOrder.remove (key);
+        // Move accessed key to front (most recently used) - O(1) with iterator map
+        auto iterIt = iterMap.find (key);
+        if (iterIt != iterMap.end())
+            accessOrder.erase (iterIt->second);
+
         accessOrder.push_front (key);
+        iterMap[key] = accessOrder.begin();
         return it->second;
     }
     return std::nullopt;
@@ -32,8 +36,14 @@ void AudioAnalysisCache::put (const CacheKey& key, const AudioAnalysisSummary& s
     if (it != cache.end())
     {
         it->second = summary;
-        accessOrder.remove (key);
+
+        // O(1) removal with iterator map
+        auto iterIt = iterMap.find (key);
+        if (iterIt != iterMap.end())
+            accessOrder.erase (iterIt->second);
+
         accessOrder.push_front (key);
+        iterMap[key] = accessOrder.begin();
         return;
     }
 
@@ -43,11 +53,13 @@ void AudioAnalysisCache::put (const CacheKey& key, const AudioAnalysisSummary& s
         auto lru = accessOrder.back();
         accessOrder.pop_back();
         cache.erase (lru);
+        iterMap.erase (lru);
     }
 
     // Insert new entry
     cache[key] = summary;
     accessOrder.push_front (key);
+    iterMap[key] = accessOrder.begin();
 }
 
 void AudioAnalysisCache::clear()
@@ -55,6 +67,7 @@ void AudioAnalysisCache::clear()
     const juce::ScopedLock sl (lock);
     cache.clear();
     accessOrder.clear();
+    iterMap.clear();
 }
 
 } // namespace waive
