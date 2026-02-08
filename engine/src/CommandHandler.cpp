@@ -84,6 +84,9 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "reorder_track")            result = handleReorderTrack (parsed);
     else if (action == "save_plugin_preset")       result = handleSavePluginPreset (parsed);
     else if (action == "load_plugin_preset")       result = handleLoadPluginPreset (parsed);
+    else if (action == "add_folder_track")         result = handleAddFolderTrack (parsed);
+    else if (action == "move_track_to_folder")     result = handleMoveTrackToFolder (parsed);
+    else if (action == "remove_from_folder")       result = handleRemoveFromFolder (parsed);
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -117,40 +120,84 @@ juce::var CommandHandler::handleGetTracks()
     auto result = makeOk();
     juce::Array<juce::var> trackList;
 
+    // Build index mapping for all tracks (folders + audio)
+    juce::HashMap<te::Track*, int> trackIndexMap;
     int trackId = 0;
-    for (auto* track : te::getAudioTracks (edit))
+    for (auto* track : edit.getTrackList())
     {
+        if (dynamic_cast<te::AudioTrack*> (track) || dynamic_cast<te::FolderTrack*> (track))
+        {
+            trackIndexMap.set (track, trackId);
+            ++trackId;
+        }
+    }
+
+    trackId = 0;
+    for (auto* track : edit.getTrackList())
+    {
+        auto* audioTrack = dynamic_cast<te::AudioTrack*> (track);
+        auto* folderTrack = dynamic_cast<te::FolderTrack*> (track);
+
+        if (!audioTrack && !folderTrack)
+            continue;
+
         auto* trackObj = new juce::DynamicObject();
         trackObj->setProperty ("name", track->getName());
         trackObj->setProperty ("track_id", trackId);
         trackObj->setProperty ("index", track->getIndexInEditTrackList());
-        trackObj->setProperty ("solo", track->isSolo (false));
-        trackObj->setProperty ("mute", track->isMuted (false));
+        trackObj->setProperty ("is_folder", folderTrack != nullptr);
 
-        // Clip info
-        juce::Array<juce::var> clipList;
-        int clipIdx = 0;
-        for (auto* clip : track->getClips())
+        // Parent folder info
+        auto* parentFolder = track->getParentFolderTrack();
+        if (parentFolder && trackIndexMap.contains (parentFolder))
+            trackObj->setProperty ("parent_folder", trackIndexMap[parentFolder]);
+        else
+            trackObj->setProperty ("parent_folder", juce::var());
+
+        // Children info for folder tracks
+        if (folderTrack)
         {
-            auto* clipObj = new juce::DynamicObject();
-            auto pos = clip->getPosition();
-            clipObj->setProperty ("clip_index", clipIdx);
-            clipObj->setProperty ("name", clip->getName());
-            clipObj->setProperty ("start", pos.getStart().inSeconds());
-            clipObj->setProperty ("end",   pos.getEnd().inSeconds());
-            clipObj->setProperty ("length", (pos.getEnd() - pos.getStart()).inSeconds());
-
-            // Clip gain (wave clips only)
-            if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (clip))
+            juce::Array<juce::var> childrenArray;
+            for (auto* child : folderTrack->getAllSubTracks (false))
             {
-                auto gainProp = waveClip->state["gainDb"];
-                clipObj->setProperty ("gain_db", gainProp.isVoid() ? 0.0 : (double) gainProp);
+                if (trackIndexMap.contains (child))
+                    childrenArray.add (trackIndexMap[child]);
             }
-
-            clipList.add (juce::var (clipObj));
-            ++clipIdx;
+            trackObj->setProperty ("children", childrenArray);
+            trackObj->setProperty ("solo", folderTrack->isSolo (false));
+            trackObj->setProperty ("mute", folderTrack->isMuted (false));
         }
-        trackObj->setProperty ("clips", clipList);
+        else if (audioTrack)
+        {
+            trackObj->setProperty ("children", juce::Array<juce::var>());
+            trackObj->setProperty ("solo", audioTrack->isSolo (false));
+            trackObj->setProperty ("mute", audioTrack->isMuted (false));
+
+            // Clip info
+            juce::Array<juce::var> clipList;
+            int clipIdx = 0;
+            for (auto* clip : audioTrack->getClips())
+            {
+                auto* clipObj = new juce::DynamicObject();
+                auto pos = clip->getPosition();
+                clipObj->setProperty ("clip_index", clipIdx);
+                clipObj->setProperty ("name", clip->getName());
+                clipObj->setProperty ("start", pos.getStart().inSeconds());
+                clipObj->setProperty ("end",   pos.getEnd().inSeconds());
+                clipObj->setProperty ("length", (pos.getEnd() - pos.getStart()).inSeconds());
+
+                // Clip gain (wave clips only)
+                if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (clip))
+                {
+                    auto gainProp = waveClip->state["gainDb"];
+                    clipObj->setProperty ("gain_db", gainProp.isVoid() ? 0.0 : (double) gainProp);
+                }
+
+                clipList.add (juce::var (clipObj));
+                ++clipIdx;
+            }
+            trackObj->setProperty ("clips", clipList);
+        }
 
         trackList.add (juce::var (trackObj));
         ++trackId;
@@ -231,9 +278,9 @@ juce::var CommandHandler::handleInsertAudioClip (const juce::var& params)
     double startTime    = params["start_time"];
     auto filePath       = params["file_path"].toString();
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     juce::File file (filePath);
     if (! file.existsAsFile())
@@ -301,9 +348,9 @@ juce::var CommandHandler::handleInsertMidiClip (const juce::var& params)
     auto filePath       = params["file_path"].toString();
     double startTime    = params.hasProperty ("start_time") ? (double) params["start_time"] : 0.0;
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     juce::File file (filePath);
     if (! file.existsAsFile())
@@ -370,9 +417,9 @@ juce::var CommandHandler::handleLoadPlugin (const juce::var& params)
     int trackId      = params["track_id"];
     auto pluginId    = params["plugin_id"].toString();
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     // Scan for the plugin using the engine's plugin manager
     auto& pm = edit.engine.getPluginManager();
@@ -517,9 +564,9 @@ juce::var CommandHandler::handleArmTrack (const juce::var& params)
     int trackId = params["track_id"];
     bool armed = params["armed"];
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     // If input_device specified, assign it first
     if (params.hasProperty ("input_device"))
@@ -889,11 +936,37 @@ juce::var CommandHandler::handleSoloTrack (const juce::var& params)
     int trackId = params["track_id"];
     bool solo = params["solo"];
 
-    auto* track = getTrackById (trackId);
+    // Find track in all tracks (including folders)
+    te::Track* track = nullptr;
+    int currentId = 0;
+    for (auto* t : edit.getTrackList())
+    {
+        if (dynamic_cast<te::AudioTrack*> (t) || dynamic_cast<te::FolderTrack*> (t))
+        {
+            if (currentId == trackId)
+            {
+                track = t;
+                break;
+            }
+            ++currentId;
+        }
+    }
+
     if (track == nullptr)
         return makeError ("Track not found: " + juce::String (trackId));
 
-    track->setSolo (solo);
+    // Check if folder track
+    if (auto* folderTrack = dynamic_cast<te::FolderTrack*> (track))
+    {
+        folderTrack->setSolo (solo);
+        // Apply to all children
+        for (auto* child : folderTrack->getAllSubTracks (false))
+            child->setSolo (solo);
+    }
+    else
+    {
+        track->setSolo (solo);
+    }
 
     auto result = makeOk();
     if (auto* obj = result.getDynamicObject())
@@ -912,11 +985,37 @@ juce::var CommandHandler::handleMuteTrack (const juce::var& params)
     int trackId = params["track_id"];
     bool mute = params["mute"];
 
-    auto* track = getTrackById (trackId);
+    // Find track in all tracks (including folders)
+    te::Track* track = nullptr;
+    int currentId = 0;
+    for (auto* t : edit.getTrackList())
+    {
+        if (dynamic_cast<te::AudioTrack*> (t) || dynamic_cast<te::FolderTrack*> (t))
+        {
+            if (currentId == trackId)
+            {
+                track = t;
+                break;
+            }
+            ++currentId;
+        }
+    }
+
     if (track == nullptr)
         return makeError ("Track not found: " + juce::String (trackId));
 
-    track->setMute (mute);
+    // Check if folder track
+    if (auto* folderTrack = dynamic_cast<te::FolderTrack*> (track))
+    {
+        folderTrack->setMute (mute);
+        // Apply to all children
+        for (auto* child : folderTrack->getAllSubTracks (false))
+            child->setMute (mute);
+    }
+    else
+    {
+        track->setMute (mute);
+    }
 
     auto result = makeOk();
     if (auto* obj = result.getDynamicObject())
@@ -934,9 +1033,9 @@ juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
 
     int trackId = params["track_id"];
 
-    auto* sourceTrack = getTrackById (trackId);
+    auto* sourceTrack = getAudioTrackById (trackId);
     if (sourceTrack == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     // Create a new track
     auto trackCount = te::getAudioTracks (edit).size();
@@ -1219,9 +1318,9 @@ juce::var CommandHandler::handleBounceTrack (const juce::var& params)
         return makeError ("Missing required parameter: track_id");
 
     int trackId = params["track_id"];
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     if (track->getClips().isEmpty())
         return makeError ("Track has no clips to bounce");
@@ -1294,9 +1393,9 @@ juce::var CommandHandler::handleRemovePlugin (const juce::var& params)
     int trackId = params["track_id"];
     int pluginIdx = params["plugin_index"];
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
     juce::Array<te::Plugin*> userPlugins;
@@ -1331,9 +1430,9 @@ juce::var CommandHandler::handleBypassPlugin (const juce::var& params)
     int pluginIdx = params["plugin_index"];
     bool bypassed = params["bypassed"];
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     juce::Array<te::Plugin*> userPlugins;
     for (auto* p : track->pluginList)
@@ -1366,9 +1465,9 @@ juce::var CommandHandler::handleGetPluginParameters (const juce::var& params)
     int trackId = params["track_id"];
     int pluginIdx = params["plugin_index"];
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     juce::Array<te::Plugin*> userPlugins;
     for (auto* p : track->pluginList)
@@ -1417,9 +1516,9 @@ juce::var CommandHandler::handleGetPluginParameters (const juce::var& params)
 juce::var CommandHandler::handleGetAutomationParams (const juce::var& params)
 {
     auto trackId = (int) params["track_id"];
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (! track)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     juce::Array<juce::var> paramList;
     auto allParams = track->getAllAutomatableParams();
@@ -1450,9 +1549,9 @@ juce::var CommandHandler::handleGetAutomationPoints (const juce::var& params)
 {
     auto trackId = (int) params["track_id"];
     auto paramIndex = (int) params["param_index"];
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (! track)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     auto allParams = track->getAllAutomatableParams();
     if (paramIndex < 0 || paramIndex >= allParams.size())
@@ -1489,9 +1588,9 @@ juce::var CommandHandler::handleAddAutomationPoint (const juce::var& params)
     auto value = (float) (double) params["value"];
     auto curveVal = params.hasProperty ("curve") ? (float) (double) params["curve"] : 0.0f;
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (! track)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     auto allParams = track->getAllAutomatableParams();
     if (paramIndex < 0 || paramIndex >= allParams.size())
@@ -1520,9 +1619,9 @@ juce::var CommandHandler::handleRemoveAutomationPoint (const juce::var& params)
     auto paramIndex = (int) params["param_index"];
     auto pointIndex = (int) params["point_index"];
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (! track)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     auto allParams = track->getAllAutomatableParams();
     if (paramIndex < 0 || paramIndex >= allParams.size())
@@ -1547,9 +1646,9 @@ juce::var CommandHandler::handleClearAutomation (const juce::var& params)
     auto trackId = (int) params["track_id"];
     auto paramIndex = (int) params["param_index"];
 
-    auto* track = getTrackById (trackId);
+    auto* track = getAudioTrackById (trackId);
     if (! track)
-        return makeError ("Track not found: " + juce::String (trackId));
+        return makeError ("Audio track not found: " + juce::String (trackId));
 
     auto allParams = track->getAllAutomatableParams();
     if (paramIndex < 0 || paramIndex >= allParams.size())
@@ -1606,17 +1705,23 @@ juce::var CommandHandler::handleSetClipFade (const juce::var& params)
 // Helpers
 //==============================================================================
 
-te::AudioTrack* CommandHandler::getTrackById (int trackIndex)
+te::Track* CommandHandler::getTrackById (int trackIndex)
 {
-    auto tracks = te::getAudioTracks (edit);
-    if (trackIndex >= 0 && trackIndex < tracks.size())
-        return tracks[trackIndex];
+    auto& allTracks = edit.getTrackList();
+    if (trackIndex >= 0 && trackIndex < allTracks.size())
+        return allTracks[trackIndex];
     return nullptr;
+}
+
+te::AudioTrack* CommandHandler::getAudioTrackById (int trackIndex)
+{
+    auto* track = getTrackById (trackIndex);
+    return dynamic_cast<te::AudioTrack*> (track);
 }
 
 te::Clip* CommandHandler::getClipByIndex (int trackIndex, int clipIndex)
 {
-    auto* track = getTrackById (trackIndex);
+    auto* track = getAudioTrackById (trackIndex);
     if (track == nullptr)
         return nullptr;
 
@@ -1780,9 +1885,9 @@ juce::var CommandHandler::handleSavePluginPreset (const juce::var& params)
     if (presetName.isEmpty())
         return makeError ("preset_name is required");
 
-    te::AudioTrack* track = getTrackById (trackId);
+    te::AudioTrack* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track " + juce::String (trackId) + " not found");
+        return makeError ("Audio track " + juce::String (trackId) + " not found");
 
     // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
     juce::Array<te::Plugin*> userPlugins;
@@ -1817,9 +1922,9 @@ juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
     if (presetName.isEmpty())
         return makeError ("preset_name is required");
 
-    te::AudioTrack* track = getTrackById (trackId);
+    te::AudioTrack* track = getAudioTrackById (trackId);
     if (track == nullptr)
-        return makeError ("Track " + juce::String (trackId) + " not found");
+        return makeError ("Audio track " + juce::String (trackId) + " not found");
 
     // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
     juce::Array<te::Plugin*> userPlugins;
@@ -1843,6 +1948,122 @@ juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
     result->setProperty ("status", "ok");
     result->setProperty ("preset_name", presetName);
     return juce::var (result);
+}
+
+juce::var CommandHandler::handleAddFolderTrack (const juce::var& params)
+{
+    auto name = params.hasProperty ("name") ? params["name"].toString() : "Folder";
+
+    auto folderTrackPtr = edit.insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
+    auto* folderTrack = folderTrackPtr.get();
+    if (folderTrack == nullptr)
+        return makeError ("Failed to create folder track");
+
+    folderTrack->setName (name);
+
+    // Find the track index
+    int trackIndex = 0;
+    for (auto* t : edit.getTrackList())
+    {
+        if (dynamic_cast<te::AudioTrack*> (t) || dynamic_cast<te::FolderTrack*> (t))
+        {
+            if (t == folderTrack)
+                break;
+            ++trackIndex;
+        }
+    }
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_index", trackIndex);
+        obj->setProperty ("name", name);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleMoveTrackToFolder (const juce::var& params)
+{
+    if (! params.hasProperty ("track_index") || ! params.hasProperty ("folder_index"))
+        return makeError ("Missing required parameters: track_index, folder_index");
+
+    int trackIndex = params["track_index"];
+    int folderIndex = params["folder_index"];
+
+    // Find tracks by index
+    te::Track* track = nullptr;
+    te::Track* folder = nullptr;
+    int currentId = 0;
+    for (auto* t : edit.getTrackList())
+    {
+        if (dynamic_cast<te::AudioTrack*> (t) || dynamic_cast<te::FolderTrack*> (t))
+        {
+            if (currentId == trackIndex)
+                track = t;
+            if (currentId == folderIndex)
+                folder = t;
+            ++currentId;
+        }
+    }
+
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackIndex));
+    if (folder == nullptr)
+        return makeError ("Folder not found: " + juce::String (folderIndex));
+
+    auto* folderTrack = dynamic_cast<te::FolderTrack*> (folder);
+    if (folderTrack == nullptr)
+        return makeError ("Target track is not a folder: " + juce::String (folderIndex));
+
+    // Move track into folder using Edit::moveTrack
+    edit.moveTrack (track, te::TrackInsertPoint (folderTrack, nullptr));
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+    {
+        obj->setProperty ("track_index", trackIndex);
+        obj->setProperty ("folder_index", folderIndex);
+    }
+    return result;
+}
+
+juce::var CommandHandler::handleRemoveFromFolder (const juce::var& params)
+{
+    if (! params.hasProperty ("track_index"))
+        return makeError ("Missing required parameter: track_index");
+
+    int trackIndex = params["track_index"];
+
+    // Find track by index
+    te::Track* track = nullptr;
+    int currentId = 0;
+    for (auto* t : edit.getTrackList())
+    {
+        if (dynamic_cast<te::AudioTrack*> (t) || dynamic_cast<te::FolderTrack*> (t))
+        {
+            if (currentId == trackIndex)
+            {
+                track = t;
+                break;
+            }
+            ++currentId;
+        }
+    }
+
+    if (track == nullptr)
+        return makeError ("Track not found: " + juce::String (trackIndex));
+
+    auto* parentFolder = track->getParentFolderTrack();
+    if (parentFolder == nullptr)
+        return makeError ("Track is not in a folder");
+
+    // Move to top level (insert after the parent folder at top level)
+    edit.moveTrack (track, te::TrackInsertPoint (nullptr, parentFolder));
+
+    auto result = makeOk();
+    if (auto* obj = result.getDynamicObject())
+        obj->setProperty ("track_index", trackIndex);
+    return result;
 }
 
 juce::var CommandHandler::makeError (const juce::String& message)

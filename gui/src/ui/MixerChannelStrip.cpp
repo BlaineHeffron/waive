@@ -6,7 +6,7 @@
 
 //==============================================================================
 MixerChannelStrip::MixerChannelStrip (te::AudioTrack& t, EditSession& session)
-    : editSession (session), track (&t), isMaster (false)
+    : editSession (session), stripType (StripType::Track), track (&t), isMaster (false)
 {
     nameLabel.setText (track->getName(), juce::dontSendNotification);
     setupControls();
@@ -16,8 +16,20 @@ MixerChannelStrip::MixerChannelStrip (te::AudioTrack& t, EditSession& session)
         meter->measurer.addClient (meterClient);
 }
 
+MixerChannelStrip::MixerChannelStrip (te::FolderTrack& folder, EditSession& session)
+    : editSession (session), stripType (StripType::Folder), folderTrack (&folder), isMaster (false)
+{
+    nameLabel.setText (folderTrack->getName(), juce::dontSendNotification);
+    setupControls();
+
+    // Folder tracks use submixing - meter plugin available
+    auto meterPlugins = folderTrack->pluginList.getPluginsOfType<te::LevelMeterPlugin>();
+    if (! meterPlugins.isEmpty())
+        meterPlugins.getFirst()->measurer.addClient (meterClient);
+}
+
 MixerChannelStrip::MixerChannelStrip (te::Edit& edit, EditSession& session)
-    : editSession (session), masterEdit (&edit), isMaster (true)
+    : editSession (session), stripType (StripType::Master), masterEdit (&edit), isMaster (true)
 {
     nameLabel.setText ("Master", juce::dontSendNotification);
     setupControls();
@@ -38,6 +50,14 @@ MixerChannelStrip::~MixerChannelStrip()
             meter->measurer.removeClient (meterClient);
         }
     }
+    else if (folderTrack != nullptr)
+    {
+        auto meterPlugins = folderTrack->pluginList.getPluginsOfType<te::LevelMeterPlugin>();
+        if (! meterPlugins.isEmpty() && meterPlugins.getFirst() != nullptr)
+        {
+            meterPlugins.getFirst()->measurer.removeClient (meterClient);
+        }
+    }
     else if (masterEdit != nullptr)
     {
         auto meterPlugins = masterEdit->getMasterPluginList().getPluginsOfType<te::LevelMeterPlugin>();
@@ -55,12 +75,15 @@ void MixerChannelStrip::setupControls()
     nameLabel.setEditable (false, true, false);
     nameLabel.onTextChange = [this]
     {
-        if (suppressControlCallbacks || track == nullptr)
+        if (suppressControlCallbacks)
             return;
 
         editSession.performEdit ("Rename Track", [this] (te::Edit&)
         {
-            track->setName (nameLabel.getText());
+            if (track != nullptr)
+                track->setName (nameLabel.getText());
+            else if (folderTrack != nullptr)
+                folderTrack->setName (nameLabel.getText());
         });
     };
     nameLabel.setTitle ("Track Name");
@@ -93,6 +116,12 @@ void MixerChannelStrip::setupControls()
                 if (! plugins.isEmpty())
                     vp = plugins.getFirst();
             }
+            else if (folderTrack != nullptr)
+            {
+                auto plugins = folderTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+                if (! plugins.isEmpty())
+                    vp = plugins.getFirst();
+            }
             else if (masterEdit != nullptr)
             {
                 vp = masterEdit->getMasterVolumePlugin().get();
@@ -114,13 +143,23 @@ void MixerChannelStrip::setupControls()
         soloButton.setWantsKeyboardFocus (true);
         soloButton.onClick = [this]
         {
-            if (suppressControlCallbacks || track == nullptr)
+            if (suppressControlCallbacks)
                 return;
 
             bool newState = soloButton.getToggleState();
             editSession.performEdit ("Toggle Solo", [this, newState] (te::Edit&)
             {
-                track->setSolo (newState);
+                if (track != nullptr)
+                {
+                    track->setSolo (newState);
+                }
+                else if (folderTrack != nullptr)
+                {
+                    folderTrack->setSolo (newState);
+                    // Apply to all children
+                    for (auto* child : folderTrack->getAllSubTracks (false))
+                        child->setSolo (newState);
+                }
             });
         };
         addAndMakeVisible (soloButton);
@@ -132,58 +171,70 @@ void MixerChannelStrip::setupControls()
         muteButton.setWantsKeyboardFocus (true);
         muteButton.onClick = [this]
         {
-            if (suppressControlCallbacks || track == nullptr)
+            if (suppressControlCallbacks)
                 return;
 
             bool newState = muteButton.getToggleState();
             editSession.performEdit ("Toggle Mute", [this, newState] (te::Edit&)
             {
-                track->setMute (newState);
+                if (track != nullptr)
+                {
+                    track->setMute (newState);
+                }
+                else if (folderTrack != nullptr)
+                {
+                    folderTrack->setMute (newState);
+                    // Apply to all children
+                    for (auto* child : folderTrack->getAllSubTracks (false))
+                        child->setMute (newState);
+                }
             });
         };
         addAndMakeVisible (muteButton);
 
-        // Arm button
-        armButton.setButtonText ("R");
-        armButton.setTooltip ("Arm for Recording (R)");
-        armButton.setTitle ("Arm");
-        armButton.setDescription ("Arm this track for recording");
-        armButton.setWantsKeyboardFocus (true);
-        if (auto* pal = waive::getWaivePalette (*this))
-            armButton.setColour (juce::ToggleButton::tickColourId, pal->danger);
-        armButton.onClick = [this]
+        // Arm button - only for audio tracks, not folders
+        if (stripType == StripType::Track)
         {
-            if (suppressControlCallbacks || track == nullptr)
-                return;
-
-            bool newState = armButton.getToggleState();
-            editSession.performEdit ("Toggle Arm", [this, newState] (te::Edit& edit)
+            armButton.setButtonText ("R");
+            armButton.setTooltip ("Arm for Recording (R)");
+            armButton.setTitle ("Arm");
+            armButton.setDescription ("Arm this track for recording");
+            armButton.setWantsKeyboardFocus (true);
+            if (auto* pal = waive::getWaivePalette (*this))
+                armButton.setColour (juce::ToggleButton::tickColourId, pal->danger);
+            armButton.onClick = [this]
             {
-                auto& eid = edit.getEditInputDevices();
-                for (auto* idi : eid.getDevicesForTargetTrack (*track))
-                {
-                    if (idi != nullptr)
-                        idi->setRecordingEnabled (track->itemID, newState);
-                }
-            });
-        };
-        addAndMakeVisible (armButton);
+                if (suppressControlCallbacks || track == nullptr)
+                    return;
 
-        // Input combo
-        inputCombo.setTooltip ("Input Device");
-        inputCombo.setTitle ("Input Device");
-        inputCombo.setDescription ("Select input device for recording");
-        inputCombo.setWantsKeyboardFocus (true);
-        inputCombo.addItem ("(No Input)", 1);
-        auto& dm = editSession.getEdit().engine.getDeviceManager();
-        auto waveInputs = dm.getWaveInputDevices();
-        for (size_t i = 0; i < waveInputs.size(); ++i)
-            inputCombo.addItem (waveInputs[i]->getName(), (int)i + 2);
-        inputCombo.setSelectedId (1, juce::dontSendNotification);
-        inputCombo.onChange = [this]
-        {
-            if (suppressControlCallbacks || track == nullptr)
-                return;
+                bool newState = armButton.getToggleState();
+                editSession.performEdit ("Toggle Arm", [this, newState] (te::Edit& edit)
+                {
+                    auto& eid = edit.getEditInputDevices();
+                    for (auto* idi : eid.getDevicesForTargetTrack (*track))
+                    {
+                        if (idi != nullptr)
+                            idi->setRecordingEnabled (track->itemID, newState);
+                    }
+                });
+            };
+            addAndMakeVisible (armButton);
+
+            // Input combo - only for audio tracks
+            inputCombo.setTooltip ("Input Device");
+            inputCombo.setTitle ("Input Device");
+            inputCombo.setDescription ("Select input device for recording");
+            inputCombo.setWantsKeyboardFocus (true);
+            inputCombo.addItem ("(No Input)", 1);
+            auto& dm = editSession.getEdit().engine.getDeviceManager();
+            auto waveInputs = dm.getWaveInputDevices();
+            for (size_t i = 0; i < waveInputs.size(); ++i)
+                inputCombo.addItem (waveInputs[i]->getName(), (int)i + 2);
+            inputCombo.setSelectedId (1, juce::dontSendNotification);
+            inputCombo.onChange = [this]
+            {
+                if (suppressControlCallbacks || track == nullptr)
+                    return;
 
             int selectedId = inputCombo.getSelectedId();
             editSession.performEdit ("Set Input Device", [this, selectedId] (te::Edit& edit)
@@ -219,7 +270,8 @@ void MixerChannelStrip::setupControls()
                 }
             });
         };
-        addAndMakeVisible (inputCombo);
+            addAndMakeVisible (inputCombo);
+        }
 
         panKnob.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
         panKnob.setRange (-1.0, 1.0, 0.01);
@@ -239,13 +291,22 @@ void MixerChannelStrip::setupControls()
             float pan = (float) panKnob.getValue();
             editSession.performEdit ("Set Pan", true, [this, pan] (te::Edit&)
             {
+                te::VolumeAndPanPlugin* vp = nullptr;
                 if (track != nullptr)
                 {
                     auto plugins = track->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
                     if (! plugins.isEmpty())
-                        plugins.getFirst()->panParam->setParameter ((pan + 1.0f) / 2.0f,
-                                                                    juce::sendNotification);
+                        vp = plugins.getFirst();
                 }
+                else if (folderTrack != nullptr)
+                {
+                    auto plugins = folderTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+                    if (! plugins.isEmpty())
+                        vp = plugins.getFirst();
+                }
+
+                if (vp != nullptr)
+                    vp->panParam->setParameter ((pan + 1.0f) / 2.0f, juce::sendNotification);
             });
         };
         panKnob.onDragEnd = [this] { editSession.endCoalescedTransaction(); };
@@ -267,12 +328,15 @@ void MixerChannelStrip::resized()
         muteButton.setBounds (buttonRow.removeFromLeft (waive::Spacing::toolbarRowHeight));
         bounds.removeFromTop (waive::Spacing::xxs);
 
-        // Arm + input row
-        auto armRow = bounds.removeFromTop (waive::Spacing::controlHeightMedium);
-        armButton.setBounds (armRow.removeFromLeft (waive::Spacing::controlHeightMedium));
-        armRow.removeFromLeft (waive::Spacing::xxs);
-        inputCombo.setBounds (armRow);
-        bounds.removeFromTop (waive::Spacing::xxs);
+        // Arm + input row (only for audio tracks, not folders)
+        if (stripType == StripType::Track)
+        {
+            auto armRow = bounds.removeFromTop (waive::Spacing::controlHeightMedium);
+            armButton.setBounds (armRow.removeFromLeft (waive::Spacing::controlHeightMedium));
+            armRow.removeFromLeft (waive::Spacing::xxs);
+            inputCombo.setBounds (armRow);
+            bounds.removeFromTop (waive::Spacing::xxs);
+        }
 
         panKnob.setBounds (bounds.removeFromTop (waive::Spacing::toolbarRowHeight).withSizeKeepingCentre (36, 36));
         bounds.removeFromTop (waive::Spacing::xxs);
@@ -296,8 +360,14 @@ void MixerChannelStrip::paint (juce::Graphics& g)
     auto bounds = getLocalBounds().toFloat();
     auto* pal = waive::getWaivePalette (*this);
 
-    // Background (master strip uses distinct background)
-    g.setColour (isMaster && pal ? pal->surfaceBgAlt : (pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a)));
+    // Background (master strip and folder strips use distinct backgrounds)
+    juce::Colour bgColour = pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a);
+    if (isMaster && pal)
+        bgColour = pal->surfaceBgAlt;
+    else if (stripType == StripType::Folder && pal)
+        bgColour = pal->folderTrackBg;
+
+    g.setColour (bgColour);
     g.fillRoundedRectangle (bounds, 3.0f);
 
     // Border
@@ -314,11 +384,15 @@ void MixerChannelStrip::paint (juce::Graphics& g)
     auto meterBounds = getLocalBounds().reduced (2);
     // Skip name + controls based on strip type
     constexpr int masterHeaderHeight = waive::Spacing::labelHeight + waive::Spacing::xxs + waive::Spacing::toolbarRowHeight;  // 58
+    constexpr int folderHeaderHeight = waive::Spacing::labelHeight + waive::Spacing::xxs
+                                     + waive::Spacing::controlHeightSmall + waive::Spacing::xxs
+                                     + waive::Spacing::toolbarRowHeight + waive::Spacing::xxs;  // folder: no arm/input
     constexpr int trackHeaderHeight = waive::Spacing::labelHeight + waive::Spacing::xxs
                                     + waive::Spacing::controlHeightSmall + waive::Spacing::xxs
                                     + waive::Spacing::controlHeightMedium + waive::Spacing::xxs
                                     + waive::Spacing::toolbarRowHeight + waive::Spacing::xxs;  // 104
-    meterBounds.removeFromTop (isMaster ? masterHeaderHeight : trackHeaderHeight);
+    int headerHeight = isMaster ? masterHeaderHeight : (stripType == StripType::Folder ? folderHeaderHeight : trackHeaderHeight);
+    meterBounds.removeFromTop (headerHeight);
     constexpr int meterWidth = 20;  // component-specific: 6px bars + scale + padding
     meterBounds = meterBounds.removeFromRight (meterWidth);
     lastMeterBounds = meterBounds;
@@ -398,38 +472,58 @@ void MixerChannelStrip::pollState()
         soloButton.setToggleState (track->isSolo (false), juce::dontSendNotification);
         muteButton.setToggleState (track->isMuted (false), juce::dontSendNotification);
 
-        // Update arm button and input combo state
-        auto& eid = editSession.getEdit().getEditInputDevices();
-        bool isArmed = false;
-        te::InputDevice* assignedDevice = nullptr;
-
-        for (auto* idi : eid.getDevicesForTargetTrack (*track))
+        // Update arm button and input combo state (audio tracks only)
+        if (stripType == StripType::Track)
         {
-            if (idi->isRecordingEnabled (track->itemID))
-                isArmed = true;
-            assignedDevice = &idi->getInputDevice();
-        }
+            auto& eid = editSession.getEdit().getEditInputDevices();
+            bool isArmed = false;
+            te::InputDevice* assignedDevice = nullptr;
 
-        armButton.setToggleState (isArmed, juce::dontSendNotification);
-
-        // Update input combo selection
-        if (assignedDevice != nullptr)
-        {
-            auto& deviceMgr = editSession.getEdit().engine.getDeviceManager();
-            auto inputs = deviceMgr.getWaveInputDevices();
-            for (size_t i = 0; i < inputs.size(); ++i)
+            for (auto* idi : eid.getDevicesForTargetTrack (*track))
             {
-                if (inputs[i] == assignedDevice)
+                if (idi->isRecordingEnabled (track->itemID))
+                    isArmed = true;
+                assignedDevice = &idi->getInputDevice();
+            }
+
+            armButton.setToggleState (isArmed, juce::dontSendNotification);
+
+            // Update input combo selection
+            if (assignedDevice != nullptr)
+            {
+                auto& deviceMgr = editSession.getEdit().engine.getDeviceManager();
+                auto inputs = deviceMgr.getWaveInputDevices();
+                for (size_t i = 0; i < inputs.size(); ++i)
                 {
-                    inputCombo.setSelectedId ((int)i + 2, juce::dontSendNotification);
-                    break;
+                    if (inputs[i] == assignedDevice)
+                    {
+                        inputCombo.setSelectedId ((int)i + 2, juce::dontSendNotification);
+                        break;
+                    }
                 }
             }
+            else
+            {
+                inputCombo.setSelectedId (1, juce::dontSendNotification);
+            }
         }
-        else
+    }
+    else if (folderTrack != nullptr)
+    {
+        nameLabel.setText (folderTrack->getName(), juce::dontSendNotification);
+
+        auto volPlugins = folderTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+        if (! volPlugins.isEmpty())
         {
-            inputCombo.setSelectedId (1, juce::dontSendNotification);
+            auto* vp = volPlugins.getFirst();
+            faderSlider.setValue (te::volumeFaderPositionToDB (vp->volParam->getCurrentValue()),
+                                  juce::dontSendNotification);
+            panKnob.setValue (vp->panParam->getCurrentValue() * 2.0f - 1.0f,
+                              juce::dontSendNotification);
         }
+
+        soloButton.setToggleState (folderTrack->isSolo (false), juce::dontSendNotification);
+        muteButton.setToggleState (folderTrack->isMuted (false), juce::dontSendNotification);
     }
     else if (masterEdit != nullptr)
     {

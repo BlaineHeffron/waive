@@ -79,9 +79,13 @@ private:
     juce::var handleReorderTrack (const juce::var& params);
     juce::var handleSavePluginPreset (const juce::var& params);
     juce::var handleLoadPluginPreset (const juce::var& params);
+    juce::var handleAddFolderTrack (const juce::var& params);
+    juce::var handleMoveTrackToFolder (const juce::var& params);
+    juce::var handleRemoveFromFolder (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
-    te::AudioTrack* getTrackById (int trackIndex);
+    te::Track* getTrackById (int trackIndex);
+    te::AudioTrack* getAudioTrackById (int trackIndex);
     te::Clip* getClipByIndex (int trackIndex, int clipIndex);
     juce::var makeError (const juce::String& message);
     juce::var makeOk();

@@ -93,8 +93,15 @@ juce::Array<int> MixerComponent::getHighlightedTrackIndicesForTesting() const
 
 void MixerComponent::timerCallback()
 {
-    auto tracks = te::getAudioTracks (editSession.getEdit());
-    if (tracks.size() != lastTrackCount)
+    // Count all audio + folder tracks
+    int trackCount = 0;
+    for (auto* track : editSession.getEdit().getTrackList())
+    {
+        if (dynamic_cast<te::AudioTrack*> (track) || dynamic_cast<te::FolderTrack*> (track))
+            ++trackCount;
+    }
+
+    if (trackCount != lastTrackCount)
         rebuildStrips();
 
     // Poll only visible strips
@@ -127,19 +134,28 @@ void MixerComponent::rebuildStrips()
     masterStrip.reset();
 
     auto& edit = editSession.getEdit();
-    auto tracks = te::getAudioTracks (edit);
 
-    for (auto* track : tracks)
+    // Iterate all tracks (including folders)
+    for (auto* track : edit.getTrackList())
     {
-        auto strip = std::make_unique<MixerChannelStrip> (*track, editSession);
-        stripContainer.addAndMakeVisible (strip.get());
-        strips.push_back (std::move (strip));
+        if (auto* audioTrack = dynamic_cast<te::AudioTrack*> (track))
+        {
+            auto strip = std::make_unique<MixerChannelStrip> (*audioTrack, editSession);
+            stripContainer.addAndMakeVisible (strip.get());
+            strips.push_back (std::move (strip));
+        }
+        else if (auto* folderTrack = dynamic_cast<te::FolderTrack*> (track))
+        {
+            auto strip = std::make_unique<MixerChannelStrip> (*folderTrack, editSession);
+            stripContainer.addAndMakeVisible (strip.get());
+            strips.push_back (std::move (strip));
+        }
     }
 
     masterStrip = std::make_unique<MixerChannelStrip> (edit, editSession);
     addAndMakeVisible (masterStrip.get());
 
-    lastTrackCount = tracks.size();
+    lastTrackCount = (int) strips.size();
     applyTrackHighlights();
     resized();
 }

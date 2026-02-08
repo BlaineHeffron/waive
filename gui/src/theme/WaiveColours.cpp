@@ -59,6 +59,7 @@ ColourPalette makeDarkPalette()
     p.meterWarning  = juce::Colours::yellow;
     p.meterClip     = juce::Colours::red;
     p.trimHandle    = juce::Colours::white.withAlpha (0.3f);
+    p.folderTrackBg = juce::Colour (0xff2f3540);
 
     // 12 distinct track colors (hue-distributed palette)
     p.trackColor1   = juce::Colour::fromHSV (0.00f, 0.6f, 0.7f, 1.0f);  // Red

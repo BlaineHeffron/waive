@@ -12,8 +12,13 @@ class EditSession;
 class MixerChannelStrip : public juce::Component
 {
 public:
+    enum class StripType { Track, Folder, Master };
+
     /** Track strip. */
     MixerChannelStrip (te::AudioTrack& track, EditSession& session);
+
+    /** Folder strip. */
+    MixerChannelStrip (te::FolderTrack& folderTrack, EditSession& session);
 
     /** Master strip. */
     MixerChannelStrip (te::Edit& edit, EditSession& session);
@@ -34,7 +39,9 @@ private:
     void setupControls();
 
     EditSession& editSession;
+    StripType stripType = StripType::Track;
     te::AudioTrack* track = nullptr;
+    te::FolderTrack* folderTrack = nullptr;
     te::Edit* masterEdit = nullptr;
 
     juce::Label nameLabel;

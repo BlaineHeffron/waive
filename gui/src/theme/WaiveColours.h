@@ -59,6 +59,7 @@ struct ColourPalette
     juce::Colour meterWarning;
     juce::Colour meterClip;
     juce::Colour trimHandle;
+    juce::Colour folderTrackBg;
 
     // Track colors (12-color palette)
     juce::Colour trackColor1;
