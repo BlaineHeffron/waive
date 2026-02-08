@@ -22,6 +22,7 @@ public:
     void mouseMove (const juce::MouseEvent& e) override;
     void mouseEnter (const juce::MouseEvent& e) override;
     void mouseExit (const juce::MouseEvent& e) override;
+    void mouseDoubleClick (const juce::MouseEvent& e) override;
 
     void updatePosition();
     void updateTrackIndex();

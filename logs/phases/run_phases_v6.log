@@ -1,0 +1,13 @@
+[14:35:01] Starting from phase 1 of 8
+[14:35:01] Config: STALE_MINUTES=8 PHASE_TIMEOUT=45m POLL_INTERVAL=30s
+
+[14:35:01] ═══════════════════════════════════════════════════════════════
+[14:35:01]   PHASE 1: phase_01_docs_ci_shortcuts.md
+[14:35:01]   Timeout: 45m | Stale kill: 8m
+[14:35:01] ═══════════════════════════════════════════════════════════════
+✓ Preflight checks passed
+Started binary-vortex-41
+Monitor: zeroshot logs binary-vortex-41 -f
+Attach:  zeroshot attach binary-vortex-41
+[14:35:01] Cluster started: binary-vortex-41
+[14:35:01] Logs: zeroshot logs binary-vortex-41 -f

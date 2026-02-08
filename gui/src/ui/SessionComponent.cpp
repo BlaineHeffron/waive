@@ -6,6 +6,7 @@
 #include "MixerComponent.h"
 #include "ToolSidebarComponent.h"
 #include "ChatPanelComponent.h"
+#include "PianoRollComponent.h"
 #include "ToolDiff.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
@@ -368,6 +369,11 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
         addChildComponent (chatResizerBar.get());
     }
 
+    // Piano roll panel (created on demand)
+    closePianoRollButton.onClick = [this] { closePianoRoll(); };
+    closePianoRollButton.setTooltip ("Close Piano Roll");
+    addChildComponent (closePianoRollButton);
+
     startTimerHz (10);
 }
 
@@ -508,14 +514,64 @@ void SessionComponent::resized()
             sidebarResizer->setVisible (false);
     }
 
-    // Layout: timeline + resizer + [chat + resizer +] mixer (vertical)
-    if (chatPanel != nullptr && chatPanelVisible)
+    // Layout: timeline + resizer + [piano roll + resizer +] [chat + resizer +] mixer (vertical)
+    if (pianoRollPanel != nullptr && pianoRollVisible && chatPanel != nullptr && chatPanelVisible)
+    {
+        // 7-component layout: timeline | resizer | pianoRoll | resizer2 | chat | resizer3 | mixer
+        layoutManager.setItemLayout (0, 100, -1.0, -0.40);    // timeline
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (2, 200, 600, 300);        // piano roll
+        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (4, 60, 300, 150);         // chat panel
+        layoutManager.setItemLayout (5, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (6, 80, 300, 160);         // mixer
+
+        pianoRollPanel->setVisible (true);
+        pianoRollResizerBar->setVisible (true);
+        chatPanel->setVisible (true);
+        chatResizerBar->setVisible (true);
+
+        juce::Component* comps[] = { timeline.get(), resizerBar.get(),
+                                     pianoRollPanel.get(), pianoRollResizerBar.get(),
+                                     chatPanel.get(), chatResizerBar.get(), mixer.get() };
+        layoutManager.layOutComponents (comps, 7, contentBounds.getX(), contentBounds.getY(),
+                                        contentBounds.getWidth(), contentBounds.getHeight(), true, true);
+
+        // Position close button at top-right of piano roll
+        closePianoRollButton.setBounds (pianoRollPanel->getRight() - 26, pianoRollPanel->getY() + 4, 22, 22);
+    }
+    else if (pianoRollPanel != nullptr && pianoRollVisible)
+    {
+        // 5-component layout: timeline | resizer | pianoRoll | resizer2 | mixer
+        layoutManager.setItemLayout (0, 100, -1.0, -0.50);    // timeline
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (2, 200, 600, 300);        // piano roll
+        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
+
+        pianoRollPanel->setVisible (true);
+        pianoRollResizerBar->setVisible (true);
+
+        if (chatPanel)
+            chatPanel->setVisible (false);
+        if (chatResizerBar)
+            chatResizerBar->setVisible (false);
+
+        juce::Component* comps[] = { timeline.get(), resizerBar.get(),
+                                     pianoRollPanel.get(), pianoRollResizerBar.get(), mixer.get() };
+        layoutManager.layOutComponents (comps, 5, contentBounds.getX(), contentBounds.getY(),
+                                        contentBounds.getWidth(), contentBounds.getHeight(), true, true);
+
+        // Position close button at top-right of piano roll
+        closePianoRollButton.setBounds (pianoRollPanel->getRight() - 26, pianoRollPanel->getY() + 4, 22, 22);
+    }
+    else if (chatPanel != nullptr && chatPanelVisible)
     {
         // 5-component layout: timeline | resizer | chat | resizer2 | mixer
         layoutManager.setItemLayout (0, 100, -1.0, -0.55);    // timeline
-        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);              // resizer
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
         layoutManager.setItemLayout (2, 60, 300, 150);         // chat panel
-        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);              // resizer2
+        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
         layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
 
         chatPanel->setVisible (true);
@@ -563,6 +619,28 @@ void SessionComponent::toggleToolSidebar()
 void SessionComponent::toggleChatPanel()
 {
     chatPanelVisible = ! chatPanelVisible;
+    resized();
+}
+
+void SessionComponent::openPianoRoll (te::MidiClip& clip)
+{
+    pianoRollPanel = std::make_unique<PianoRollComponent> (clip, editSession);
+    addAndMakeVisible (pianoRollPanel.get());
+
+    pianoRollResizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager, 3, false);
+    addAndMakeVisible (pianoRollResizerBar.get());
+
+    closePianoRollButton.setVisible (true);
+    pianoRollVisible = true;
+    resized();
+}
+
+void SessionComponent::closePianoRoll()
+{
+    pianoRollPanel.reset();
+    pianoRollResizerBar.reset();
+    closePianoRollButton.setVisible (false);
+    pianoRollVisible = false;
     resized();
 }
 

@@ -1,6 +1,7 @@
 #include "ClipComponent.h"
 #include "TimelineComponent.h"
 #include "TrackLaneComponent.h"
+#include "SessionComponent.h"
 #include "EditSession.h"
 #include "SelectionManager.h"
 #include "WaiveFonts.h"
@@ -341,6 +342,16 @@ bool ClipComponent::isFadeInZone (int x, int y) const
 bool ClipComponent::isFadeOutZone (int x, int y) const
 {
     return x > getWidth() - fadeZoneSize && y < fadeZoneSize;
+}
+
+void ClipComponent::mouseDoubleClick (const juce::MouseEvent&)
+{
+    // Open piano roll for MIDI clips
+    if (auto* midiClip = dynamic_cast<te::MidiClip*> (&clip))
+    {
+        if (auto* session = findParentComponentOfClass<SessionComponent>())
+            session->openPianoRoll (*midiClip);
+    }
 }
 
 void ClipComponent::showContextMenu()

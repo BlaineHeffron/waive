@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 # =============================================================================
 # run_phases.sh — Sequentially run zeroshot phases
@@ -24,28 +24,16 @@ STALE_MINUTES="${STALE_MINUTES:-8}"      # stop after N minutes of no file chang
 PHASE_TIMEOUT="${PHASE_TIMEOUT:-45}"     # hard timeout per phase in minutes
 POLL_INTERVAL="${POLL_INTERVAL:-30}"     # seconds between status checks
 
-# Ordered phase files (v5+v10 — full DAW, AI tools, automation, markers, tests, benchmarks, fix loop)
+# Ordered phase files (v6 — docs, export, MIDI piano roll, presets, grouping, packaging, fix loop)
 PHASE_FILES=(
-    "phase_01_chat_history_persistence.md"
-    "phase_02_recording_improvements.md"
-    "phase_03_external_tool_runner.md"
-    "phase_04_python_tools.md"
-    "phase_05_ai_tool_execution.md"
-    "phase_06_ui_screenshot_review.md"
-    "phase_07_clip_editing_commands.md"
-    "phase_08_track_and_transport_commands.md"
-    "phase_09_export_and_plugin_management.md"
-    "phase_10_dynamic_tool_discovery.md"
-    "phase_11_ai_audio_analysis_tools.md"
-    "phase_12_ai_audio_processing_tools.md"
-    "phase_13_ui_spacing_standardization.md"
-    "phase_14_screenshot_driven_ui_polish.md"
-    "phase_15_automation_and_fade_commands.md"
-    "phase_16_undo_markers_session_commands.md"
-    "phase_17_test_infrastructure_stability.md"
-    "phase_18_audio_tool_validation_benchmarks.md"
-    "phase_19_cpp_tool_validation_benchmarks.md"
-    "phase_20_test_iteration_fix_loop.md"
+    "phase_01_docs_ci_shortcuts.md"
+    "phase_02_render_dialog.md"
+    "phase_03_midi_piano_roll.md"
+    "phase_04_midi_piano_roll_polish.md"
+    "phase_05_plugin_presets.md"
+    "phase_06_track_grouping_vca.md"
+    "phase_07_project_packaging.md"
+    "phase_08_test_iteration_fix_loop.md"
 )
 
 mkdir -p "$PHASE_LOG_DIR"
@@ -96,8 +84,14 @@ save_phase() {
 
 # Snapshot of tracked-file modification times (md5 of stat output)
 file_fingerprint() {
-    git ls-files -m --others --exclude-standard 2>/dev/null \
-        | head -200 \
+    # Avoid SIGPIPE: collect file list first, then pipe to stat+md5sum
+    local files
+    files=$(git ls-files -m --others --exclude-standard 2>/dev/null | head -200) || true
+    if [[ -z "$files" ]]; then
+        echo "empty"
+        return 0
+    fi
+    echo "$files" \
         | xargs -r stat --format='%n %Y' 2>/dev/null \
         | md5sum \
         | awk '{print $1}'
@@ -130,15 +124,18 @@ run_phase() {
 
     # Launch zeroshot in detached mode and capture cluster ID
     local run_output
-    run_output=$(zeroshot run "$phase_path" -d 2>&1)
-    echo "$run_output"
+    run_output=$(zeroshot run "$phase_path" -d 2>&1) || true
+    # Strip ANSI escape codes for reliable parsing
+    local clean_output
+    clean_output=$(echo "$run_output" | sed 's/\x1b\[[0-9;]*m//g')
+    echo "$clean_output"
 
     local cluster_id
-    cluster_id=$(echo "$run_output" | grep -oP '^Started \K\S+') || true
+    cluster_id=$(echo "$clean_output" | grep -oP 'Started \K\S+') || true
 
     if [[ -z "$cluster_id" ]]; then
         log "ERROR: Could not extract cluster ID from zeroshot output:"
-        log "$run_output"
+        log "$clean_output"
         return 1
     fi
 
@@ -146,7 +143,9 @@ run_phase() {
     log "Logs: zeroshot logs $cluster_id -f"
     echo "$cluster_id" > "$PHASE_LOG_DIR/phase_$(printf '%02d' "$phase_num").cluster_id"
 
-    # Stream logs to file in background
+    # Wait for cluster to register before streaming logs
+    sleep 3
+    # Stream logs to file in background (non-fatal if it fails)
     zeroshot logs "$cluster_id" -f > "$logfile" 2>&1 &
     local logs_pid=$!
 
@@ -226,17 +225,13 @@ validate_phase() {
     jobs=$(safe_jobs)
     log "Building with -j$jobs (cores: $(nproc), max: $MAX_BUILD_JOBS)"
 
-    if cmake --build build --target Waive -j"$jobs" 2>&1 | tail -5; then
-        log "Build: PASSED"
-    else
-        log "Build: FAILED (continuing anyway — next phase may fix it)"
-    fi
+    local build_log
+    build_log=$(cmake --build build --target Waive -j"$jobs" 2>&1) && log "Build: PASSED" || log "Build: FAILED (continuing anyway — next phase may fix it)"
+    echo "$build_log" | tail -5
 
-    if ctest --test-dir build --output-on-failure 2>&1 | tail -20; then
-        log "Tests: PASSED"
-    else
-        log "Tests: SOME FAILURES (continuing)"
-    fi
+    local test_log
+    test_log=$(ctest --test-dir build --output-on-failure 2>&1) && log "Tests: PASSED" || log "Tests: SOME FAILURES (continuing)"
+    echo "$test_log" | tail -20
 }
 
 commit_phase() {
@@ -274,7 +269,9 @@ main() {
 
     for (( i = start_phase; i <= total; i++ )); do
         save_phase "$i"
-        run_phase "$i"
+        if ! run_phase "$i"; then
+            log "WARNING: run_phase $i returned non-zero, continuing to validate..."
+        fi
         validate_phase "$i"
         commit_phase "$i"
 

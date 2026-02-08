@@ -9,6 +9,9 @@ class UndoableCommandHandler;
 class MixerComponent;
 class ToolSidebarComponent;
 class ProjectManager;
+class PianoRollComponent;
+
+namespace te = tracktion;
 
 namespace waive { class ToolRegistry; class ModelManager; class JobQueue;
                   class AiAgent; class AiSettings; class ChatPanelComponent; }
@@ -36,6 +39,8 @@ public:
 
     void toggleToolSidebar();
     void toggleChatPanel();
+    void openPianoRoll (te::MidiClip& clip);
+    void closePianoRoll();
     waive::ChatPanelComponent* getChatPanelForTesting();
     MixerComponent& getMixerForTesting();
     void play();
@@ -116,6 +121,12 @@ private:
     std::unique_ptr<waive::ChatPanelComponent> chatPanel;
     std::unique_ptr<juce::StretchableLayoutResizerBar> chatResizerBar;
     bool chatPanelVisible = false;
+
+    // Piano roll panel
+    std::unique_ptr<PianoRollComponent> pianoRollPanel;
+    std::unique_ptr<juce::StretchableLayoutResizerBar> pianoRollResizerBar;
+    bool pianoRollVisible = false;
+    juce::TextButton closePianoRollButton { "X" };
 
     // Cache for change detection in timerCallback
     double lastTempo = -1.0;

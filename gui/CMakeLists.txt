@@ -34,6 +34,8 @@ target_sources(Waive PRIVATE
     src/ui/SchemaFormComponent.cpp
     src/ui/ToolSidebarComponent.h
     src/ui/ToolSidebarComponent.cpp
+    src/ui/RenderDialog.h
+    src/ui/RenderDialog.cpp
     src/ui/TimelineComponent.h
     src/ui/TimelineComponent.cpp
     src/ui/TrackLaneComponent.h
@@ -52,6 +54,8 @@ target_sources(Waive PRIVATE
     src/ui/MixerComponent.cpp
     src/ui/MixerChannelStrip.h
     src/ui/MixerChannelStrip.cpp
+    src/ui/PianoRollComponent.h
+    src/ui/PianoRollComponent.cpp
 
     # Edit layer
     src/edit/EditSession.h

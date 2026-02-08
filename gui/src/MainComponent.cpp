@@ -10,6 +10,7 @@
 #include "ToolSidebarComponent.h"
 #include "ConsoleComponent.h"
 #include "ToolLogComponent.h"
+#include "RenderDialog.h"
 #include "AutoSaveManager.h"
 #include "JobQueue.h"
 #include "ModelManager.h"
@@ -517,22 +518,15 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         }
         case cmdRender:
         {
-            juce::FileChooser chooser ("Render to...", juce::File(), "*.wav");
-            if (chooser.browseForFileToSave (true))
-            {
-                auto outputFile = chooser.getResult();
-                auto& edit = editSession.getEdit();
-
-                bool success = te::Renderer::renderToFile (edit, outputFile, true);
-
-                if (! success)
-                {
-                    juce::AlertWindow::showMessageBoxAsync (
-                        juce::AlertWindow::WarningIcon,
-                        "Render Failed",
-                        "Failed to render edit to file");
-                }
-            }
+            auto* renderDialog = new RenderDialog (editSession, commandHandler);
+            juce::DialogWindow::LaunchOptions opts;
+            opts.content.setOwned (renderDialog);
+            opts.dialogTitle = "Render Audio";
+            opts.dialogBackgroundColour = juce::Colours::darkgrey;
+            opts.escapeKeyTriggersCloseButton = true;
+            opts.useNativeTitleBar = true;
+            opts.resizable = false;
+            opts.runModal();
             return true;
         }
         case cmdShowShortcuts:
