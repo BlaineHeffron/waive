@@ -62,6 +62,7 @@ public:
         cmdDeleteTrack = 0x2013,
         cmdToggleToolSidebar = 0x2020,
         cmdToggleChatPanel = 0x2021,
+        cmdShowShortcuts = 0x2022,
         cmdPlay    = 0x2030,
         cmdStop    = 0x2031,
         cmdRecord  = 0x2032,

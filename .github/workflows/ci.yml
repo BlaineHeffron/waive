@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: build
-          key: build-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', 'gui/CMakeLists.txt', 'tests/CMakeLists.txt') }}
+          key: build-${{ runner.os }}-${{ hashFiles('CMakeLists.txt', '**/CMakeLists.txt') }}
           restore-keys: |
             build-${{ runner.os }}-
 
@@ -69,7 +69,6 @@ jobs:
   python-tests:
     runs-on: ubuntu-22.04
     timeout-minutes: 10
-    continue-on-error: true
 
     steps:
       - uses: actions/checkout@v4
@@ -89,7 +88,7 @@ jobs:
           fi
 
       - name: Install audio tool test dependencies
-        if: hashFiles('tools/tests/requirements.txt') != ''
+        if: ${{ hashFiles('tools/tests/requirements.txt') != '' }}
         run: |
           pip install -r tools/tests/requirements.txt
           # Install each tool's own requirements (numpy, soundfile, etc.)
@@ -108,6 +107,6 @@ jobs:
           fi
 
       - name: Run audio tool tests
-        if: hashFiles('tools/tests/requirements.txt') != ''
+        if: ${{ hashFiles('tools/tests/requirements.txt') != '' }}
         run: |
           python3 -m pytest tools/tests/ -v --tb=short -x

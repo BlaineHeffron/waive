@@ -103,7 +103,7 @@ void MainComponent::resized()
 
 juce::StringArray MainComponent::getMenuBarNames()
 {
-    return { "File", "Edit", "Transport", "View" };
+    return { "File", "Edit", "Transport", "View", "Help" };
 }
 
 juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::String&)
@@ -163,6 +163,10 @@ juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::Strin
         menu.addCommandItem (&commandManager, cmdToggleToolSidebar);
         menu.addCommandItem (&commandManager, cmdToggleChatPanel);
     }
+    else if (menuIndex == 4) // Help
+    {
+        menu.addCommandItem (&commandManager, cmdShowShortcuts);
+    }
 
     return menu;
 }
@@ -213,6 +217,7 @@ void MainComponent::getAllCommands (juce::Array<juce::CommandID>& commands)
     commands.add (cmdDeleteTrack);
     commands.add (cmdToggleToolSidebar);
     commands.add (cmdToggleChatPanel);
+    commands.add (cmdShowShortcuts);
     commands.add (cmdPlay);
     commands.add (cmdStop);
     commands.add (cmdRecord);
@@ -275,7 +280,7 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
             break;
         case cmdSplit:
             result.setInfo ("Split at Playhead", "Split selected clips at playhead", "Edit", 0);
-            result.addDefaultKeypress ('s', juce::ModifierKeys::commandModifier);
+            result.addDefaultKeypress ('e', juce::ModifierKeys::commandModifier);
             result.setActive (sessionComponent->getTimeline().getSelectionManager().getSelectedClips().size() > 0);
             break;
         case cmdDeleteTrack:
@@ -290,6 +295,10 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
             result.setInfo ("AI Chat", "Show or hide the AI chat panel", "View", 0);
             result.addDefaultKeypress ('c', juce::ModifierKeys::commandModifier
                                                 | juce::ModifierKeys::shiftModifier);
+            break;
+        case cmdShowShortcuts:
+            result.setInfo ("Keyboard Shortcuts...", "Show keyboard shortcuts reference", "Help", 0);
+            result.addDefaultKeypress ('/', juce::ModifierKeys::commandModifier);
             break;
         case cmdPlay:
             result.setInfo ("Play", "Start or stop playback", "Transport", 0);
@@ -524,6 +533,38 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                         "Failed to render edit to file");
                 }
             }
+            return true;
+        }
+        case cmdShowShortcuts:
+        {
+            juce::String shortcutsText;
+            shortcutsText << "KEYBOARD SHORTCUTS\n\n";
+            shortcutsText << "File:\n";
+            shortcutsText << "  New                 Cmd+N\n";
+            shortcutsText << "  Open                Cmd+O\n";
+            shortcutsText << "  Save                Cmd+S\n";
+            shortcutsText << "  Save As             Cmd+Shift+S\n\n";
+            shortcutsText << "Edit:\n";
+            shortcutsText << "  Undo                Cmd+Z\n";
+            shortcutsText << "  Redo                Cmd+Shift+Z\n";
+            shortcutsText << "  Delete              Delete\n";
+            shortcutsText << "  Duplicate           Cmd+D\n";
+            shortcutsText << "  Split at Playhead   Cmd+E\n";
+            shortcutsText << "  Delete Track        Cmd+Backspace\n\n";
+            shortcutsText << "Transport:\n";
+            shortcutsText << "  Play/Stop           Space\n";
+            shortcutsText << "  Record              R\n";
+            shortcutsText << "  Go to Start         Home\n\n";
+            shortcutsText << "View:\n";
+            shortcutsText << "  Toggle Tool Sidebar Cmd+T\n";
+            shortcutsText << "  AI Chat             Cmd+Shift+C\n\n";
+            shortcutsText << "Help:\n";
+            shortcutsText << "  Keyboard Shortcuts  Cmd+/\n";
+
+            juce::AlertWindow::showMessageBoxAsync (
+                juce::AlertWindow::InfoIcon,
+                "Keyboard Shortcuts",
+                shortcutsText);
             return true;
         }
         default:
