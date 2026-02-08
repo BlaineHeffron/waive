@@ -82,6 +82,8 @@ private:
     juce::var handleAddFolderTrack (const juce::var& params);
     juce::var handleMoveTrackToFolder (const juce::var& params);
     juce::var handleRemoveFromFolder (const juce::var& params);
+    juce::var handleCollectAndSave();
+    juce::var handleRemoveUnusedMedia();
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::Track* getTrackById (int trackIndex);

@@ -18,6 +18,7 @@
 #include "AiAgent.h"
 #include "AiSettings.h"
 #include "WaiveSpacing.h"
+#include "ProjectPackager.h"
 
 //==============================================================================
 MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& session,
@@ -139,6 +140,10 @@ juce::PopupMenu MainComponent::getMenuForIndex (int menuIndex, const juce::Strin
         menu.addCommandItem (&commandManager, cmdAudioSettings);
         menu.addCommandItem (&commandManager, cmdRender);
         menu.addSeparator();
+        menu.addCommandItem (&commandManager, cmdCollectAndSave);
+        menu.addCommandItem (&commandManager, cmdRemoveUnusedMedia);
+        menu.addCommandItem (&commandManager, cmdPackageAsZip);
+        menu.addSeparator();
         menu.addItem (9999, "Quit");
     }
     else if (menuIndex == 1) // Edit
@@ -225,6 +230,9 @@ void MainComponent::getAllCommands (juce::Array<juce::CommandID>& commands)
     commands.add (cmdGoToStart);
     commands.add (cmdAudioSettings);
     commands.add (cmdRender);
+    commands.add (cmdCollectAndSave);
+    commands.add (cmdRemoveUnusedMedia);
+    commands.add (cmdPackageAsZip);
 }
 
 void MainComponent::getCommandInfo (juce::CommandID commandID, juce::ApplicationCommandInfo& result)
@@ -321,6 +329,15 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
             break;
         case cmdRender:
             result.setInfo ("Render...", "Render project to audio file", "File", 0);
+            break;
+        case cmdCollectAndSave:
+            result.setInfo ("Collect and Save...", "Copy external media into project folder", "File", 0);
+            break;
+        case cmdRemoveUnusedMedia:
+            result.setInfo ("Remove Unused Media...", "Remove orphaned audio files", "File", 0);
+            break;
+        case cmdPackageAsZip:
+            result.setInfo ("Package as Zip...", "Create portable zip archive", "File", 0);
             break;
         default:
             break;
@@ -527,6 +544,139 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             opts.useNativeTitleBar = true;
             opts.resizable = false;
             opts.runModal();
+            return true;
+        }
+        case cmdCollectAndSave:
+        {
+            auto currentFile = projectManager.getCurrentFile();
+            if (currentFile == juce::File())
+            {
+                juce::AlertWindow::showMessageBoxAsync (
+                    juce::AlertWindow::WarningIcon,
+                    "No Project",
+                    "Please save the project first before collecting media.");
+                return true;
+            }
+
+            auto projectDir = currentFile.getParentDirectory();
+            auto& edit = editSession.getEdit();
+            auto result = waive::ProjectPackager::collectAndSave (edit, projectDir);
+
+            juce::String message;
+            if (result.filesCopied > 0)
+            {
+                message << "Collected " << result.filesCopied << " file(s)\n";
+                message << "Total: " << juce::File::descriptionOfSizeInBytes (result.bytesCopied);
+            }
+            else
+            {
+                message << "No external media found.";
+            }
+
+            if (result.errors.size() > 0)
+            {
+                message << "\n\nErrors:\n" << result.errors.joinIntoString ("\n");
+            }
+
+            juce::AlertWindow::showMessageBoxAsync (
+                result.errors.isEmpty() ? juce::AlertWindow::InfoIcon : juce::AlertWindow::WarningIcon,
+                "Collect and Save",
+                message);
+            return true;
+        }
+        case cmdRemoveUnusedMedia:
+        {
+            auto currentFile = projectManager.getCurrentFile();
+            if (currentFile == juce::File())
+            {
+                juce::AlertWindow::showMessageBoxAsync (
+                    juce::AlertWindow::WarningIcon,
+                    "No Project",
+                    "Please save the project first.");
+                return true;
+            }
+
+            auto projectDir = currentFile.getParentDirectory();
+            auto& edit = editSession.getEdit();
+            auto unusedFiles = waive::ProjectPackager::findUnusedMedia (edit, projectDir);
+
+            if (unusedFiles.isEmpty())
+            {
+                juce::AlertWindow::showMessageBoxAsync (
+                    juce::AlertWindow::InfoIcon,
+                    "Remove Unused Media",
+                    "No unused media files found.");
+                return true;
+            }
+
+            juce::String message;
+            message << "Found " << unusedFiles.size() << " unused file(s):\n\n";
+            for (const auto& file : unusedFiles)
+                message << "  " << file.getFileName() << "\n";
+            message << "\nFiles will be moved to .trash folder.\nRemove these files?";
+
+            bool shouldRemove = juce::AlertWindow::showOkCancelBox (
+                juce::MessageBoxIconType::QuestionIcon,
+                "Remove Unused Media",
+                message,
+                "Remove", "Cancel");
+
+            if (shouldRemove)
+            {
+                int removed = waive::ProjectPackager::removeUnusedMedia (edit, projectDir);
+                juce::AlertWindow::showMessageBoxAsync (
+                    juce::AlertWindow::InfoIcon,
+                    "Remove Unused Media",
+                    "Removed " + juce::String (removed) + " file(s) to .trash folder.");
+            }
+            return true;
+        }
+        case cmdPackageAsZip:
+        {
+            auto currentFile = projectManager.getCurrentFile();
+            if (currentFile == juce::File())
+            {
+                juce::AlertWindow::showMessageBoxAsync (
+                    juce::AlertWindow::WarningIcon,
+                    "No Project",
+                    "Please save the project first before packaging.");
+                return true;
+            }
+
+            juce::FileChooser chooser ("Package as Zip...",
+                                        currentFile.getParentDirectory(),
+                                        "*.zip");
+            if (chooser.browseForFileToSave (true))
+            {
+                auto outputZip = chooser.getResult();
+                auto projectDir = currentFile.getParentDirectory();
+                auto& edit = editSession.getEdit();
+
+                // First collect external media
+                auto collectResult = waive::ProjectPackager::collectAndSave (edit, projectDir);
+
+                // Then create zip
+                bool success = waive::ProjectPackager::packageAsZip (projectDir, outputZip);
+
+                juce::String message;
+                if (success)
+                {
+                    message << "Successfully packaged project to:\n" << outputZip.getFullPathName();
+                    if (collectResult.filesCopied > 0)
+                    {
+                        message << "\n\nCollected " << collectResult.filesCopied << " external file(s).";
+                    }
+                }
+                else
+                {
+                    message << "Failed to create zip archive.";
+                }
+
+                juce::AlertWindow::showMessageBoxAsync (
+                    success ? juce::AlertWindow::InfoIcon : juce::AlertWindow::WarningIcon,
+                    "Package as Zip",
+                    message);
+            }
             return true;
         }
         case cmdShowShortcuts:

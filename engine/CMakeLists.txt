@@ -13,6 +13,17 @@ target_sources(WaiveEngine PRIVATE
     src/CommandServer.cpp
     src/CommandHandler.h
     src/CommandHandler.cpp
+    ../gui/src/util/ProjectPackager.h
+    ../gui/src/util/ProjectPackager.cpp
+    ../gui/src/util/PathSanitizer.h
+    ../gui/src/util/PathSanitizer.cpp
+    ../gui/src/tools/PluginPresetManager.h
+    ../gui/src/tools/PluginPresetManager.cpp
+)
+
+target_include_directories(WaiveEngine PRIVATE
+    ../gui/src/util
+    ../gui/src/tools
 )
 
 target_compile_features(WaiveEngine PRIVATE cxx_std_20)

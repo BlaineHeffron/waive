@@ -68,7 +68,10 @@ public:
         cmdRecord  = 0x2032,
         cmdGoToStart = 0x2033,
         cmdAudioSettings = 0x2040,
-        cmdRender  = 0x2041
+        cmdRender  = 0x2041,
+        cmdCollectAndSave = 0x2042,
+        cmdRemoveUnusedMedia = 0x2043,
+        cmdPackageAsZip = 0x2044
     };
 
 private:

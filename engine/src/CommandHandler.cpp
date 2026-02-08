@@ -1,5 +1,6 @@
 #include "CommandHandler.h"
 #include "../../gui/src/tools/PluginPresetManager.h"
+#include "../../gui/src/util/ProjectPackager.h"
 
 CommandHandler::CommandHandler (te::Edit& e)
     : edit (e),
@@ -87,6 +88,8 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "add_folder_track")         result = handleAddFolderTrack (parsed);
     else if (action == "move_track_to_folder")     result = handleMoveTrackToFolder (parsed);
     else if (action == "remove_from_folder")       result = handleRemoveFromFolder (parsed);
+    else if (action == "collect_and_save")         result = handleCollectAndSave();
+    else if (action == "remove_unused_media")      result = handleRemoveUnusedMedia();
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -2064,6 +2067,60 @@ juce::var CommandHandler::handleRemoveFromFolder (const juce::var& params)
     if (auto* obj = result.getDynamicObject())
         obj->setProperty ("track_index", trackIndex);
     return result;
+}
+
+juce::var CommandHandler::handleCollectAndSave()
+{
+    auto editFile = edit.editFileRetriever();
+    if (editFile == juce::File())
+        return makeError ("Edit file not saved - cannot determine project directory");
+
+    auto projectDir = editFile.getParentDirectory();
+    auto result = waive::ProjectPackager::collectAndSave (edit, projectDir);
+
+    int64 bytesFree = 0;
+    for (const auto& file : waive::ProjectPackager::findUnusedMedia (edit, projectDir))
+        bytesFree += file.getSize();
+
+    auto response = makeOk();
+    if (auto* obj = response.getDynamicObject())
+    {
+        obj->setProperty ("files_copied", result.filesCopied);
+        obj->setProperty ("bytes_copied", result.bytesCopied);
+
+        if (!result.errors.isEmpty())
+        {
+            juce::Array<juce::var> errorArray;
+            for (const auto& err : result.errors)
+                errorArray.add (err);
+            obj->setProperty ("errors", errorArray);
+        }
+    }
+    return response;
+}
+
+juce::var CommandHandler::handleRemoveUnusedMedia()
+{
+    auto editFile = edit.editFileRetriever();
+    if (editFile == juce::File())
+        return makeError ("Edit file not saved - cannot determine project directory");
+
+    auto projectDir = editFile.getParentDirectory();
+
+    // Calculate bytes before removal
+    int64 bytesFree = 0;
+    for (const auto& file : waive::ProjectPackager::findUnusedMedia (edit, projectDir))
+        bytesFree += file.getSize();
+
+    int filesRemoved = waive::ProjectPackager::removeUnusedMedia (edit, projectDir);
+
+    auto response = makeOk();
+    if (auto* obj = response.getDynamicObject())
+    {
+        obj->setProperty ("files_removed", filesRemoved);
+        obj->setProperty ("bytes_freed", bytesFree);
+    }
+    return response;
 }
 
 juce::var CommandHandler::makeError (const juce::String& message)

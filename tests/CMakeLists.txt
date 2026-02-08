@@ -72,6 +72,10 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/MainComponent.cpp
     ../gui/src/ui/SessionComponent.h
     ../gui/src/ui/SessionComponent.cpp
+    ../gui/src/ui/RenderDialog.h
+    ../gui/src/ui/RenderDialog.cpp
+    ../gui/src/ui/PianoRollComponent.h
+    ../gui/src/ui/PianoRollComponent.cpp
     ../gui/src/ui/ConsoleComponent.h
     ../gui/src/ui/ConsoleComponent.cpp
     ../gui/src/ui/ToolLogComponent.h
@@ -80,6 +84,8 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/ui/LibraryComponent.cpp
     ../gui/src/ui/PluginBrowserComponent.h
     ../gui/src/ui/PluginBrowserComponent.cpp
+    ../gui/src/ui/PluginPresetBrowser.h
+    ../gui/src/ui/PluginPresetBrowser.cpp
     ../gui/src/ui/SchemaFormComponent.h
     ../gui/src/ui/SchemaFormComponent.cpp
     ../gui/src/ui/ToolSidebarComponent.h
@@ -157,10 +163,14 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/tools/StemSeparationTool.cpp
     ../gui/src/tools/AutoMixSuggestionsTool.h
     ../gui/src/tools/AutoMixSuggestionsTool.cpp
+    ../gui/src/tools/PluginPresetManager.h
+    ../gui/src/tools/PluginPresetManager.cpp
     ../gui/src/util/CommandHelpers.h
     ../gui/src/util/CommandHelpers.cpp
     ../gui/src/util/PathSanitizer.h
     ../gui/src/util/PathSanitizer.cpp
+    ../gui/src/util/ProjectPackager.h
+    ../gui/src/util/ProjectPackager.cpp
 
     ../engine/src/CommandHandler.h
     ../engine/src/CommandHandler.cpp
@@ -260,6 +270,10 @@ target_sources(WaiveToolTests PRIVATE
     # UI dependencies for tool context
     ../gui/src/ui/SessionComponent.h
     ../gui/src/ui/SessionComponent.cpp
+    ../gui/src/ui/RenderDialog.h
+    ../gui/src/ui/RenderDialog.cpp
+    ../gui/src/ui/PianoRollComponent.h
+    ../gui/src/ui/PianoRollComponent.cpp
     ../gui/src/ui/SelectionManager.h
     ../gui/src/ui/SelectionManager.cpp
     ../gui/src/ui/TimelineComponent.h
@@ -302,6 +316,12 @@ target_sources(WaiveToolTests PRIVATE
     ../gui/src/ui/LibraryComponent.cpp
     ../gui/src/ui/PluginBrowserComponent.h
     ../gui/src/ui/PluginBrowserComponent.cpp
+    ../gui/src/ui/PluginPresetBrowser.h
+    ../gui/src/ui/PluginPresetBrowser.cpp
+
+    # Tool Managers
+    ../gui/src/tools/PluginPresetManager.h
+    ../gui/src/tools/PluginPresetManager.cpp
 
     # Edit layer
     ../gui/src/edit/EditSession.h
@@ -318,6 +338,8 @@ target_sources(WaiveToolTests PRIVATE
     ../gui/src/util/PathSanitizer.cpp
     ../gui/src/util/CommandHelpers.h
     ../gui/src/util/CommandHelpers.cpp
+    ../gui/src/util/ProjectPackager.h
+    ../gui/src/util/ProjectPackager.cpp
 
     # Engine
     ../engine/src/CommandHandler.h
