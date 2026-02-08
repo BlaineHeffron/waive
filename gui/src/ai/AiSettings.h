@@ -45,12 +45,14 @@ public:
     void saveToProperties (juce::ApplicationProperties& props) const;
 
 private:
+    void autoSave();
     static juce::String providerKey (AiProviderType type);
     AiProviderConfig& getMutableConfig (AiProviderType provider);
 
     std::vector<AiProviderConfig> providers;
     AiProviderType activeProvider = AiProviderType::anthropic;
     bool autoApply = true;
+    juce::ApplicationProperties* boundProperties = nullptr;
 };
 
 } // namespace waive

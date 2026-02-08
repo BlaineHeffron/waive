@@ -16,6 +16,7 @@ AiSettings::AiSettings()
 void AiSettings::setApiKey (AiProviderType provider, const juce::String& key)
 {
     getMutableConfig (provider).apiKey = key;
+    autoSave();
 }
 
 juce::String AiSettings::getApiKey (AiProviderType provider) const
@@ -84,6 +85,8 @@ juce::String AiSettings::providerKey (AiProviderType type)
 
 void AiSettings::loadFromProperties (juce::ApplicationProperties& props)
 {
+    boundProperties = &props;
+
     auto* settings = props.getUserSettings();
     if (settings == nullptr)
         return;
@@ -121,6 +124,12 @@ void AiSettings::saveToProperties (juce::ApplicationProperties& props) const
     settings->setValue ("ai_active_provider", providerKey (activeProvider));
     settings->setValue ("ai_auto_apply", autoApply);
     settings->saveIfNeeded();
+}
+
+void AiSettings::autoSave()
+{
+    if (boundProperties != nullptr)
+        saveToProperties (*boundProperties);
 }
 
 } // namespace waive

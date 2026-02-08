@@ -241,7 +241,7 @@ void ChatPanelComponent::showSettingsDialog()
         editor->setBounds (170, y, 220, 24);
 
         auto providerType = p.type;
-        editor->onFocusLost = [this, editor, providerType]
+        editor->onTextChange = [this, editor, providerType]
         {
             settings.setApiKey (providerType, editor->getText());
         };

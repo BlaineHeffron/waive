@@ -460,7 +460,7 @@ AiResponse GeminiProvider::sendRequest (const juce::String& apiKey,
     juce::URL url (urlStr);
     url = url.withPOSTData (body);
 
-    auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inPostData)
+    auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
                        .withExtraHeaders ("Content-Type: application/json")
                        .withConnectionTimeoutMs (60000)
                        .withNumRedirectsToFollow (5);
