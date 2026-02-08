@@ -4,6 +4,7 @@
 #include <tracktion_engine/tracktion_engine.h>
 
 namespace te = tracktion;
+namespace waive { class PluginPresetManager; }
 
 //==============================================================================
 /** Dispatches JSON commands to Tracktion Engine Edit operations. */
@@ -11,6 +12,7 @@ class CommandHandler
 {
 public:
     explicit CommandHandler (te::Edit& edit);
+    ~CommandHandler();
 
     /** Process a JSON command string and return a JSON response string. */
     juce::String handleCommand (const juce::String& jsonString);
@@ -24,6 +26,7 @@ public:
 private:
     te::Edit& edit;
     juce::Array<juce::File> allowedMediaDirectories;
+    std::unique_ptr<waive::PluginPresetManager> presetManager;
 
     // ── Individual command handlers ─────────────────────────────────────
     juce::var handlePing();
@@ -74,6 +77,8 @@ private:
     juce::var handleRemoveMarker (const juce::var& params);
     juce::var handleListMarkers();
     juce::var handleReorderTrack (const juce::var& params);
+    juce::var handleSavePluginPreset (const juce::var& params);
+    juce::var handleLoadPluginPreset (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::AudioTrack* getTrackById (int trackIndex);

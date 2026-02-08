@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include <tracktion_engine/tracktion_engine.h>
 #include "EditSession.h"
+#include "PluginPresetBrowser.h"
 
 namespace te = tracktion;
 
@@ -21,6 +22,8 @@ public:
     void paint (juce::Graphics& g) override;
     void resized() override;
     bool keyPressed (const juce::KeyPress& key) override;
+
+    void setSelectedPlugin (tracktion::Plugin* plugin);
 
     // Test helpers for no-user UI coverage.
     bool selectTrackForTesting (int trackIndex);
@@ -101,6 +104,8 @@ private:
     juce::Label sendLabel { {}, "Send A" };
     juce::Slider sendSlider;
     juce::TextButton addReverbReturnButton { "Add Reverb Return" };
+
+    waive::PluginPresetBrowser presetBrowser;
 
     struct ChainModel;
     std::unique_ptr<ChainModel> chainModel;

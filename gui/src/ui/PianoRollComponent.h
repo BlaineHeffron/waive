@@ -9,6 +9,18 @@ namespace te = tracktion;
 class EditSession;
 
 //==============================================================================
+/** Snap-to-grid settings */
+struct SnapSettings
+{
+    enum GridSize { Bar, Beat, HalfBeat, QuarterBeat, Eighth, Sixteenth, Triplet, Off };
+    GridSize gridSize = Beat;
+    bool snapEnabled = true;
+
+    double snapBeat (double rawBeat, double beatsPerBar) const;
+    double getBeatsForGridSize (double beatsPerBar) const;
+};
+
+//==============================================================================
 /** MIDI Piano Roll Editor with note grid, velocity lane, and piano keyboard. */
 class PianoRollComponent : public juce::Component
 {
@@ -18,6 +30,8 @@ public:
 
     void paint (juce::Graphics& g) override;
     void resized() override;
+
+    SnapSettings snapSettings;
 
 private:
     //==============================================================================
@@ -29,8 +43,11 @@ private:
         void paint (juce::Graphics& g) override;
         void mouseDown (const juce::MouseEvent& e) override;
 
+        void setRowHeight (int height);
+        int getRowHeight() const { return rowHeight; }
+
         static constexpr int width = 48;
-        static constexpr int rowHeight = 12;
+        int rowHeight = 12;
     };
 
     //==============================================================================
@@ -47,9 +64,13 @@ private:
         void mouseUp (const juce::MouseEvent& e) override;
         void mouseMove (const juce::MouseEvent& e) override;
         void mouseDoubleClick (const juce::MouseEvent& e) override;
+        void mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& wheel) override;
         bool keyPressed (const juce::KeyPress& key) override;
 
         void rebuildNoteRectangles();
+        void quantizeSelectedNotes();
+        void selectAllNotes();
+        void selectNotesByPitch (int pitch, bool addToSelection);
 
         double beatToX (double beat) const;
         double xToBeat (int x) const;
@@ -57,12 +78,21 @@ private:
         int yToPitch (int y) const;
         double snapBeat (double beat) const;
         double getPixelsPerBeat() const { return pianoRoll.pixelsPerBeat; }
+        std::string pitchToNoteName (int pitch) const;
 
     private:
         struct NoteRectangle
         {
             te::MidiNote* note;
             juce::Rectangle<float> bounds;
+        };
+
+        struct ClipboardNote
+        {
+            int pitch;
+            double startBeat;
+            double lengthBeats;
+            int velocity;
         };
 
         enum class DragMode { None, CreateNote, SelectLasso, MoveNotes, ResizeNote };
@@ -73,6 +103,7 @@ private:
 
         std::vector<NoteRectangle> noteRectangles;
         std::set<te::MidiNote*> selectedNotes;
+        std::vector<ClipboardNote> clipboard;
 
         DragMode dragMode = DragMode::None;
         juce::Point<int> dragStart;
@@ -83,6 +114,8 @@ private:
         double noteOriginalStart = 0.0;
         double noteOriginalLength = 0.0;
         juce::Point<double> noteDragOffset;
+        te::MidiNote* hoveredNote = nullptr;
+        juce::Point<double> ghostDragOffset;
 
         static constexpr int resizeEdgeWidth = 8;
     };
@@ -132,6 +165,7 @@ private:
         juce::ComboBox& getGridBox() { return gridBox; }
         juce::TextButton& getZoomInButton() { return zoomInButton; }
         juce::TextButton& getZoomOutButton() { return zoomOutButton; }
+        juce::TextButton& getQuantizeButton() { return quantizeButton; }
 
         static constexpr int height = 32;
 
@@ -142,6 +176,7 @@ private:
         juce::ComboBox snapBox;
         juce::Label gridLabel { {}, "Grid:" };
         juce::ComboBox gridBox;
+        juce::TextButton quantizeButton { "Quantize" };
         juce::TextButton zoomInButton { "+" };
         juce::TextButton zoomOutButton { "-" };
     };
@@ -157,8 +192,6 @@ private:
     std::unique_ptr<VelocityLane> velocityLane;
 
     double pixelsPerBeat = 60.0;
-    double snapResolution = 0.25; // quarter beat
-    bool snapEnabled = true;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PianoRollComponent)
 };

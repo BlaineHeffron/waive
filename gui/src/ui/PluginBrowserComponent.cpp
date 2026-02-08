@@ -263,6 +263,8 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     addReverbReturnButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (addReverbReturnButton);
 
+    addAndMakeVisible (presetBrowser);
+
     rebuildTrackListIfNeeded();
     updateControlsFromSelection();
 
@@ -360,6 +362,11 @@ void PluginBrowserComponent::resized()
     auto sendRow = right.removeFromTop (waive::Spacing::controlHeightDefault);
     sendLabel.setBounds (sendRow.removeFromLeft (52));
     sendSlider.setBounds (sendRow);
+
+    right.removeFromTop (waive::Spacing::sm);
+
+    auto presetRow = right.removeFromTop (waive::Spacing::controlHeightDefault);
+    presetBrowser.setBounds (presetRow);
 
     right.removeFromTop (waive::Spacing::sm);
 
@@ -789,6 +796,14 @@ void PluginBrowserComponent::updateControlsFromSelection()
         if (auto* send = findAuxSend (*t, 0))
             sendSlider.setValue (send->getGainDb(), juce::dontSendNotification);
     }
+
+    // Update preset browser with currently selected plugin in chain
+    auto selectedRow = chainList.getSelectedRow();
+    auto plugins = getChainPlugins (getSelectedPluginList());
+    if (juce::isPositiveAndBelow (selectedRow, plugins.size()))
+        presetBrowser.setPlugin (plugins[selectedRow]);
+    else
+        presetBrowser.setPlugin (nullptr);
 }
 
 void PluginBrowserComponent::insertSelectedBrowserPlugin()
@@ -1139,4 +1154,9 @@ void PluginBrowserComponent::ensureReverbReturnOnMaster()
 
     chainList.updateContent();
     chainList.repaint();
+}
+
+void PluginBrowserComponent::setSelectedPlugin (tracktion::Plugin* plugin)
+{
+    presetBrowser.setPlugin (plugin);
 }

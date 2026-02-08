@@ -56,6 +56,8 @@ target_sources(Waive PRIVATE
     src/ui/MixerChannelStrip.cpp
     src/ui/PianoRollComponent.h
     src/ui/PianoRollComponent.cpp
+    src/ui/PluginPresetBrowser.h
+    src/ui/PluginPresetBrowser.cpp
 
     # Edit layer
     src/edit/EditSession.h
@@ -103,6 +105,8 @@ target_sources(Waive PRIVATE
     src/tools/StemSeparationTool.cpp
     src/tools/AutoMixSuggestionsTool.h
     src/tools/AutoMixSuggestionsTool.cpp
+    src/tools/PluginPresetManager.h
+    src/tools/PluginPresetManager.cpp
 
     # AI
     src/ai/AiSettings.h

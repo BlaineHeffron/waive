@@ -1,11 +1,16 @@
 #include "CommandHandler.h"
+#include "../../gui/src/tools/PluginPresetManager.h"
 
-CommandHandler::CommandHandler (te::Edit& e) : edit (e)
+CommandHandler::CommandHandler (te::Edit& e)
+    : edit (e),
+      presetManager (std::make_unique<waive::PluginPresetManager>())
 {
     // Initialize with safe defaults: user home + current working directory
     allowedMediaDirectories.add (juce::File::getSpecialLocation (juce::File::userHomeDirectory));
     allowedMediaDirectories.add (juce::File::getCurrentWorkingDirectory());
 }
+
+CommandHandler::~CommandHandler() = default;
 
 void CommandHandler::setAllowedMediaDirectories (const juce::Array<juce::File>& directories)
 {
@@ -77,6 +82,8 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "remove_marker")            result = handleRemoveMarker (parsed);
     else if (action == "list_markers")             result = handleListMarkers();
     else if (action == "reorder_track")            result = handleReorderTrack (parsed);
+    else if (action == "save_plugin_preset")       result = handleSavePluginPreset (parsed);
+    else if (action == "load_plugin_preset")       result = handleLoadPluginPreset (parsed);
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -1761,6 +1768,80 @@ juce::var CommandHandler::handleReorderTrack (const juce::var& params)
     result->setProperty ("status", "ok");
     result->setProperty ("track_id", trackId);
     result->setProperty ("new_position", newPosition);
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleSavePluginPreset (const juce::var& params)
+{
+    auto trackId = (int) params["track_index"];
+    auto pluginIndex = (int) params["plugin_index"];
+    auto presetName = params["preset_name"].toString();
+
+    if (presetName.isEmpty())
+        return makeError ("preset_name is required");
+
+    te::AudioTrack* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track " + juce::String (trackId) + " not found");
+
+    // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
+    juce::Array<te::Plugin*> userPlugins;
+    for (auto* p : track->pluginList)
+    {
+        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
+            userPlugins.add (p);
+    }
+
+    if (pluginIndex < 0 || pluginIndex >= userPlugins.size())
+        return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");
+
+    auto plugin = userPlugins[pluginIndex];
+    if (plugin == nullptr)
+        return makeError ("Plugin not found");
+
+    if (!presetManager->savePreset (*plugin, presetName))
+        return makeError ("Failed to save preset");
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("preset_name", presetName);
+    return juce::var (result);
+}
+
+juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
+{
+    auto trackId = (int) params["track_index"];
+    auto pluginIndex = (int) params["plugin_index"];
+    auto presetName = params["preset_name"].toString();
+
+    if (presetName.isEmpty())
+        return makeError ("preset_name is required");
+
+    te::AudioTrack* track = getTrackById (trackId);
+    if (track == nullptr)
+        return makeError ("Track " + juce::String (trackId) + " not found");
+
+    // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
+    juce::Array<te::Plugin*> userPlugins;
+    for (auto* p : track->pluginList)
+    {
+        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
+            userPlugins.add (p);
+    }
+
+    if (pluginIndex < 0 || pluginIndex >= userPlugins.size())
+        return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");
+
+    auto plugin = userPlugins[pluginIndex];
+    if (plugin == nullptr)
+        return makeError ("Plugin not found");
+
+    if (!presetManager->loadPreset (*plugin, presetName))
+        return makeError ("Failed to load preset");
+
+    auto* result = new juce::DynamicObject();
+    result->setProperty ("status", "ok");
+    result->setProperty ("preset_name", presetName);
     return juce::var (result);
 }
 
