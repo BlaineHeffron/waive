@@ -70,20 +70,23 @@ private:
     enum class PanelLayoutMode
     {
         timelineMixer,
-        timelineChatMixer,
-        timelinePianoMixer,
-        timelinePianoChatMixer
+        timelinePianoMixer
     };
 
     void timerCallback() override;
     void selectionChanged() override;
     void runTransportAction (const juce::String& action);
+    void stopRecording();
+    void refreshMicInputDevices();
+    te::WaveInputDevice* getSelectedMicInputDevice() const;
+    void requestMicrophoneAccess (std::function<void (bool)> callback);
+    bool ensureMicInputReady (juce::String& errorMessage);
+    juce::String getMicAccessHelpText() const;
     void applyTempo (double bpm, bool coalesce);
     void applyTimeSignature (int numerator, int denominator);
     int getSelectedTimeSigNumerator() const;
     int getSelectedTimeSigDenominator() const;
     void applyPanelLayoutMode (PanelLayoutMode mode);
-    void ensureChatResizerLayoutIndex (int index);
 
     EditSession& editSession;
     UndoableCommandHandler& commandHandler;
@@ -93,6 +96,7 @@ private:
     juce::TextButton playButton;
     juce::TextButton stopButton;
     juce::TextButton recordButton;
+    juce::TextButton stopRecordButton;
     juce::TextButton recordFromMicButton { "Mic Rec" };
     juce::TextButton addTrackButton;
     juce::ToggleButton loopButton { "Loop" };
@@ -111,7 +115,10 @@ private:
     juce::ToggleButton barsBeatsToggle { "Bars" };
     juce::ToggleButton clickToggle { "Click" };
     juce::Label positionLabel;
+    juce::Label recordStatusLabel;
     juce::Label selectionStatusLabel;
+    juce::Label micInputLabel { {}, "Input" };
+    juce::ComboBox micInputCombo;
 
     // Main areas
     std::unique_ptr<TimelineComponent> timeline;
@@ -130,9 +137,12 @@ private:
 
     // Chat panel
     std::unique_ptr<waive::ChatPanelComponent> chatPanel;
-    std::unique_ptr<juce::StretchableLayoutResizerBar> chatResizerBar;
-    int chatResizerLayoutIndex = -1;
+    juce::TextButton chatClipButton { "Clip Side" };
+    juce::TextButton chatCloseButton { "X" };
     bool chatPanelVisible = false;
+    bool chatPanelClippedToSide = false;
+    int chatPanelDockedWidth = 360;
+    juce::Rectangle<int> chatFloatingBounds;
 
     // Piano roll panel
     std::unique_ptr<PianoRollComponent> pianoRollPanel;
@@ -152,4 +162,6 @@ private:
     bool lastSnapState = false;
     bool lastBarsBeatsState = false;
     int lastSnapResolution = -1;
+    int micInputRefreshTicks = 0;
+    bool micPermissionRequestInFlight = false;
 };

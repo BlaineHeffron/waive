@@ -63,6 +63,21 @@ build/gui/Waive_artefacts/Release/Waive
 ./build/gui/Waive_artefacts/Release/Waive
 ```
 
+### Live Rebuild + Relaunch (Linux)
+
+```bash
+# Optional, but recommended for fast file watching
+sudo apt-get install -y inotify-tools
+
+# Rebuild and relaunch Waive whenever source files change
+./scripts/dev_watch.sh
+
+# Pass args to Waive after --
+./scripts/dev_watch.sh -- --screenshot /tmp/waive_shots
+```
+
+The watcher writes runtime output to `logs/waive_dev_watch.log`.
+
 ## Testing
 
 ### C++ Tests

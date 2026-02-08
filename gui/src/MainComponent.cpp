@@ -54,6 +54,7 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
     addAndMakeVisible (menuBar);
 
     addAndMakeVisible (tabs);
+    tooltipWindow = std::make_unique<juce::TooltipWindow> (this, 500);
 
     // Allow key commands
     addKeyListener (commandManager.getKeyMappings());

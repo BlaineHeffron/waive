@@ -81,6 +81,7 @@ private:
 
     juce::ApplicationCommandManager commandManager;
     juce::MenuBarComponent menuBar;
+    std::unique_ptr<juce::TooltipWindow> tooltipWindow;
 
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
 

@@ -11,6 +11,7 @@ if command -v apt &>/dev/null; then
         build-essential \
         cmake \
         git \
+        inotify-tools \
         libasound2-dev \
         libjack-jackd2-dev \
         ladspa-sdk \

@@ -4,6 +4,8 @@ juce_add_gui_app(Waive
     PRODUCT_NAME "Waive"
     COMPANY_NAME "Waive"
     NEEDS_WEB_BROWSER FALSE
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT "Waive needs microphone access to record audio clips."
 )
 
 target_sources(Waive PRIVATE

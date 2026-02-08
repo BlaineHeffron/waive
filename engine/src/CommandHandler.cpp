@@ -2,6 +2,22 @@
 #include "../../gui/src/tools/PluginPresetManager.h"
 #include "../../gui/src/util/ProjectPackager.h"
 
+namespace
+{
+juce::String getMicAccessHelpText()
+{
+#if JUCE_MAC
+    return "Open System Settings > Privacy & Security > Microphone and allow Waive.";
+#elif JUCE_WINDOWS
+    return "Open Settings > Privacy & security > Microphone and enable access for desktop apps.";
+#elif JUCE_LINUX
+    return "Ensure your audio stack (PipeWire/PulseAudio/ALSA) exposes an input and app permissions allow microphone access.";
+#else
+    return "Enable microphone permission for this app in your operating system settings.";
+#endif
+}
+}
+
 CommandHandler::CommandHandler (te::Edit& e)
     : edit (e),
       presetManager (std::make_unique<waive::PluginPresetManager>())
@@ -619,6 +635,13 @@ juce::var CommandHandler::handleArmTrack (const juce::var& params)
 
 juce::var CommandHandler::handleRecordFromMic()
 {
+    auto permission = juce::RuntimePermissions::recordAudio;
+    if (juce::RuntimePermissions::isRequired (permission)
+        && ! juce::RuntimePermissions::isGranted (permission))
+    {
+        return makeError ("Microphone permission not granted. " + getMicAccessHelpText());
+    }
+
     // Find first empty track or create new one
     te::AudioTrack* targetTrack = nullptr;
     for (auto* t : te::getAudioTracks (edit))

@@ -37,7 +37,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
 {
     playButton.setButtonText ("Play");
     stopButton.setButtonText ("Stop");
-    recordButton.setButtonText ("Rec");
+    recordButton.setButtonText ("Start Rec");
+    stopRecordButton.setButtonText ("Stop Rec");
     recordFromMicButton.setButtonText ("Mic Rec");
     addTrackButton.setButtonText ("+ Track");
     tempoSlider.setSliderStyle (juce::Slider::LinearHorizontal);
@@ -77,6 +78,10 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     positionLabel.setText ("0:00.0", juce::dontSendNotification);
     positionLabel.setJustificationType (juce::Justification::centredLeft);
 
+    recordStatusLabel.setText ("Idle", juce::dontSendNotification);
+    recordStatusLabel.setJustificationType (juce::Justification::centredLeft);
+    recordStatusLabel.setFont (waive::Fonts::caption().boldened());
+
     selectionStatusLabel.setText ("Ready", juce::dontSendNotification);
     selectionStatusLabel.setJustificationType (juce::Justification::centredLeft);
     selectionStatusLabel.setFont (waive::Fonts::caption());
@@ -85,8 +90,11 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
 
     playButton.setTooltip ("Play (Space)");
     stopButton.setTooltip ("Stop (Space)");
-    recordButton.setTooltip ("Record (Ctrl+R)");
-    recordFromMicButton.setTooltip ("Record from microphone (auto-creates armed track)");
+    recordButton.setTooltip ("Start recording (Ctrl+R)");
+    stopRecordButton.setTooltip ("Stop recording");
+    recordFromMicButton.setTooltip ("Record from selected microphone (auto-creates armed track)");
+    recordStatusLabel.setTooltip ("Current recording status");
+    micInputCombo.setTooltip ("Microphone input device used by Mic Rec");
     addTrackButton.setTooltip ("Add Track (Ctrl+T)");
     loopButton.setTooltip ("Loop On/Off (L)");
     punchButton.setTooltip ("Punch In/Out");
@@ -108,9 +116,15 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     stopButton.setTitle ("Stop");
     stopButton.setDescription ("Stop playback (Space)");
     recordButton.setTitle ("Record");
-    recordButton.setDescription ("Record audio (Ctrl+R)");
+    recordButton.setDescription ("Start recording audio (Ctrl+R)");
+    stopRecordButton.setTitle ("Stop Record");
+    stopRecordButton.setDescription ("Stop recording audio");
     recordFromMicButton.setTitle ("Mic Rec");
-    recordFromMicButton.setDescription ("Quick-record from microphone");
+    recordFromMicButton.setDescription ("Quick-record from selected microphone");
+    recordStatusLabel.setTitle ("Record Status");
+    recordStatusLabel.setDescription ("Shows whether transport is recording");
+    micInputCombo.setTitle ("Mic Input");
+    micInputCombo.setDescription ("Select microphone input device");
     addTrackButton.setTitle ("Add Track");
     addTrackButton.setDescription ("Add new audio track (Ctrl+T)");
     loopButton.setTitle ("Loop");
@@ -144,6 +158,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     playButton.setWantsKeyboardFocus (true);
     stopButton.setWantsKeyboardFocus (true);
     recordButton.setWantsKeyboardFocus (true);
+    stopRecordButton.setWantsKeyboardFocus (true);
     recordFromMicButton.setWantsKeyboardFocus (true);
     loopButton.setWantsKeyboardFocus (true);
     punchButton.setWantsKeyboardFocus (true);
@@ -175,6 +190,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     addAndMakeVisible (playButton);
     addAndMakeVisible (stopButton);
     addAndMakeVisible (recordButton);
+    addAndMakeVisible (stopRecordButton);
     addAndMakeVisible (recordFromMicButton);
     addAndMakeVisible (addTrackButton);
     addAndMakeVisible (loopButton);
@@ -193,33 +209,25 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     addAndMakeVisible (barsBeatsToggle);
     addAndMakeVisible (clickToggle);
     addAndMakeVisible (positionLabel);
+    addAndMakeVisible (recordStatusLabel);
     addAndMakeVisible (selectionStatusLabel);
+    addAndMakeVisible (micInputLabel);
+    addAndMakeVisible (micInputCombo);
 
     playButton.onClick  = [this] { runTransportAction ("transport_play"); };
-    stopButton.onClick  = [this] { runTransportAction ("transport_stop"); };
-    recordButton.onClick = [this]
-    {
-        auto& transport = editSession.getEdit().getTransport();
-
-        if (transport.isRecording())
-        {
-            editSession.performEdit ("Stop Recording", [&] (te::Edit&)
-            {
-                transport.stopRecording (false);
-            });
-        }
-        else
-        {
-            // Allow record start even if no inputs are armed; actual clips are created when stopping.
-            transport.record (false, true);
-        }
-    };
+    stopButton.onClick  = [this] { stop(); };
+    recordButton.onClick = [this] { record(); };
+    stopRecordButton.onClick = [this] { stopRecording(); };
 
     recordFromMicButton.onClick = [this] { recordFromMic(); };
 
     // Style recordFromMicButton with danger color
     if (auto* pal = waive::getWaivePalette (*this))
+    {
+        stopRecordButton.setColour (juce::TextButton::buttonColourId, pal->record);
         recordFromMicButton.setColour (juce::TextButton::buttonColourId, pal->danger);
+        recordStatusLabel.setColour (juce::Label::textColourId, pal->textMuted);
+    }
 
     addTrackButton.onClick = [this]
     {
@@ -336,6 +344,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
         editSession.getEdit().clickTrackEnabled = clickToggle.getToggleState();
     };
 
+    refreshMicInputDevices();
+
     // Mixer
     mixer = std::make_unique<MixerComponent> (editSession);
     addAndMakeVisible (mixer.get());
@@ -371,13 +381,23 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     if (aiAgent != nullptr && aiSettings != nullptr)
     {
         chatPanel = std::make_unique<waive::ChatPanelComponent> (*aiAgent, *aiSettings);
-        addChildComponent (chatPanel.get());  // hidden by default
+        addChildComponent (chatPanel.get());  // hidden by default (popout)
 
-        chatResizerLayoutIndex = 3;
-        chatResizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager,
-                                                                               chatResizerLayoutIndex,
-                                                                               false);
-        addChildComponent (chatResizerBar.get());
+        chatClipButton.setTooltip ("Clip/Unclip AI chat panel to side");
+        chatClipButton.onClick = [this]
+        {
+            chatPanelClippedToSide = ! chatPanelClippedToSide;
+            resized();
+        };
+        addChildComponent (chatClipButton);
+
+        chatCloseButton.setTooltip ("Close AI chat panel");
+        chatCloseButton.onClick = [this]
+        {
+            chatPanelVisible = false;
+            resized();
+        };
+        addChildComponent (chatCloseButton);
     }
 
     // Piano roll panel (created on demand)
@@ -404,6 +424,7 @@ void SessionComponent::resized()
     const bool showSelectionStatus = viewportWidth >= 980;
     const bool showTempoControls = viewportWidth >= 1120;
     const bool showMarkerControls = viewportWidth >= 1320;
+    const bool showMicInputControls = viewportWidth >= 1200;
 
     const int toolbarH = showSecondaryControls
                             ? (waive::Spacing::controlHeightDefault * 2 + waive::Spacing::md)
@@ -423,11 +444,17 @@ void SessionComponent::resized()
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
     primaryFlex.items.add (juce::FlexItem (stopButton).withWidth (56));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
-    primaryFlex.items.add (juce::FlexItem (recordButton).withWidth (56));
+    primaryFlex.items.add (juce::FlexItem (recordButton).withWidth (76));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
-    primaryFlex.items.add (juce::FlexItem (recordFromMicButton).withWidth (70));
+    primaryFlex.items.add (juce::FlexItem (stopRecordButton).withWidth (74));
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+    primaryFlex.items.add (juce::FlexItem (recordFromMicButton).withWidth (72));
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::md)); // Group separator
     primaryFlex.items.add (juce::FlexItem (addTrackButton).withWidth (78));
+
+    // Transport status group
+    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+    primaryFlex.items.add (juce::FlexItem (recordStatusLabel).withWidth (90));
 
     // Position display group
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
@@ -501,6 +528,13 @@ void SessionComponent::resized()
         secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
         secondaryFlex.items.add (juce::FlexItem (barsBeatsToggle).withWidth (58));
 
+        if (showMicInputControls)
+        {
+            secondaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
+            secondaryFlex.items.add (juce::FlexItem (micInputLabel).withWidth (36));
+            secondaryFlex.items.add (juce::FlexItem (micInputCombo).withWidth (220));
+        }
+
         secondaryFlex.performLayout (bottomRow);
 
         loopButton.setVisible (true);
@@ -511,6 +545,8 @@ void SessionComponent::resized()
         snapToggle.setVisible (true);
         snapResolutionBox.setVisible (true);
         barsBeatsToggle.setVisible (true);
+        micInputLabel.setVisible (showMicInputControls);
+        micInputCombo.setVisible (showMicInputControls);
     }
     else
     {
@@ -522,6 +558,8 @@ void SessionComponent::resized()
         snapToggle.setVisible (false);
         snapResolutionBox.setVisible (false);
         barsBeatsToggle.setVisible (false);
+        micInputLabel.setVisible (false);
+        micInputCombo.setVisible (false);
     }
 
     // Horizontal split: content area | resizer | sidebar
@@ -550,45 +588,30 @@ void SessionComponent::resized()
             sidebarResizer->setVisible (false);
     }
 
-    PanelLayoutMode desiredMode = PanelLayoutMode::timelineMixer;
-    if (pianoRollPanel != nullptr && pianoRollVisible && chatPanel != nullptr && chatPanelVisible)
-        desiredMode = PanelLayoutMode::timelinePianoChatMixer;
-    else if (pianoRollPanel != nullptr && pianoRollVisible)
-        desiredMode = PanelLayoutMode::timelinePianoMixer;
-    else if (chatPanel != nullptr && chatPanelVisible)
-        desiredMode = PanelLayoutMode::timelineChatMixer;
+    juce::Rectangle<int> clippedChatBounds;
+    const bool showChatPanel = (chatPanel != nullptr && chatPanelVisible);
+    const bool clipChatToSide = showChatPanel && chatPanelClippedToSide;
+    if (clipChatToSide)
+    {
+        const int minDockWidth = 280;
+        const int maxDockWidth = juce::jmax (minDockWidth, contentBounds.getWidth() - 240);
+        chatPanelDockedWidth = juce::jlimit (minDockWidth, maxDockWidth, chatPanelDockedWidth);
 
+        clippedChatBounds = contentBounds.removeFromRight (chatPanelDockedWidth);
+        clippedChatBounds.reduce (0, waive::Spacing::xxs);
+    }
+
+    PanelLayoutMode desiredMode = PanelLayoutMode::timelineMixer;
+    if (pianoRollPanel != nullptr && pianoRollVisible)
+        desiredMode = PanelLayoutMode::timelinePianoMixer;
     applyPanelLayoutMode (desiredMode);
 
-    // Layout: timeline + resizer + [piano roll + resizer +] [chat + resizer +] mixer (vertical)
-    if (pianoRollPanel != nullptr && pianoRollVisible && chatPanel != nullptr && chatPanelVisible)
+    // Layout: timeline + resizer + [piano roll + resizer +] mixer (vertical)
+    if (pianoRollPanel != nullptr && pianoRollVisible)
     {
         pianoRollPanel->setVisible (true);
         if (pianoRollResizerBar)
             pianoRollResizerBar->setVisible (true);
-        chatPanel->setVisible (true);
-        if (chatResizerBar)
-            chatResizerBar->setVisible (true);
-
-        juce::Component* comps[] = { timeline.get(), resizerBar.get(),
-                                     pianoRollPanel.get(), pianoRollResizerBar.get(),
-                                     chatPanel.get(), chatResizerBar.get(), mixer.get() };
-        layoutManager.layOutComponents (comps, 7, contentBounds.getX(), contentBounds.getY(),
-                                        contentBounds.getWidth(), contentBounds.getHeight(), true, true);
-
-        // Position close button at top-right of piano roll
-        closePianoRollButton.setBounds (pianoRollPanel->getRight() - 26, pianoRollPanel->getY() + 4, 22, 22);
-    }
-    else if (pianoRollPanel != nullptr && pianoRollVisible)
-    {
-        pianoRollPanel->setVisible (true);
-        if (pianoRollResizerBar)
-            pianoRollResizerBar->setVisible (true);
-
-        if (chatPanel)
-            chatPanel->setVisible (false);
-        if (chatResizerBar)
-            chatResizerBar->setVisible (false);
 
         juce::Component* comps[] = { timeline.get(), resizerBar.get(),
                                      pianoRollPanel.get(), pianoRollResizerBar.get(), mixer.get() };
@@ -598,36 +621,68 @@ void SessionComponent::resized()
         // Position close button at top-right of piano roll
         closePianoRollButton.setBounds (pianoRollPanel->getRight() - 26, pianoRollPanel->getY() + 4, 22, 22);
     }
-    else if (chatPanel != nullptr && chatPanelVisible)
-    {
-        chatPanel->setVisible (true);
-        if (chatResizerBar)
-            chatResizerBar->setVisible (true);
-
-        if (pianoRollPanel)
-            pianoRollPanel->setVisible (false);
-        if (pianoRollResizerBar)
-            pianoRollResizerBar->setVisible (false);
-
-        juce::Component* comps[] = { timeline.get(), resizerBar.get(),
-                                     chatPanel.get(), chatResizerBar.get(), mixer.get() };
-        layoutManager.layOutComponents (comps, 5, contentBounds.getX(), contentBounds.getY(),
-                                        contentBounds.getWidth(), contentBounds.getHeight(), true, true);
-    }
     else
     {
         if (pianoRollPanel)
             pianoRollPanel->setVisible (false);
         if (pianoRollResizerBar)
             pianoRollResizerBar->setVisible (false);
-        if (chatPanel)
-            chatPanel->setVisible (false);
-        if (chatResizerBar)
-            chatResizerBar->setVisible (false);
 
         juce::Component* comps[] = { timeline.get(), resizerBar.get(), mixer.get() };
         layoutManager.layOutComponents (comps, 3, contentBounds.getX(), contentBounds.getY(),
                                         contentBounds.getWidth(), contentBounds.getHeight(), true, true);
+    }
+
+    if (showChatPanel)
+    {
+        chatPanel->setVisible (true);
+        chatClipButton.setVisible (true);
+        chatCloseButton.setVisible (true);
+        chatClipButton.setButtonText (clipChatToSide ? "Unclip" : "Clip Side");
+        chatPanel->toFront (false);
+        chatClipButton.toFront (false);
+        chatCloseButton.toFront (false);
+
+        if (clipChatToSide)
+        {
+            chatPanel->setBounds (clippedChatBounds);
+            chatFloatingBounds = {};
+        }
+        else
+        {
+            const int minW = 360;
+            const int minH = 260;
+            const int desiredW = juce::jmax (minW, contentBounds.getWidth() / 3);
+            const int desiredH = juce::jmax (minH, contentBounds.getHeight() / 2);
+
+            if (chatFloatingBounds.isEmpty())
+            {
+                chatFloatingBounds = { contentBounds.getRight() - desiredW - waive::Spacing::md,
+                                       contentBounds.getY() + waive::Spacing::md,
+                                       desiredW,
+                                       desiredH };
+            }
+
+            chatFloatingBounds.setWidth (juce::jmax (minW, juce::jmin (chatFloatingBounds.getWidth(), contentBounds.getWidth() - 24)));
+            chatFloatingBounds.setHeight (juce::jmax (minH, juce::jmin (chatFloatingBounds.getHeight(), contentBounds.getHeight() - 24)));
+            chatFloatingBounds.setPosition (juce::jlimit (contentBounds.getX(), contentBounds.getRight() - chatFloatingBounds.getWidth(),
+                                                          chatFloatingBounds.getX()),
+                                            juce::jlimit (contentBounds.getY(), contentBounds.getBottom() - chatFloatingBounds.getHeight(),
+                                                          chatFloatingBounds.getY()));
+
+            chatPanel->setBounds (chatFloatingBounds);
+        }
+
+        auto controlsRow = chatPanel->getBounds().removeFromTop (waive::Spacing::controlHeightSmall);
+        chatCloseButton.setBounds (controlsRow.removeFromRight (waive::Spacing::xl));
+        controlsRow.removeFromRight (waive::Spacing::xs);
+        chatClipButton.setBounds (controlsRow.removeFromRight (96));
+    }
+    else if (chatPanel != nullptr)
+    {
+        chatPanel->setVisible (false);
+        chatClipButton.setVisible (false);
+        chatCloseButton.setVisible (false);
     }
 }
 
@@ -636,31 +691,11 @@ void SessionComponent::applyPanelLayoutMode (PanelLayoutMode mode)
     if (panelLayoutInitialised && panelLayoutMode == mode)
         return;
 
-    if (mode == PanelLayoutMode::timelinePianoChatMixer)
-    {
-        ensureChatResizerLayoutIndex (5);
-        layoutManager.setItemLayout (0, 100, -1.0, -0.40);    // timeline
-        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (2, 200, 600, 300);        // piano roll
-        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (4, 60, 300, 150);         // chat panel
-        layoutManager.setItemLayout (5, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (6, 80, 300, 160);         // mixer
-    }
-    else if (mode == PanelLayoutMode::timelinePianoMixer)
+    if (mode == PanelLayoutMode::timelinePianoMixer)
     {
         layoutManager.setItemLayout (0, 100, -1.0, -0.50);    // timeline
         layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
         layoutManager.setItemLayout (2, 200, 600, 300);        // piano roll
-        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
-    }
-    else if (mode == PanelLayoutMode::timelineChatMixer)
-    {
-        ensureChatResizerLayoutIndex (3);
-        layoutManager.setItemLayout (0, 100, -1.0, -0.55);    // timeline
-        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (2, 60, 300, 150);         // chat panel
         layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
         layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
     }
@@ -673,23 +708,6 @@ void SessionComponent::applyPanelLayoutMode (PanelLayoutMode mode)
 
     panelLayoutMode = mode;
     panelLayoutInitialised = true;
-}
-
-void SessionComponent::ensureChatResizerLayoutIndex (int index)
-{
-    if (chatPanel == nullptr)
-        return;
-
-    if (chatResizerBar != nullptr && chatResizerLayoutIndex == index)
-        return;
-
-    const bool wasVisible = chatResizerBar != nullptr && chatResizerBar->isVisible();
-    chatResizerBar.reset();
-
-    chatResizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager, index, false);
-    addChildComponent (chatResizerBar.get());
-    chatResizerLayoutIndex = index;
-    chatResizerBar->setVisible (wasVisible);
 }
 
 TimelineComponent& SessionComponent::getTimeline()
@@ -711,6 +729,8 @@ void SessionComponent::toggleToolSidebar()
 void SessionComponent::toggleChatPanel()
 {
     chatPanelVisible = ! chatPanelVisible;
+    if (chatPanelVisible)
+        chatPanelClippedToSide = false;
     resized();
 }
 
@@ -757,23 +777,48 @@ void SessionComponent::play()
 
 void SessionComponent::stop()
 {
-    editSession.getEdit().getTransport().stop (false, false);
+    auto& transport = editSession.getEdit().getTransport();
+    if (transport.isRecording())
+        stopRecording();
+
+    transport.stop (false, false);
 }
 
 void SessionComponent::record()
 {
     auto& transport = editSession.getEdit().getTransport();
     if (transport.isRecording())
+        return;
+
+    requestMicrophoneAccess ([this] (bool granted)
     {
-        editSession.performEdit ("Stop Recording", [&] (te::Edit&)
+        if (! granted)
         {
-            transport.stopRecording (false);
-        });
-    }
-    else
-    {
-        transport.record (false, true);
-    }
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Microphone Access Required",
+                                                     getMicAccessHelpText());
+            return;
+        }
+
+        juce::String micError;
+        if (! ensureMicInputReady (micError))
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Microphone Not Ready",
+                                                     micError);
+            return;
+        }
+
+        auto& localTransport = editSession.getEdit().getTransport();
+        localTransport.record (false, true);
+
+        if (! localTransport.isRecording())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Recording Did Not Start",
+                                                     "Recording could not start. Arm a track input or use Mic Rec.");
+        }
+    });
 }
 
 void SessionComponent::goToStart()
@@ -781,62 +826,231 @@ void SessionComponent::goToStart()
     editSession.getEdit().getTransport().setPosition (te::TimePosition::fromSeconds (0.0));
 }
 
-void SessionComponent::recordFromMic()
+void SessionComponent::stopRecording()
 {
-    auto& edit = editSession.getEdit();
-
-    // Find first empty track or create new one
-    te::AudioTrack* targetTrack = nullptr;
-    for (auto* t : te::getAudioTracks (edit))
-    {
-        if (t->getClips().isEmpty())
-        {
-            targetTrack = t;
-            break;
-        }
-    }
-
-    if (targetTrack == nullptr)
-    {
-        auto trackCount = te::getAudioTracks (edit).size();
-        edit.ensureNumberOfAudioTracks (trackCount + 1);
-        targetTrack = te::getAudioTracks (edit).getLast();
-    }
-
-    if (targetTrack == nullptr)
+    auto& transport = editSession.getEdit().getTransport();
+    if (! transport.isRecording())
         return;
 
-    // Get first wave input device
-    auto& dm = edit.engine.getDeviceManager();
+    editSession.performEdit ("Stop Recording", [&] (te::Edit&)
+    {
+        transport.stopRecording (false);
+    });
+}
+
+void SessionComponent::requestMicrophoneAccess (std::function<void (bool)> callback)
+{
+    auto permission = juce::RuntimePermissions::recordAudio;
+    if (! juce::RuntimePermissions::isRequired (permission))
+    {
+        callback (true);
+        return;
+    }
+
+    if (juce::RuntimePermissions::isGranted (permission))
+    {
+        callback (true);
+        return;
+    }
+
+    if (micPermissionRequestInFlight)
+    {
+        callback (false);
+        return;
+    }
+
+    micPermissionRequestInFlight = true;
+    recordStatusLabel.setText ("Requesting Mic", juce::dontSendNotification);
+
+    auto safeThis = juce::Component::SafePointer<SessionComponent> (this);
+    juce::RuntimePermissions::request (permission, [safeThis, callback = std::move (callback)] (bool granted) mutable
+    {
+        if (safeThis == nullptr)
+            return;
+
+        safeThis->micPermissionRequestInFlight = false;
+        callback (granted);
+    });
+}
+
+bool SessionComponent::ensureMicInputReady (juce::String& errorMessage)
+{
+    auto& dm = editSession.getEdit().engine.getDeviceManager();
     auto waveInputs = dm.getWaveInputDevices();
     if (waveInputs.empty())
     {
-        juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                 "No Input Devices",
-                                                 "No wave input devices available. Please connect a microphone or audio interface.");
-        return;
+        errorMessage = "No wave input devices available. Connect a microphone or audio interface.";
+        return false;
     }
 
-    auto* waveIn = waveInputs[0];
-
-    // Assign and arm the input device, then start recording
-    editSession.performEdit ("Record from Mic", [&edit, targetTrack, waveIn] (te::Edit&)
+    if (auto* current = dm.deviceManager.getCurrentAudioDevice())
     {
-        edit.getTransport().ensureContextAllocated();
-        (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*waveIn);
-
-        if (auto* epc = edit.getCurrentPlaybackContext())
+        if (current->getInputChannelNames().size() > 0
+            && current->getActiveInputChannels().countNumberOfSetBits() == 0)
         {
-            if (auto* idi = epc->getInputFor (waveIn))
+            juce::AudioDeviceManager::AudioDeviceSetup setup;
+            dm.deviceManager.getAudioDeviceSetup (setup);
+            setup.useDefaultInputChannels = true;
+            auto setupError = dm.deviceManager.setAudioDeviceSetup (setup, true);
+            if (setupError.isNotEmpty())
             {
-                if (!idi->setTarget (targetTrack->itemID, false, &edit.getUndoManager()))
-                    DBG ("Failed to assign input device to track");
-                idi->setRecordingEnabled (targetTrack->itemID, true);
+                errorMessage = "Could not enable microphone input channels: " + setupError;
+                return false;
+            }
+        }
+    }
+
+    refreshMicInputDevices();
+    if (getSelectedMicInputDevice() == nullptr)
+    {
+        errorMessage = "No microphone input device is selected.";
+        return false;
+    }
+
+    return true;
+}
+
+juce::String SessionComponent::getMicAccessHelpText() const
+{
+#if JUCE_MAC
+    return "Microphone access is blocked.\nOpen System Settings > Privacy & Security > Microphone and allow Waive.";
+#elif JUCE_WINDOWS
+    return "Microphone access is blocked.\nOpen Settings > Privacy & security > Microphone and enable access for desktop apps.";
+#elif JUCE_LINUX
+    return "Microphone access is blocked or unavailable.\nEnsure your audio stack (PipeWire/PulseAudio/ALSA) exposes an input and app permissions allow microphone access.";
+#else
+    return "Microphone access is blocked. Enable microphone permission for this app in your OS privacy settings.";
+#endif
+}
+
+void SessionComponent::refreshMicInputDevices()
+{
+    auto& dm = editSession.getEdit().engine.getDeviceManager();
+    auto waveInputs = dm.getWaveInputDevices();
+
+    juce::String currentSelection = micInputCombo.getText();
+
+    micInputCombo.clear (juce::dontSendNotification);
+    int selectedId = 0;
+    int nextId = 1;
+    for (auto* input : waveInputs)
+    {
+        if (input == nullptr)
+            continue;
+
+        auto name = input->getName();
+        micInputCombo.addItem (name, nextId);
+        if (selectedId == 0 && (currentSelection.isEmpty() || currentSelection == name))
+            selectedId = nextId;
+        ++nextId;
+    }
+
+    if (selectedId > 0)
+        micInputCombo.setSelectedId (selectedId, juce::dontSendNotification);
+}
+
+te::WaveInputDevice* SessionComponent::getSelectedMicInputDevice() const
+{
+    auto selectedName = micInputCombo.getText();
+    if (selectedName.isEmpty())
+        return nullptr;
+
+    auto& dm = editSession.getEdit().engine.getDeviceManager();
+    auto waveInputs = dm.getWaveInputDevices();
+    for (auto* input : waveInputs)
+    {
+        if (input != nullptr && input->getName() == selectedName)
+            return input;
+    }
+
+    return nullptr;
+}
+
+void SessionComponent::recordFromMic()
+{
+    auto& transport = editSession.getEdit().getTransport();
+    if (transport.isRecording())
+        return;
+
+    requestMicrophoneAccess ([this] (bool granted)
+    {
+        if (! granted)
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Microphone Access Required",
+                                                     getMicAccessHelpText());
+            return;
+        }
+
+        juce::String micError;
+        if (! ensureMicInputReady (micError))
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Microphone Not Ready",
+                                                     micError);
+            return;
+        }
+
+        auto& edit = editSession.getEdit();
+
+        // Find first empty track or create new one
+        te::AudioTrack* targetTrack = nullptr;
+        for (auto* t : te::getAudioTracks (edit))
+        {
+            if (t->getClips().isEmpty())
+            {
+                targetTrack = t;
+                break;
             }
         }
 
-        // Start recording after arming is complete
-        edit.getTransport().record (false, true);
+        if (targetTrack == nullptr)
+        {
+            auto trackCount = te::getAudioTracks (edit).size();
+            edit.ensureNumberOfAudioTracks (trackCount + 1);
+            targetTrack = te::getAudioTracks (edit).getLast();
+        }
+
+        if (targetTrack == nullptr)
+            return;
+
+        auto* waveIn = getSelectedMicInputDevice();
+        if (waveIn == nullptr)
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "No Input Devices",
+                                                     "No microphone input device is selected.");
+            return;
+        }
+
+        // Assign and arm the input device, then start recording
+        editSession.performEdit ("Record from Mic", [&edit, targetTrack, waveIn] (te::Edit&)
+        {
+            edit.getTransport().ensureContextAllocated();
+            (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*waveIn);
+
+            if (auto* epc = edit.getCurrentPlaybackContext())
+            {
+                if (auto* idi = epc->getInputFor (waveIn))
+                {
+                    if (!idi->setTarget (targetTrack->itemID, false, &edit.getUndoManager()))
+                    {
+                        DBG ("Failed to assign input device to track");
+                    }
+                    idi->setRecordingEnabled (targetTrack->itemID, true);
+                }
+            }
+
+            // Start recording after arming is complete
+            edit.getTransport().record (false, true);
+        });
+
+        if (! edit.getTransport().isRecording())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                     "Recording Did Not Start",
+                                                     "Could not start microphone recording. Check input and audio device settings.");
+        }
     });
 }
 
@@ -849,11 +1063,43 @@ void SessionComponent::timerCallback()
     positionLabel.setText (juce::String::formatted ("%d:%.1f", mins, secs),
                            juce::dontSendNotification);
 
+    const bool isRecording = transport.isRecording();
+
     {
         auto* pal = waive::getWaivePalette (*this);
-        recordButton.setColour (juce::TextButton::buttonColourId,
-                                transport.isRecording() ? (pal ? pal->record : juce::Colour (0xff8b0000))
-                                                        : (pal ? pal->surfaceBg : juce::Colour (0xffa9a9a9)));
+        if (pal != nullptr)
+        {
+            recordStatusLabel.setColour (juce::Label::textColourId, isRecording ? pal->record : pal->textMuted);
+            stopRecordButton.setColour (juce::TextButton::buttonColourId,
+                                        isRecording ? pal->record.brighter (0.08f) : pal->record);
+        }
+    }
+
+    const bool permissionRequired = juce::RuntimePermissions::isRequired (juce::RuntimePermissions::recordAudio);
+    const bool permissionGranted = (! permissionRequired) || juce::RuntimePermissions::isGranted (juce::RuntimePermissions::recordAudio);
+    const bool hasMicInput = micInputCombo.getNumItems() > 0;
+
+    juce::String recordStatusText = "Mic Ready";
+    if (micPermissionRequestInFlight)
+        recordStatusText = "Requesting Mic";
+    else if (! permissionGranted)
+        recordStatusText = "Permission Required";
+    else if (! hasMicInput)
+        recordStatusText = "No Mic Input";
+    else if (isRecording)
+        recordStatusText = "Recording";
+
+    recordStatusLabel.setText (recordStatusText, juce::dontSendNotification);
+    recordButton.setEnabled (! isRecording);
+    stopRecordButton.setEnabled (isRecording);
+    recordFromMicButton.setEnabled (! isRecording);
+    micInputCombo.setEnabled (! isRecording && hasMicInput);
+
+    ++micInputRefreshTicks;
+    if (micInputRefreshTicks >= 20)
+    {
+        micInputRefreshTicks = 0;
+        refreshMicInputDevices();
     }
 
     juce::ScopedValueSetter<bool> sv (suppressControlCallbacks, true);
@@ -1089,6 +1335,8 @@ juce::String SessionComponent::getTransportTooltipForTesting (const juce::String
         return stopButton.getTooltip();
     if (controlName == "record")
         return recordButton.getTooltip();
+    if (controlName == "stopRecord")
+        return stopRecordButton.getTooltip();
     if (controlName == "loop")
         return loopButton.getTooltip();
     if (controlName == "punch")
@@ -1111,6 +1359,8 @@ juce::String SessionComponent::getTransportTooltipForTesting (const juce::String
         return barsBeatsToggle.getTooltip();
     if (controlName == "click")
         return clickToggle.getTooltip();
+    if (controlName == "micInput")
+        return micInputCombo.getTooltip();
     return {};
 }
 
