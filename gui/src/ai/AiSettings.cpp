@@ -5,12 +5,12 @@ namespace waive
 
 AiSettings::AiSettings()
 {
-    providers.push_back ({ AiProviderType::anthropic, "Anthropic", {}, "claude-sonnet-4-5-20250929",
-                           { "claude-sonnet-4-5-20250929", "claude-haiku-4-5-20251001" } });
-    providers.push_back ({ AiProviderType::openai, "OpenAI", {}, "gpt-4o",
-                           { "gpt-4o", "gpt-4o-mini" } });
-    providers.push_back ({ AiProviderType::google, "Google", {}, "gemini-2.0-flash",
-                           { "gemini-2.0-flash", "gemini-2.5-pro" } });
+    providers.push_back ({ AiProviderType::anthropic, "Anthropic", {}, "claude-sonnet-4-0",
+                           { "claude-opus-4-1", "claude-sonnet-4-0", "claude-3-5-haiku-latest" } });
+    providers.push_back ({ AiProviderType::openai, "OpenAI", {}, "gpt-5.2",
+                           { "gpt-5.2", "gpt-5.2-chat-latest", "gpt-5.2-mini" } });
+    providers.push_back ({ AiProviderType::google, "Google", {}, "gemini-2.5-pro",
+                           { "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.5-flash-lite" } });
 }
 
 void AiSettings::setApiKey (AiProviderType provider, const juce::String& key)
@@ -27,6 +27,7 @@ juce::String AiSettings::getApiKey (AiProviderType provider) const
 void AiSettings::setSelectedModel (AiProviderType provider, const juce::String& model)
 {
     getMutableConfig (provider).selectedModel = model;
+    autoSave();
 }
 
 juce::String AiSettings::getSelectedModel (AiProviderType provider) const
@@ -37,6 +38,7 @@ juce::String AiSettings::getSelectedModel (AiProviderType provider) const
 void AiSettings::setActiveProvider (AiProviderType provider)
 {
     activeProvider = provider;
+    autoSave();
 }
 
 AiProviderType AiSettings::getActiveProvider() const
@@ -47,6 +49,7 @@ AiProviderType AiSettings::getActiveProvider() const
 void AiSettings::setAutoApply (bool enabled)
 {
     autoApply = enabled;
+    autoSave();
 }
 
 bool AiSettings::isAutoApply() const
@@ -96,7 +99,7 @@ void AiSettings::loadFromProperties (juce::ApplicationProperties& props)
         auto key = providerKey (p.type);
         p.apiKey = settings->getValue ("ai_" + key + "_key", "");
         auto model = settings->getValue ("ai_" + key + "_model", "");
-        if (model.isNotEmpty())
+        if (model.isNotEmpty() && p.availableModels.contains (model))
             p.selectedModel = model;
     }
 

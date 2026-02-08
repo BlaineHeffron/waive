@@ -67,6 +67,14 @@ public:
     void clearToolPreview();
 
 private:
+    enum class PanelLayoutMode
+    {
+        timelineMixer,
+        timelineChatMixer,
+        timelinePianoMixer,
+        timelinePianoChatMixer
+    };
+
     void timerCallback() override;
     void selectionChanged() override;
     void runTransportAction (const juce::String& action);
@@ -74,6 +82,8 @@ private:
     void applyTimeSignature (int numerator, int denominator);
     int getSelectedTimeSigNumerator() const;
     int getSelectedTimeSigDenominator() const;
+    void applyPanelLayoutMode (PanelLayoutMode mode);
+    void ensureChatResizerLayoutIndex (int index);
 
     EditSession& editSession;
     UndoableCommandHandler& commandHandler;
@@ -114,12 +124,14 @@ private:
     std::unique_ptr<ToolSidebarComponent> toolSidebar;
     std::unique_ptr<juce::StretchableLayoutResizerBar> sidebarResizer;
     juce::StretchableLayoutManager horizontalLayout;
+    juce::Component contentArea;
     bool sidebarVisible = true;
     static constexpr int defaultSidebarWidth = 280;
 
     // Chat panel
     std::unique_ptr<waive::ChatPanelComponent> chatPanel;
     std::unique_ptr<juce::StretchableLayoutResizerBar> chatResizerBar;
+    int chatResizerLayoutIndex = -1;
     bool chatPanelVisible = false;
 
     // Piano roll panel
@@ -127,6 +139,8 @@ private:
     std::unique_ptr<juce::StretchableLayoutResizerBar> pianoRollResizerBar;
     bool pianoRollVisible = false;
     juce::TextButton closePianoRollButton { "X" };
+    PanelLayoutMode panelLayoutMode = PanelLayoutMode::timelineMixer;
+    bool panelLayoutInitialised = false;
 
     // Cache for change detection in timerCallback
     double lastTempo = -1.0;

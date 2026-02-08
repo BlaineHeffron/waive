@@ -341,12 +341,20 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     addAndMakeVisible (mixer.get());
 
     // Resizer bar between timeline and mixer
-    layoutManager.setItemLayout (0, 100, -1.0, -0.75);   // timeline: flexible
-    layoutManager.setItemLayout (1, 4, 4, 4);             // resizer bar
-    layoutManager.setItemLayout (2, 80, 300, 160);        // mixer: default 160px
-
     resizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager, 1, false);
     addAndMakeVisible (resizerBar.get());
+
+    // Horizontal split host: content | resizer | sidebar
+    horizontalLayout.setItemLayout (0, 160, -1.0, -0.75);
+    horizontalLayout.setItemLayout (1,
+                                    waive::Spacing::resizerBarThickness,
+                                    waive::Spacing::resizerBarThickness,
+                                    waive::Spacing::resizerBarThickness);
+    horizontalLayout.setItemLayout (2, 180, 520, defaultSidebarWidth);
+
+    contentArea.setInterceptsMouseClicks (false, false);
+    addAndMakeVisible (contentArea);
+    contentArea.toBack();
 
     // Tool sidebar (optional — only created if all deps are provided)
     if (toolReg != nullptr && modelMgr != nullptr && jq != nullptr && projectMgr != nullptr)
@@ -365,7 +373,10 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
         chatPanel = std::make_unique<waive::ChatPanelComponent> (*aiAgent, *aiSettings);
         addChildComponent (chatPanel.get());  // hidden by default
 
-        chatResizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager, 3, false);
+        chatResizerLayoutIndex = 3;
+        chatResizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager,
+                                                                               chatResizerLayoutIndex,
+                                                                               false);
         addChildComponent (chatResizerBar.get());
     }
 
@@ -390,6 +401,9 @@ void SessionComponent::resized()
     // Transport toolbar with responsive layout
     const int viewportWidth = bounds.getWidth();
     const bool showSecondaryControls = viewportWidth >= 900;
+    const bool showSelectionStatus = viewportWidth >= 980;
+    const bool showTempoControls = viewportWidth >= 1120;
+    const bool showMarkerControls = viewportWidth >= 1320;
 
     const int toolbarH = showSecondaryControls
                             ? (waive::Spacing::controlHeightDefault * 2 + waive::Spacing::md)
@@ -418,26 +432,44 @@ void SessionComponent::resized()
     // Position display group
     primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
     primaryFlex.items.add (juce::FlexItem (positionLabel).withWidth (92));
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::md));
-    primaryFlex.items.add (juce::FlexItem (selectionStatusLabel).withWidth (150).withFlex (1.0f));
+    if (showSelectionStatus)
+    {
+        primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::md));
+        primaryFlex.items.add (juce::FlexItem (selectionStatusLabel).withWidth (150).withFlex (1.0f));
+    }
 
-    // Tempo/timesig group
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
-    primaryFlex.items.add (juce::FlexItem (tempoLabel).withWidth (40));
-    primaryFlex.items.add (juce::FlexItem (tempoSlider).withWidth (180));
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
-    primaryFlex.items.add (juce::FlexItem (timeSigLabel).withWidth (26));
-    primaryFlex.items.add (juce::FlexItem (timeSigNumeratorBox).withWidth (52));
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xxs));
-    primaryFlex.items.add (juce::FlexItem (timeSigDenominatorBox).withWidth (52));
+    // Tempo/timesig group (hidden on narrower widths so record controls stay visible)
+    if (showTempoControls)
+    {
+        primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
+        primaryFlex.items.add (juce::FlexItem (tempoLabel).withWidth (40));
+        primaryFlex.items.add (juce::FlexItem (tempoSlider).withWidth (170));
+        primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::sm));
+        primaryFlex.items.add (juce::FlexItem (timeSigLabel).withWidth (26));
+        primaryFlex.items.add (juce::FlexItem (timeSigNumeratorBox).withWidth (52));
+        primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xxs));
+        primaryFlex.items.add (juce::FlexItem (timeSigDenominatorBox).withWidth (52));
+    }
 
     // Marker group
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
-    primaryFlex.items.add (juce::FlexItem (addTempoMarkerButton).withWidth (72));
-    primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
-    primaryFlex.items.add (juce::FlexItem (addTimeSigMarkerButton).withWidth (60));
+    if (showMarkerControls)
+    {
+        primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::lg)); // Group separator
+        primaryFlex.items.add (juce::FlexItem (addTempoMarkerButton).withWidth (72));
+        primaryFlex.items.add (juce::FlexItem().withWidth (waive::Spacing::xs));
+        primaryFlex.items.add (juce::FlexItem (addTimeSigMarkerButton).withWidth (60));
+    }
 
     primaryFlex.performLayout (topRow);
+
+    selectionStatusLabel.setVisible (showSelectionStatus);
+    tempoLabel.setVisible (showTempoControls);
+    tempoSlider.setVisible (showTempoControls);
+    timeSigLabel.setVisible (showTempoControls);
+    timeSigNumeratorBox.setVisible (showTempoControls);
+    timeSigDenominatorBox.setVisible (showTempoControls);
+    addTempoMarkerButton.setVisible (showMarkerControls);
+    addTimeSigMarkerButton.setVisible (showMarkerControls);
 
     // Secondary row (visible when width >= 900px)
     if (showSecondaryControls)
@@ -495,41 +527,48 @@ void SessionComponent::resized()
     // Horizontal split: content area | resizer | sidebar
     auto contentBounds = bounds;
 
-    if (toolSidebar != nullptr && sidebarVisible)
+    if (toolSidebar != nullptr && sidebarVisible && sidebarResizer != nullptr)
     {
-        auto sidebarBounds = contentBounds.removeFromRight (waive::Spacing::sidebarWidth);
-        auto resizerBounds = contentBounds.removeFromRight (waive::Spacing::resizerBarThickness);
-        if (sidebarResizer)
-            sidebarResizer->setBounds (resizerBounds);
-        toolSidebar->setBounds (sidebarBounds);
+        juce::Component* horizontalComps[] = { &contentArea, sidebarResizer.get(), toolSidebar.get() };
+        horizontalLayout.layOutComponents (horizontalComps, 3,
+                                           bounds.getX(), bounds.getY(),
+                                           bounds.getWidth(), bounds.getHeight(),
+                                           true, true);
+
+        contentBounds = contentArea.getBounds();
+        contentArea.setVisible (true);
         toolSidebar->setVisible (true);
-        if (sidebarResizer)
-            sidebarResizer->setVisible (true);
+        sidebarResizer->setVisible (true);
     }
     else
     {
+        contentArea.setBounds (contentBounds);
+        contentArea.setVisible (false);
         if (toolSidebar)
             toolSidebar->setVisible (false);
         if (sidebarResizer)
             sidebarResizer->setVisible (false);
     }
 
+    PanelLayoutMode desiredMode = PanelLayoutMode::timelineMixer;
+    if (pianoRollPanel != nullptr && pianoRollVisible && chatPanel != nullptr && chatPanelVisible)
+        desiredMode = PanelLayoutMode::timelinePianoChatMixer;
+    else if (pianoRollPanel != nullptr && pianoRollVisible)
+        desiredMode = PanelLayoutMode::timelinePianoMixer;
+    else if (chatPanel != nullptr && chatPanelVisible)
+        desiredMode = PanelLayoutMode::timelineChatMixer;
+
+    applyPanelLayoutMode (desiredMode);
+
     // Layout: timeline + resizer + [piano roll + resizer +] [chat + resizer +] mixer (vertical)
     if (pianoRollPanel != nullptr && pianoRollVisible && chatPanel != nullptr && chatPanelVisible)
     {
-        // 7-component layout: timeline | resizer | pianoRoll | resizer2 | chat | resizer3 | mixer
-        layoutManager.setItemLayout (0, 100, -1.0, -0.40);    // timeline
-        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (2, 200, 600, 300);        // piano roll
-        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (4, 60, 300, 150);         // chat panel
-        layoutManager.setItemLayout (5, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (6, 80, 300, 160);         // mixer
-
         pianoRollPanel->setVisible (true);
-        pianoRollResizerBar->setVisible (true);
+        if (pianoRollResizerBar)
+            pianoRollResizerBar->setVisible (true);
         chatPanel->setVisible (true);
-        chatResizerBar->setVisible (true);
+        if (chatResizerBar)
+            chatResizerBar->setVisible (true);
 
         juce::Component* comps[] = { timeline.get(), resizerBar.get(),
                                      pianoRollPanel.get(), pianoRollResizerBar.get(),
@@ -542,15 +581,9 @@ void SessionComponent::resized()
     }
     else if (pianoRollPanel != nullptr && pianoRollVisible)
     {
-        // 5-component layout: timeline | resizer | pianoRoll | resizer2 | mixer
-        layoutManager.setItemLayout (0, 100, -1.0, -0.50);    // timeline
-        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (2, 200, 600, 300);        // piano roll
-        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
-
         pianoRollPanel->setVisible (true);
-        pianoRollResizerBar->setVisible (true);
+        if (pianoRollResizerBar)
+            pianoRollResizerBar->setVisible (true);
 
         if (chatPanel)
             chatPanel->setVisible (false);
@@ -567,15 +600,14 @@ void SessionComponent::resized()
     }
     else if (chatPanel != nullptr && chatPanelVisible)
     {
-        // 5-component layout: timeline | resizer | chat | resizer2 | mixer
-        layoutManager.setItemLayout (0, 100, -1.0, -0.55);    // timeline
-        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (2, 60, 300, 150);         // chat panel
-        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
-
         chatPanel->setVisible (true);
-        chatResizerBar->setVisible (true);
+        if (chatResizerBar)
+            chatResizerBar->setVisible (true);
+
+        if (pianoRollPanel)
+            pianoRollPanel->setVisible (false);
+        if (pianoRollResizerBar)
+            pianoRollResizerBar->setVisible (false);
 
         juce::Component* comps[] = { timeline.get(), resizerBar.get(),
                                      chatPanel.get(), chatResizerBar.get(), mixer.get() };
@@ -584,11 +616,10 @@ void SessionComponent::resized()
     }
     else
     {
-        // 3-component layout: timeline | resizer | mixer
-        layoutManager.setItemLayout (0, 100, -1.0, -0.75);
-        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
-        layoutManager.setItemLayout (2, 80, 300, 160);
-
+        if (pianoRollPanel)
+            pianoRollPanel->setVisible (false);
+        if (pianoRollResizerBar)
+            pianoRollResizerBar->setVisible (false);
         if (chatPanel)
             chatPanel->setVisible (false);
         if (chatResizerBar)
@@ -598,6 +629,67 @@ void SessionComponent::resized()
         layoutManager.layOutComponents (comps, 3, contentBounds.getX(), contentBounds.getY(),
                                         contentBounds.getWidth(), contentBounds.getHeight(), true, true);
     }
+}
+
+void SessionComponent::applyPanelLayoutMode (PanelLayoutMode mode)
+{
+    if (panelLayoutInitialised && panelLayoutMode == mode)
+        return;
+
+    if (mode == PanelLayoutMode::timelinePianoChatMixer)
+    {
+        ensureChatResizerLayoutIndex (5);
+        layoutManager.setItemLayout (0, 100, -1.0, -0.40);    // timeline
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (2, 200, 600, 300);        // piano roll
+        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (4, 60, 300, 150);         // chat panel
+        layoutManager.setItemLayout (5, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (6, 80, 300, 160);         // mixer
+    }
+    else if (mode == PanelLayoutMode::timelinePianoMixer)
+    {
+        layoutManager.setItemLayout (0, 100, -1.0, -0.50);    // timeline
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (2, 200, 600, 300);        // piano roll
+        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
+    }
+    else if (mode == PanelLayoutMode::timelineChatMixer)
+    {
+        ensureChatResizerLayoutIndex (3);
+        layoutManager.setItemLayout (0, 100, -1.0, -0.55);    // timeline
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (2, 60, 300, 150);         // chat panel
+        layoutManager.setItemLayout (3, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (4, 80, 300, 160);         // mixer
+    }
+    else
+    {
+        layoutManager.setItemLayout (0, 100, -1.0, -0.75);    // timeline
+        layoutManager.setItemLayout (1, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness, waive::Spacing::resizerBarThickness);
+        layoutManager.setItemLayout (2, 80, 300, 160);         // mixer
+    }
+
+    panelLayoutMode = mode;
+    panelLayoutInitialised = true;
+}
+
+void SessionComponent::ensureChatResizerLayoutIndex (int index)
+{
+    if (chatPanel == nullptr)
+        return;
+
+    if (chatResizerBar != nullptr && chatResizerLayoutIndex == index)
+        return;
+
+    const bool wasVisible = chatResizerBar != nullptr && chatResizerBar->isVisible();
+    chatResizerBar.reset();
+
+    chatResizerBar = std::make_unique<juce::StretchableLayoutResizerBar> (&layoutManager, index, false);
+    addChildComponent (chatResizerBar.get());
+    chatResizerLayoutIndex = index;
+    chatResizerBar->setVisible (wasVisible);
 }
 
 TimelineComponent& SessionComponent::getTimeline()

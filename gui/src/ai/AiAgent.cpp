@@ -12,6 +12,26 @@
 namespace waive
 {
 
+namespace
+{
+bool containsToolDefinition (const std::vector<AiToolDefinition>& defs, const juce::String& name)
+{
+    for (const auto& def : defs)
+        if (def.name == name)
+            return true;
+
+    return false;
+}
+
+void appendUniqueToolDefinitions (std::vector<AiToolDefinition>& dst,
+                                  const std::vector<AiToolDefinition>& src)
+{
+    for (const auto& def : src)
+        if (! containsToolDefinition (dst, def.name))
+            dst.push_back (def);
+}
+} // namespace
+
 AiAgent::AiAgent (AiSettings& s, UndoableCommandHandler& handler,
                   ToolRegistry& registry, JobQueue& jq)
     : settings (s), commandHandler (handler), toolRegistry (registry), jobQueue (jq)
@@ -113,7 +133,6 @@ void AiAgent::runConversationLoop()
     auto systemPrompt = generateSystemPrompt();
 
     discoveredTools.clear();
-    auto toolDefs = generateCoreDefinitions();
 
     const int maxIterations = 10;
 
@@ -131,7 +150,7 @@ void AiAgent::runConversationLoop()
 
         // Update tool definitions with discovered tools
         auto currentToolDefs = generateCoreDefinitions();
-        currentToolDefs.insert (currentToolDefs.end(), discoveredTools.begin(), discoveredTools.end());
+        appendUniqueToolDefinitions (currentToolDefs, discoveredTools);
 
         // Call the LLM
         auto response = provider->sendRequest (apiKey, model, systemPrompt, snapshot, currentToolDefs);
@@ -268,20 +287,13 @@ juce::String AiAgent::executeToolCall (const ChatMessage::ToolCall& call)
             return "{\"status\":\"error\",\"message\":\"Missing query parameter\"}";
 
         auto results = searchDefinitions (toolRegistry, query);
+        auto coreDefs = generateCoreDefinitions();
 
         // Add discovered tools to the active set (avoid duplicates)
         for (auto& r : results)
         {
-            bool alreadyKnown = false;
-            for (auto& existing : discoveredTools)
-            {
-                if (existing.name == r.name)
-                {
-                    alreadyKnown = true;
-                    break;
-                }
-            }
-            if (! alreadyKnown)
+            if (! containsToolDefinition (coreDefs, r.name)
+                && ! containsToolDefinition (discoveredTools, r.name))
                 discoveredTools.push_back (r);
         }
 

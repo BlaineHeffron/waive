@@ -294,14 +294,22 @@ void ChatPanelComponent::updateModelCombo()
     for (int i = 0; i < config.availableModels.size(); ++i)
         modelCombo.addItem (config.availableModels[i], i + 1);
 
+    bool selectedInList = false;
     auto selected = config.selectedModel;
     for (int i = 0; i < config.availableModels.size(); ++i)
     {
         if (config.availableModels[i] == selected)
         {
             modelCombo.setSelectedId (i + 1, juce::dontSendNotification);
+            selectedInList = true;
             break;
         }
+    }
+
+    if (! selectedInList && config.availableModels.size() > 0)
+    {
+        modelCombo.setSelectedId (1, juce::dontSendNotification);
+        settings.setSelectedModel (settings.getActiveProvider(), config.availableModels[0]);
     }
 }
 
