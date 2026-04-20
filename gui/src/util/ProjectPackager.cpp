@@ -67,7 +67,9 @@ juce::File ProjectPackager::getUniqueTargetFile (const juce::File& targetDir, co
     return targetDir.getChildFile (nameWithoutExt + "_" + juce::String (timestamp) + extension);
 }
 
-ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit, const juce::File& projectDir)
+ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
+                                                                const juce::File& projectDir,
+                                                                const juce::File& projectFile)
 {
     CollectResult result;
 
@@ -131,12 +133,18 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit, 
         }
     }
 
-    // Save the edit with updated paths
-    if (result.filesCopied > 0)
+    auto saveTarget = projectFile != juce::File() ? projectFile
+                                                  : te::EditFileOperations (edit).getEditFile();
+
+    if (saveTarget == juce::File())
     {
-        if (!te::EditFileOperations (edit).save (true, true, false))
-            result.errors.add ("Failed to save edit with updated paths");
+        result.errors.add ("Failed to save edit: no target project file is available");
+        return result;
     }
+
+    edit.flushState();
+    if (! te::EditFileOperations (edit).saveAs (saveTarget, true))
+        result.errors.add ("Failed to save edit with updated paths");
 
     return result;
 }
@@ -175,39 +183,57 @@ juce::Array<juce::File> ProjectPackager::findUnusedMedia (te::Edit& edit, const 
     return unusedFiles;
 }
 
-int ProjectPackager::removeUnusedMedia (te::Edit& edit, const juce::File& projectDir)
+ProjectPackager::RemoveResult ProjectPackager::removeUnusedMedia (te::Edit& edit, const juce::File& projectDir)
 {
+    RemoveResult result;
     auto unusedFiles = findUnusedMedia (edit, projectDir);
 
     if (unusedFiles.isEmpty())
-        return 0;
+        return result;
 
     // Check if projectDir is writable
     auto testFile = projectDir.getChildFile (".waive_write_test");
     if (!testFile.create())
-        return 0; // Cannot write, return 0 removed
+    {
+        result.errors.add ("Project directory is not writable: " + projectDir.getFullPathName());
+        return result;
+    }
     testFile.deleteFile();
 
     auto trashDir = projectDir.getChildFile (".trash");
     if (!trashDir.exists())
     {
         if (!trashDir.createDirectory())
-            return 0; // Cannot create trash dir, return 0 removed
+        {
+            result.errors.add ("Failed to create trash directory: " + trashDir.getFullPathName());
+            return result;
+        }
     }
 
-    int removed = 0;
     for (const auto& file : unusedFiles)
     {
+        auto fileSize = file.getSize();
         auto targetFile = getUniqueTargetFile (trashDir, file.getFileName());
         if (file.moveFileTo (targetFile))
-            removed++;
+        {
+            result.filesRemoved++;
+            result.bytesFreed += fileSize;
+        }
+        else
+        {
+            result.errors.add ("Failed to move unused media to trash: " + file.getFullPathName());
+        }
     }
 
-    return removed;
+    return result;
 }
 
-bool ProjectPackager::packageAsZip (const juce::File& projectDir, const juce::File& outputZip)
+bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::File& outputZip)
 {
+    if (! projectFile.existsAsFile())
+        return false;
+
+    auto projectDir = projectFile.getParentDirectory();
     if (outputZip.existsAsFile())
         outputZip.deleteFile();
 
@@ -222,15 +248,10 @@ bool ProjectPackager::packageAsZip (const juce::File& projectDir, const juce::Fi
 
     juce::ZipFile::Builder builder;
 
-    // Add .tracktionedit file
-    for (const auto& iter : juce::RangedDirectoryIterator (projectDir, false, "*.tracktionedit", juce::File::findFiles))
-    {
-        auto file = iter.getFile();
-        builder.addFile (file, 9, file.getFileName());
-    }
+    builder.addFile (projectFile, 9, projectFile.getFileName());
 
-    // Add .autosave if exists
-    for (const auto& iter : juce::RangedDirectoryIterator (projectDir, false, "*.autosave", juce::File::findFiles))
+    // Add the current auto-save snapshot if it exists.
+    for (const auto& iter : juce::RangedDirectoryIterator (projectDir, false, ".waive-autosave-*.tracktionedit", juce::File::findFiles))
     {
         auto file = iter.getFile();
         builder.addFile (file, 9, file.getFileName());

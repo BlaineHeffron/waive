@@ -356,7 +356,7 @@ void runUiProjectLifecycleRegression()
     expect (! projectManager.isDirty(), "Expected save command to clear dirty state");
     expect (projectFile.existsAsFile(), "Expected save command to write the project file");
 
-    auto autoSaveFile = projectFile.getSiblingFile (projectFile.getFileNameWithoutExtension() + ".autosave");
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
     (void) autoSaveFile.deleteFile();
 
     {
@@ -393,7 +393,6 @@ void runUiProjectLifecycleRegression()
             "Expected recovered project to include autosaved clip");
 
     expect (projectManager.save(), "Expected save after recovery to succeed");
-    AutoSaveManager::deleteAutoSave (projectManager.getCurrentFile());
     expect (! projectManager.isDirty(), "Expected save after recovery to clear dirty state");
     expect (! autoSaveFile.existsAsFile(), "Expected explicit save to clear autosave file");
 

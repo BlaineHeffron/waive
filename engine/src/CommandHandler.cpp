@@ -2099,11 +2099,7 @@ juce::var CommandHandler::handleCollectAndSave()
         return makeError ("Edit file not saved - cannot determine project directory");
 
     auto projectDir = editFile.getParentDirectory();
-    auto result = waive::ProjectPackager::collectAndSave (edit, projectDir);
-
-    int64 bytesFree = 0;
-    for (const auto& file : waive::ProjectPackager::findUnusedMedia (edit, projectDir))
-        bytesFree += file.getSize();
+    auto result = waive::ProjectPackager::collectAndSave (edit, projectDir, editFile);
 
     auto response = makeOk();
     if (auto* obj = response.getDynamicObject())
@@ -2129,19 +2125,21 @@ juce::var CommandHandler::handleRemoveUnusedMedia()
         return makeError ("Edit file not saved - cannot determine project directory");
 
     auto projectDir = editFile.getParentDirectory();
-
-    // Calculate bytes before removal
-    int64 bytesFree = 0;
-    for (const auto& file : waive::ProjectPackager::findUnusedMedia (edit, projectDir))
-        bytesFree += file.getSize();
-
-    int filesRemoved = waive::ProjectPackager::removeUnusedMedia (edit, projectDir);
+    auto removeResult = waive::ProjectPackager::removeUnusedMedia (edit, projectDir);
 
     auto response = makeOk();
     if (auto* obj = response.getDynamicObject())
     {
-        obj->setProperty ("files_removed", filesRemoved);
-        obj->setProperty ("bytes_freed", bytesFree);
+        obj->setProperty ("files_removed", removeResult.filesRemoved);
+        obj->setProperty ("bytes_freed", removeResult.bytesFreed);
+
+        if (! removeResult.errors.isEmpty())
+        {
+            juce::Array<juce::var> errorArray;
+            for (const auto& err : removeResult.errors)
+                errorArray.add (err);
+            obj->setProperty ("errors", errorArray);
+        }
     }
     return response;
 }

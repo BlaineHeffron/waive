@@ -7,11 +7,13 @@
 #include "PathSanitizer.h"
 #include "AudioAnalysisCache.h"
 #include "AudioAnalysis.h"
+#include "ProjectPackager.h"
 
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 namespace te = tracktion;
 
@@ -27,6 +29,59 @@ void expect (bool condition, const std::string& message)
 int getAudioTrackCount (te::Edit& edit)
 {
     return te::getAudioTracks (edit).size();
+}
+
+juce::File getFixtureDir (const juce::String& name)
+{
+    auto dir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                   .getChildFile ("waive_core_tests")
+                   .getChildFile (name + "_" + juce::Uuid().toString());
+    dir.createDirectory();
+    return dir;
+}
+
+juce::File writeTestWav (const juce::File& file, float amplitude = 0.5f)
+{
+    std::vector<float> samples (4410, amplitude);
+
+    if (auto writer = std::unique_ptr<juce::AudioFormatWriter> (
+            juce::WavAudioFormat().createWriterFor (
+                new juce::FileOutputStream (file),
+                44100.0, 1, 16, {}, 0)))
+    {
+        juce::AudioBuffer<float> buffer (1, (int) samples.size());
+        buffer.copyFrom (0, 0, samples.data(), (int) samples.size());
+        writer->writeFromAudioSampleBuffer (buffer, 0, buffer.getNumSamples());
+    }
+
+    return file;
+}
+
+juce::File createSavedProjectFixture (te::Engine& engine, const juce::File& projectFile)
+{
+    auto backingFile = projectFile.getSiblingFile ("fixture_backing.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected fixture track");
+
+    auto clip = track->insertMIDIClip (
+        "fixture_clip",
+        te::TimeRange (te::TimePosition::fromSeconds (0.0),
+                       te::TimePosition::fromSeconds (1.0)),
+        nullptr);
+    expect (clip != nullptr, "Expected fixture MIDI clip insertion");
+    clip->getSequence().addNote (60, te::BeatPosition::fromBeats (0.0),
+                                 te::BeatDuration::fromBeats (1.0),
+                                 100, 0, &edit->getUndoManager());
+
+    expect (te::EditFileOperations (*edit).saveAs (projectFile, true),
+            "Expected fixture project save to succeed");
+    if (backingFile.existsAsFile())
+        (void) backingFile.deleteFile();
+
+    return projectFile;
 }
 
 void testCoalescedTransactionsAndReset (EditSession& session)
@@ -384,6 +439,166 @@ void testAudioAnalysisZeroSampleRate()
     expect (summary.totalSamples == 0, "Expected zero samples for invalid file");
 }
 
+void testCollectAndSavePersistsToExplicitProjectFile (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("collect_explicit_save");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    projectDir.createDirectory();
+    auto projectFile = projectDir.getChildFile ("waive_project.tracktionedit");
+    auto backingFile = fixtureDir.getChildFile ("recovery_backing.tracktionedit");
+
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected collect/save fixture track");
+
+    auto clip = track->insertMIDIClip (
+        "saved_via_collect",
+        te::TimeRange (te::TimePosition::fromSeconds (0.0),
+                       te::TimePosition::fromSeconds (1.0)),
+        nullptr);
+    expect (clip != nullptr, "Expected collect/save fixture clip");
+    clip->getSequence().addNote (67, te::BeatPosition::fromBeats (0.0),
+                                 te::BeatDuration::fromBeats (1.0),
+                                 100, 0, &edit->getUndoManager());
+    edit->markAsChanged();
+
+    auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, projectFile);
+    expect (result.errors.isEmpty(), "Expected collect/save to persist explicit project file without errors");
+    expect (projectFile.existsAsFile(), "Expected collect/save to write the explicit project file");
+
+    auto reloadedEdit = te::loadEditFromFile (engine, projectFile);
+    auto* reloadedTrack = te::getAudioTracks (*reloadedEdit).getFirst();
+    expect (reloadedTrack != nullptr, "Expected reloaded project track");
+    expect (reloadedTrack->getClips().size() == 1,
+            "Expected collect/save to persist edits even when no external media was copied");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testCollectAndSaveCopiesExternalMediaAndRewritesReferences (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("collect_copy_media");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto externalDir = fixtureDir.getChildFile ("external");
+    projectDir.createDirectory();
+    externalDir.createDirectory();
+
+    auto projectFile = projectDir.getChildFile ("portable.tracktionedit");
+    auto externalAudio = writeTestWav (externalDir.getChildFile ("external_source.wav"));
+    auto backingFile = fixtureDir.getChildFile ("external_backing.tracktionedit");
+
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected external-media fixture track");
+
+    auto insertedClip = track->insertWaveClip (
+        "external_source",
+        externalAudio,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (0.1) },
+          te::TimeDuration() },
+        false);
+    expect (insertedClip != nullptr, "Expected external wave clip insertion");
+    edit->markAsChanged();
+
+    auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, projectFile);
+    expect (result.filesCopied == 1, "Expected collect/save to copy one external file");
+    expect (result.errors.isEmpty(), "Expected collect/save to complete without errors");
+
+    auto reloadedEdit = te::loadEditFromFile (engine, projectFile);
+    auto* reloadedTrack = te::getAudioTracks (*reloadedEdit).getFirst();
+    expect (reloadedTrack != nullptr, "Expected reloaded media project track");
+
+    auto* reloadedAudioClip = dynamic_cast<te::AudioClipBase*> (reloadedTrack->getClips().getFirst());
+    expect (reloadedAudioClip != nullptr, "Expected reloaded audio clip");
+    auto reloadedSource = reloadedAudioClip->getSourceFileReference().getFile();
+    expect (reloadedSource.isAChildOf (projectDir.getChildFile ("Audio")),
+            "Expected collected media reference to point into project Audio directory");
+    expect (reloadedSource.existsAsFile(), "Expected collected media file to exist inside project");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testRemoveUnusedMediaReportsActualBytesFreed (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("remove_unused_media");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto audioDir = projectDir.getChildFile ("Audio");
+    projectDir.createDirectory();
+    audioDir.createDirectory();
+
+    auto projectFile = projectDir.getChildFile ("cleanup.tracktionedit");
+    auto usedAudio = writeTestWav (audioDir.getChildFile ("used.wav"), 0.4f);
+    auto unusedAudio = writeTestWav (audioDir.getChildFile ("unused.wav"), 0.2f);
+    auto unusedAudioSize = unusedAudio.getSize();
+
+    auto edit = te::createEmptyEdit (engine, projectFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected cleanup fixture track");
+    expect (track->insertWaveClip (
+                "used",
+                usedAudio,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.1) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected used wave clip insertion");
+
+    auto removeResult = waive::ProjectPackager::removeUnusedMedia (*edit, projectDir);
+    expect (removeResult.errors.isEmpty(), "Expected unused-media removal to succeed");
+    expect (removeResult.filesRemoved == 1, "Expected one unused media file to be moved");
+    expect (removeResult.bytesFreed == unusedAudioSize,
+            "Expected bytes freed to match the moved unused media file");
+    expect (! unusedAudio.existsAsFile(), "Expected unused media file to be removed from Audio directory");
+    expect (projectDir.getChildFile (".trash").getChildFile ("unused.wav").existsAsFile(),
+            "Expected unused media file to be moved into .trash");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("package_zip");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto audioDir = projectDir.getChildFile ("Audio");
+    projectDir.createDirectory();
+    audioDir.createDirectory();
+
+    auto projectFile = createSavedProjectFixture (engine, projectDir.getChildFile ("main_project.tracktionedit"));
+    auto backupProjectFile = projectDir.getChildFile ("backup.tracktionedit");
+    auto autoSaveFile = projectDir.getChildFile (".waive-autosave-main_project.tracktionedit");
+    auto audioFile = writeTestWav (audioDir.getChildFile ("packaged.wav"));
+    auto outputZip = fixtureDir.getChildFile ("portable.zip");
+
+    expect (backupProjectFile.replaceWithText ("backup"), "Expected backup fixture project file");
+    expect (autoSaveFile.replaceWithText ("autosave"), "Expected autosave fixture project file");
+
+    expect (waive::ProjectPackager::packageAsZip (projectFile, outputZip),
+            "Expected packageAsZip to produce an archive");
+    expect (outputZip.existsAsFile(), "Expected zip file to be created");
+
+    juce::ZipFile zip (outputZip);
+    juce::StringArray entries;
+    for (int i = 0; i < zip.getNumEntries(); ++i)
+        if (auto* entry = zip.getEntry (i))
+            entries.add (entry->filename);
+
+    expect (entries.contains (projectFile.getFileName()),
+            "Expected zip to include the current project file");
+    expect (entries.contains ("Audio/" + audioFile.getFileName()),
+            "Expected zip to include project audio");
+    expect (entries.contains (autoSaveFile.getFileName()),
+            "Expected zip to include autosave snapshot when present");
+    expect (! entries.contains (backupProjectFile.getFileName()),
+            "Expected zip to exclude unrelated tracktionedit files from the project directory");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 } // namespace
 
 int main()
@@ -408,6 +623,10 @@ int main()
         testAudioAnalysisCacheLRU();
         testAudioAnalysisCacheO1Performance();
         testAudioAnalysisZeroSampleRate();
+        testCollectAndSavePersistsToExplicitProjectFile (engine);
+        testCollectAndSaveCopiesExternalMediaAndRewritesReferences (engine);
+        testRemoveUnusedMediaReportsActualBytesFreed (engine);
+        testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
 
         std::cout << "WaiveCoreTests: PASS" << std::endl;
         return 0;

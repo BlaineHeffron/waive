@@ -1,5 +1,6 @@
 #include "ProjectManager.h"
 #include "EditSession.h"
+#include "AutoSaveManager.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -47,13 +48,47 @@ bool ProjectManager::openProject (const juce::File& file)
     if (! file.existsAsFile())
         return false;
 
+    bool discardAutoSaveOnSuccess = false;
+    if (const auto autoSaveFile = AutoSaveManager::checkForAutoSave (file);
+        autoSaveFile != juce::File())
+    {
+        const bool shouldRecover = juce::AlertWindow::showOkCancelBox (
+            juce::MessageBoxIconType::QuestionIcon,
+            "Recover Unsaved Changes?",
+            "A newer auto-save was found for this project. Recover it before opening?",
+            "Recover", "Open Saved Version");
+
+        if (shouldRecover)
+            return openProjectInternal (autoSaveFile, file, true);
+
+        discardAutoSaveOnSuccess = true;
+    }
+
+    if (! openProjectInternal (file, file, false))
+        return false;
+
+    if (discardAutoSaveOnSuccess)
+        AutoSaveManager::deleteAutoSave (file);
+
+    return true;
+}
+
+bool ProjectManager::openProjectInternal (const juce::File& fileToLoad,
+                                         const juce::File& resultingProjectFile,
+                                         bool markChangedAfterLoad)
+{
     if (! confirmSaveIfDirty())
         return false;
 
-    editSession.loadFromFile (file);
-    currentFile = file;
-    editSession.resetChangedStatus();
-    addToRecentFiles (file);
+    editSession.loadFromFile (fileToLoad);
+    currentFile = resultingProjectFile;
+
+    if (markChangedAfterLoad)
+        editSession.markAsChanged();
+    else
+        editSession.resetChangedStatus();
+
+    addToRecentFiles (currentFile);
     checkDirtyState();
     return true;
 }
@@ -72,12 +107,7 @@ bool ProjectManager::recoverProjectFromAutoSave (const juce::File& autoSaveFile,
     if (! autoSaveFile.copyFileTo (recoveryFile))
         return false;
 
-    editSession.loadFromFile (recoveryFile);
-    currentFile = originalProjectFile;
-    editSession.markAsChanged();
-    addToRecentFiles (originalProjectFile);
-    checkDirtyState();
-    return true;
+    return openProjectInternal (recoveryFile, originalProjectFile, true);
 }
 
 bool ProjectManager::save()
@@ -107,6 +137,7 @@ bool ProjectManager::save()
     }
 
     editSession.resetChangedStatus();
+    AutoSaveManager::deleteAutoSave (currentFile);
     checkDirtyState();
     return true;
 }
@@ -145,6 +176,7 @@ bool ProjectManager::saveAs()
 
     currentFile = file;
     editSession.resetChangedStatus();
+    AutoSaveManager::deleteAutoSave (currentFile);
     addToRecentFiles (file);
     checkDirtyState();
     return true;

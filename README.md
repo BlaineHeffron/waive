@@ -4,7 +4,7 @@
 
 ## Features
 
-- **48 commands** for timeline, clip, and track editing
+- **56 commands** for timeline, clip, track, automation, preset, and media operations
 - **7 built-in tools** for audio analysis and manipulation
 - **10 Python AI tools** for intelligent audio processing
 - **Multi-provider AI chat** integrated into the workflow
@@ -93,11 +93,7 @@ ctest --test-dir build --output-on-failure
 
 ```bash
 # Install Python dependencies
-if [ -f ai/requirements.txt ]; then pip install -r ai/requirements.txt; fi
 pip install -r tools/tests/requirements.txt
-
-# Run AI tests
-if [ -d ai/tests ]; then python3 -m pytest ai/tests/ -v; fi
 
 # Run audio tool tests
 python3 -m pytest tools/tests/ -v
@@ -133,10 +129,9 @@ python3 -m pytest tools/tests/ -v
 See [docs/architecture.md](docs/architecture.md) for detailed architecture documentation.
 
 **Key Components:**
-- `engine/` — Core CommandHandler, no GUI dependencies
-- `gui/` — JUCE-based UI with SessionComponent, timeline, tools
-- `ai/` — Python AI integration (chat, audio analysis)
-- `tools/` — Built-in and Python audio processing tools
+- `engine/` — Core `CommandHandler`, no GUI dependencies
+- `gui/` — JUCE UI, session editing, and AI/chat integration under `gui/src/ai/`
+- `tools/` — Built-in and external Python audio processing tools
 
 ## License
 

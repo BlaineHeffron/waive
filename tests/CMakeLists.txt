@@ -23,6 +23,8 @@ target_sources(WaiveCoreTests PRIVATE
     ../gui/src/tools/AudioAnalysis.cpp
     ../gui/src/util/PathSanitizer.h
     ../gui/src/util/PathSanitizer.cpp
+    ../gui/src/util/ProjectPackager.h
+    ../gui/src/util/ProjectPackager.cpp
 )
 
 target_compile_features(WaiveCoreTests PRIVATE cxx_std_20)

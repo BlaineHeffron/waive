@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 
 class EditSession;
+class AutoSaveManager;
 
 //==============================================================================
 /** Manages project file operations: new, open, save, save-as, recent files. */
@@ -41,6 +42,9 @@ public:
 private:
     void checkDirtyState();
     bool confirmSaveIfDirty();
+    bool openProjectInternal (const juce::File& fileToLoad,
+                              const juce::File& resultingProjectFile,
+                              bool markChangedAfterLoad);
     void addToRecentFiles (const juce::File& file);
 
     EditSession& editSession;

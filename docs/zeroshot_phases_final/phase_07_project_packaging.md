@@ -45,7 +45,8 @@ public:
     };
 
     // Collect all referenced audio into project_dir/Audio/
-    static CollectResult collectAndSave (te::Edit& edit, const juce::File& projectDir);
+    static CollectResult collectAndSave (te::Edit& edit, const juce::File& projectDir,
+                                         const juce::File& projectFile = {});
 
     // Find audio files referenced by the edit that are outside the project directory
     static juce::Array<juce::File> findExternalMedia (te::Edit& edit, const juce::File& projectDir);
@@ -54,10 +55,10 @@ public:
     static juce::Array<juce::File> findUnusedMedia (te::Edit& edit, const juce::File& projectDir);
 
     // Remove unused media files
-    static int removeUnusedMedia (te::Edit& edit, const juce::File& projectDir);
+    static RemoveResult removeUnusedMedia (te::Edit& edit, const juce::File& projectDir);
 
     // Package project directory as a zip file
-    static bool packageAsZip (const juce::File& projectDir, const juce::File& outputZip);
+    static bool packageAsZip (const juce::File& projectFile, const juce::File& outputZip);
 };
 ```
 
@@ -69,7 +70,7 @@ public:
 3. For each file that lives outside `projectDir`:
    a. Copy it to `projectDir/Audio/<filename>` (handle name collisions by appending numbers)
    b. Update the clip's source file reference to point to the new location
-4. Save the edit
+4. Save the edit to the current project file
 5. Return count of files copied and any errors
 
 **Important:** Use `juce::File::copyFileTo()` for copying. Handle large files gracefully.
@@ -85,9 +86,9 @@ public:
 ### 4. Implement packageAsZip
 
 Use `juce::ZipFile::Builder` to create a zip containing:
-- The `.tracktionedit` project file
+- The current `.tracktionedit` project file
 - The `Audio/` directory with all collected media
-- Any `.autosave` file if present
+- Any `.waive-autosave-*.tracktionedit` file if present
 
 ### 5. Add menu items
 

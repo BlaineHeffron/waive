@@ -1,6 +1,6 @@
 # Waive Test Framework
 
-Waive has two native C++ regression test executables integrated with CTest.
+Waive has three native C++ regression test executables integrated with CTest.
 
 ## Test Targets
 
@@ -84,6 +84,8 @@ Waive has two native C++ regression test executables integrated with CTest.
 - Phase 6:
   - Safety architecture regression: ID-based selection persistence across edit swaps, async callback safety (no dangling pointers), transaction rollback on exception
   - Performance regression: ClipTrackIndexMap scaling to 100+ clips, AudioAnalysisCache hit rate and eviction behavior
+- Phase 7:
+  - collect/save persistence to the intended project file, media collection + reference rewriting, unused-media cleanup accounting, and zip packaging contents
 
 ## Test Categories
 
@@ -127,7 +129,7 @@ Use `python3`, not `python`, in environments where only `python3` is installed:
 python3 -m pytest tools/tests/ -v --tb=short
 ```
 
-The repository currently treats `ai/tests` and `ai/requirements.txt` as optional. Only run those paths if they exist locally.
+This repository does not currently ship a separate top-level `ai/` test tree. Python regression coverage lives under `tools/tests/`.
 
 ## Writing New Tests
 

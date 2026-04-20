@@ -6,12 +6,18 @@
 AutoSaveManager::AutoSaveManager (EditSession& session, ProjectManager& projectMgr, int intervalSeconds)
     : editSession (session), projectManager (projectMgr)
 {
-    startTimer (intervalSeconds * 1000);
+    juce::PropertiesFile::Options opts;
+    opts.applicationName = "Waive";
+    opts.filenameSuffix = ".settings";
+    opts.osxLibrarySubFolder = "Application Support/Waive";
+    appProperties.setStorageParameters (opts);
+    startTimer (juce::jmax (1, intervalSeconds) * 1000);
 }
 
 AutoSaveManager::~AutoSaveManager()
 {
     stopTimer();
+    deleteAutoSave (projectManager.getCurrentFile());
 }
 
 void AutoSaveManager::timerCallback()
@@ -26,7 +32,7 @@ void AutoSaveManager::timerCallback()
     // Save current edit state
     editSession.flushState();
 
-    // Copy the edit file to .autosave
+    // Copy the saved project file to the current recovery snapshot path.
     auto currentFile = projectManager.getCurrentFile();
     if (currentFile.existsAsFile())
     {
@@ -39,19 +45,12 @@ void AutoSaveManager::timerCallback()
 
 juce::File AutoSaveManager::getAutoSaveFile() const
 {
-    auto currentFile = projectManager.getCurrentFile();
-    if (currentFile == juce::File())
-        return {};
-
-    return currentFile.getSiblingFile (currentFile.getFileNameWithoutExtension() + ".autosave");
+    return getAutoSaveFileForProject (projectManager.getCurrentFile());
 }
 
 juce::File AutoSaveManager::checkForAutoSave (const juce::File& projectFile)
 {
-    if (projectFile == juce::File())
-        return {};
-
-    auto autoSave = projectFile.getSiblingFile (projectFile.getFileNameWithoutExtension() + ".autosave");
+    auto autoSave = getAutoSaveFileForProject (projectFile);
     if (! autoSave.existsAsFile())
         return {};
 
@@ -65,10 +64,33 @@ juce::File AutoSaveManager::checkForAutoSave (const juce::File& projectFile)
 
 void AutoSaveManager::deleteAutoSave (const juce::File& projectFile)
 {
-    if (projectFile == juce::File())
-        return;
-
-    auto autoSave = projectFile.getSiblingFile (projectFile.getFileNameWithoutExtension() + ".autosave");
+    auto autoSave = getAutoSaveFileForProject (projectFile);
     if (autoSave.existsAsFile())
         autoSave.deleteFile();
+}
+
+int AutoSaveManager::getConfiguredIntervalSeconds()
+{
+    juce::ApplicationProperties properties;
+    juce::PropertiesFile::Options opts;
+    opts.applicationName = "Waive";
+    opts.filenameSuffix = ".settings";
+    opts.osxLibrarySubFolder = "Application Support/Waive";
+    properties.setStorageParameters (opts);
+
+    constexpr int defaultIntervalSeconds = 300;
+    if (auto* settings = properties.getUserSettings())
+        return juce::jlimit (30, 3600, settings->getIntValue ("autoSaveIntervalSeconds", defaultIntervalSeconds));
+
+    return defaultIntervalSeconds;
+}
+
+juce::File AutoSaveManager::getAutoSaveFileForProject (const juce::File& projectFile)
+{
+    if (projectFile == juce::File())
+        return {};
+
+    return projectFile.getSiblingFile (".waive-autosave-"
+                                       + projectFile.getFileNameWithoutExtension()
+                                       + ".tracktionedit");
 }

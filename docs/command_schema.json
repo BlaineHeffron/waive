@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "Waive Command Protocol",
-  "description": "JSON command schema for Waive's in-process developer console (debug/diagnostics).",
+  "description": "JSON command schema for Waive's in-process developer console.",
   "type": "object",
   "required": ["action"],
   "properties": {
@@ -17,49 +17,220 @@
         "set_track_pan",
         "insert_audio_clip",
         "insert_midi_clip",
-        "set_parameter",
         "load_plugin",
+        "set_parameter",
         "transport_play",
         "transport_stop",
+        "transport_seek",
         "list_plugins",
-        "transport_seek"
+        "arm_track",
+        "record_from_mic",
+        "split_clip",
+        "delete_clip",
+        "move_clip",
+        "duplicate_clip",
+        "trim_clip",
+        "set_clip_gain",
+        "rename_clip",
+        "rename_track",
+        "solo_track",
+        "mute_track",
+        "duplicate_track",
+        "get_transport_state",
+        "set_tempo",
+        "set_loop_region",
+        "export_mixdown",
+        "export_stems",
+        "bounce_track",
+        "remove_plugin",
+        "bypass_plugin",
+        "get_plugin_parameters",
+        "get_automation_params",
+        "get_automation_points",
+        "add_automation_point",
+        "remove_automation_point",
+        "clear_automation",
+        "set_clip_fade",
+        "set_time_signature",
+        "add_marker",
+        "remove_marker",
+        "list_markers",
+        "reorder_track",
+        "save_plugin_preset",
+        "load_plugin_preset",
+        "add_folder_track",
+        "move_track_to_folder",
+        "remove_from_folder",
+        "collect_and_save",
+        "remove_unused_media"
       ],
       "description": "The command action to perform."
     },
     "track_id": {
       "type": "integer",
       "minimum": 0,
-      "description": "Zero-based track index."
+      "description": "Zero-based track index in the full edit track list."
     },
-    "value_db": {
-      "type": "number",
-      "description": "Volume in decibels (e.g., -6.0, 0.0, 3.0)."
-    },
-    "value": {
-      "type": "number",
-      "description": "Generic parameter value. For pan: -1.0 (left) to 1.0 (right)."
-    },
-    "start_time": {
-      "type": "number",
+    "track_index": {
+      "type": "integer",
       "minimum": 0,
-      "description": "Start time in seconds for clip insertion."
+      "description": "Zero-based track index used by preset/folder helpers."
     },
-    "file_path": {
+    "folder_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based folder track index."
+    },
+    "clip_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based clip index within an audio track."
+    },
+    "plugin_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based external plugin index on a track."
+    },
+    "param_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based automatable parameter index."
+    },
+    "point_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Zero-based automation point index."
+    },
+    "marker_id": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Marker identifier returned by add_marker."
+    },
+    "track_name": {
       "type": "string",
-      "description": "Absolute path to an audio file (WAV, FLAC, AIFF)."
+      "description": "Track name."
     },
-    "position": {
-      "type": "number",
-      "minimum": 0,
-      "description": "Transport position in seconds for seeking."
+    "name": {
+      "type": "string",
+      "description": "Generic name field for markers and folder tracks."
+    },
+    "new_name": {
+      "type": "string",
+      "description": "New clip or track name."
+    },
+    "preset_name": {
+      "type": "string",
+      "description": "Preset name."
     },
     "plugin_id": {
       "type": "string",
-      "description": "VST3 plugin identifier string."
+      "description": "Plugin identifier string."
     },
     "param_id": {
       "type": "string",
       "description": "Plugin parameter identifier."
+    },
+    "file_path": {
+      "type": "string",
+      "description": "Absolute file path."
+    },
+    "output_dir": {
+      "type": "string",
+      "description": "Absolute output directory path."
+    },
+    "position": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Transport position in seconds."
+    },
+    "start_time": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Start time in seconds."
+    },
+    "time": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Generic time in seconds."
+    },
+    "start": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Range start in seconds."
+    },
+    "end": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Range end in seconds."
+    },
+    "value_db": {
+      "type": "number",
+      "description": "Decibel value."
+    },
+    "gain_db": {
+      "type": "number",
+      "description": "Clip gain in decibels."
+    },
+    "value": {
+      "type": "number",
+      "description": "Generic scalar value."
+    },
+    "curve": {
+      "type": "number",
+      "description": "Automation curve amount."
+    },
+    "delta_seconds": {
+      "type": "number",
+      "description": "Time delta in seconds."
+    },
+    "trim_start": {
+      "type": "number",
+      "description": "Trim amount from the clip start in seconds."
+    },
+    "trim_end": {
+      "type": "number",
+      "description": "Trim amount from the clip end in seconds."
+    },
+    "fade_in": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Fade-in duration in seconds."
+    },
+    "fade_out": {
+      "type": "number",
+      "minimum": 0,
+      "description": "Fade-out duration in seconds."
+    },
+    "enabled": {
+      "type": "boolean",
+      "description": "Boolean enable/disable flag."
+    },
+    "bypassed": {
+      "type": "boolean",
+      "description": "Whether a plugin should be bypassed."
+    },
+    "mute": {
+      "type": "boolean",
+      "description": "Whether a track should be muted."
+    },
+    "solo": {
+      "type": "boolean",
+      "description": "Whether a track should be soloed."
+    },
+    "numerator": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Time signature numerator."
+    },
+    "denominator": {
+      "type": "integer",
+      "enum": [2, 4, 8, 16],
+      "description": "Time signature denominator."
+    },
+    "new_position": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Destination track position."
     }
   },
   "allOf": [
@@ -76,24 +247,160 @@
       "then": { "required": ["action", "track_id", "file_path"] }
     },
     {
-      "if": { "properties": { "action": { "const": "remove_track" } } },
-      "then": { "required": ["action", "track_id"] }
-    },
-    {
       "if": { "properties": { "action": { "const": "insert_midi_clip" } } },
       "then": { "required": ["action", "track_id", "file_path"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "remove_track" } } },
+      "then": { "required": ["action", "track_id"] }
     },
     {
       "if": { "properties": { "action": { "const": "load_plugin" } } },
       "then": { "required": ["action", "track_id", "plugin_id"] }
     },
     {
+      "if": { "properties": { "action": { "const": "set_parameter" } } },
+      "then": { "required": ["action", "track_id", "plugin_id", "param_id", "value"] }
+    },
+    {
       "if": { "properties": { "action": { "const": "transport_seek" } } },
       "then": { "required": ["action", "position"] }
     },
     {
-      "if": { "properties": { "action": { "const": "set_parameter" } } },
-      "then": { "required": ["action", "track_id", "plugin_id", "param_id", "value"] }
+      "if": { "properties": { "action": { "const": "arm_track" } } },
+      "then": { "required": ["action", "track_id", "enabled"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "split_clip" } } },
+      "then": { "required": ["action", "track_id", "clip_index", "time"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "delete_clip" } } },
+      "then": { "required": ["action", "track_id", "clip_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "move_clip" } } },
+      "then": { "required": ["action", "track_id", "clip_index", "delta_seconds"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "duplicate_clip" } } },
+      "then": { "required": ["action", "track_id", "clip_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "trim_clip" } } },
+      "then": { "required": ["action", "track_id", "clip_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "set_clip_gain" } } },
+      "then": { "required": ["action", "track_id", "clip_index", "gain_db"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "rename_clip" } } },
+      "then": { "required": ["action", "track_id", "clip_index", "new_name"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "rename_track" } } },
+      "then": { "required": ["action", "track_id", "new_name"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "solo_track" } } },
+      "then": { "required": ["action", "track_id", "solo"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "mute_track" } } },
+      "then": { "required": ["action", "track_id", "mute"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "duplicate_track" } } },
+      "then": { "required": ["action", "track_id"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "set_tempo" } } },
+      "then": { "required": ["action", "value"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "set_loop_region" } } },
+      "then": { "required": ["action", "enabled"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "export_mixdown" } } },
+      "then": { "required": ["action", "file_path"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "export_stems" } } },
+      "then": { "required": ["action", "output_dir"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "bounce_track" } } },
+      "then": { "required": ["action", "track_id"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "remove_plugin" } } },
+      "then": { "required": ["action", "track_id", "plugin_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "bypass_plugin" } } },
+      "then": { "required": ["action", "track_id", "plugin_index", "bypassed"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "get_plugin_parameters" } } },
+      "then": { "required": ["action", "track_id", "plugin_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "get_automation_params" } } },
+      "then": { "required": ["action", "track_id"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "get_automation_points" } } },
+      "then": { "required": ["action", "track_id", "param_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "add_automation_point" } } },
+      "then": { "required": ["action", "track_id", "param_index", "time", "value"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "remove_automation_point" } } },
+      "then": { "required": ["action", "track_id", "param_index", "point_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "clear_automation" } } },
+      "then": { "required": ["action", "track_id", "param_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "set_clip_fade" } } },
+      "then": { "required": ["action", "track_id", "clip_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "set_time_signature" } } },
+      "then": { "required": ["action", "numerator", "denominator"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "add_marker" } } },
+      "then": { "required": ["action", "time", "name"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "remove_marker" } } },
+      "then": { "required": ["action", "marker_id"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "reorder_track" } } },
+      "then": { "required": ["action", "track_id", "new_position"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "save_plugin_preset" } } },
+      "then": { "required": ["action", "track_index", "plugin_index", "preset_name"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "load_plugin_preset" } } },
+      "then": { "required": ["action", "track_index", "plugin_index", "preset_name"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "move_track_to_folder" } } },
+      "then": { "required": ["action", "track_index", "folder_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "remove_from_folder" } } },
+      "then": { "required": ["action", "track_index"] }
     }
   ]
 }

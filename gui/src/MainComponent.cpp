@@ -62,7 +62,8 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
     pluginBrowser = std::make_unique<PluginBrowserComponent> (editSession, commandHandler);
     console = std::make_unique<ConsoleComponent> (commandHandler);
     toolLog = std::make_unique<ToolLogComponent> (jobQueue);
-    autoSaveManager = std::make_unique<AutoSaveManager> (editSession, projectManager);
+    autoSaveManager = std::make_unique<AutoSaveManager> (editSession, projectManager,
+                                                         AutoSaveManager::getConfiguredIntervalSeconds());
 
     auto tabBg = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
     tabs.addTab ("Session", tabBg, sessionComponent.get(), false);
@@ -399,34 +400,9 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         }
         case cmdOpen:
         {
-            // Check for auto-save before opening
             juce::FileChooser chooser ("Open Project...", juce::File(), "*.tracktionedit");
             if (chooser.browseForFileToOpen())
-            {
-                auto file = chooser.getResult();
-                auto autoSaveFile = AutoSaveManager::checkForAutoSave (file);
-
-                if (autoSaveFile != juce::File())
-                {
-                    bool shouldRecover = juce::AlertWindow::showOkCancelBox (
-                        juce::MessageBoxIconType::QuestionIcon,
-                        "Recover Unsaved Changes?",
-                        "An auto-save file was found. Would you like to recover unsaved changes?",
-                        "Recover", "Discard");
-
-                    if (shouldRecover)
-                        projectManager.recoverProjectFromAutoSave (autoSaveFile, file);
-                    else
-                    {
-                        AutoSaveManager::deleteAutoSave (file);
-                        projectManager.openProject (file);
-                    }
-                }
-                else
-                {
-                    projectManager.openProject (file);
-                }
-            }
+                projectManager.openProject (chooser.getResult());
             return true;
         }
         case cmdSave:
@@ -598,7 +574,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
 
             auto projectDir = currentFile.getParentDirectory();
             auto& edit = editSession.getEdit();
-            auto result = waive::ProjectPackager::collectAndSave (edit, projectDir);
+            auto result = waive::ProjectPackager::collectAndSave (edit, projectDir, currentFile);
 
             juce::String message;
             if (result.filesCopied > 0)
@@ -661,11 +637,18 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
 
             if (shouldRemove)
             {
-                int removed = waive::ProjectPackager::removeUnusedMedia (edit, projectDir);
+                auto removeResult = waive::ProjectPackager::removeUnusedMedia (edit, projectDir);
+                juce::String resultMessage = "Removed " + juce::String (removeResult.filesRemoved)
+                                            + " file(s) to .trash folder.";
+                if (removeResult.errors.isEmpty())
+                    resultMessage << "\nFreed " << juce::File::descriptionOfSizeInBytes (removeResult.bytesFreed) << ".";
+                else
+                    resultMessage << "\nSome files could not be moved:\n"
+                                  << removeResult.errors.joinIntoString ("\n");
                 juce::AlertWindow::showMessageBoxAsync (
-                    juce::AlertWindow::InfoIcon,
+                    removeResult.errors.isEmpty() ? juce::AlertWindow::InfoIcon : juce::AlertWindow::WarningIcon,
                     "Remove Unused Media",
-                    "Removed " + juce::String (removed) + " file(s) to .trash folder.");
+                    resultMessage);
             }
             return true;
         }
@@ -691,10 +674,11 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                 auto& edit = editSession.getEdit();
 
                 // First collect external media
-                auto collectResult = waive::ProjectPackager::collectAndSave (edit, projectDir);
+                auto collectResult = waive::ProjectPackager::collectAndSave (edit, projectDir, currentFile);
 
                 // Then create zip
-                bool success = waive::ProjectPackager::packageAsZip (projectDir, outputZip);
+                bool success = collectResult.errors.isEmpty()
+                               && waive::ProjectPackager::packageAsZip (currentFile, outputZip);
 
                 juce::String message;
                 if (success)
@@ -708,6 +692,8 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                 else
                 {
                     message << "Failed to create zip archive.";
+                    if (! collectResult.errors.isEmpty())
+                        message << "\n\nCollect errors:\n" << collectResult.errors.joinIntoString ("\n");
                 }
 
                 juce::AlertWindow::showMessageBoxAsync (

@@ -130,8 +130,21 @@ public:
             auto* mc = dynamic_cast<MainComponent*> (mainWindow->getContentComponent());
             jassert (mc != nullptr);
 
-            auto cacheDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                                .getChildFile ("Waive").getChildFile ("cache");
+            juce::File cacheDir;
+            if (projectManager != nullptr && projectManager->getCurrentFile().existsAsFile())
+            {
+                cacheDir = projectManager->getCurrentFile()
+                               .getParentDirectory()
+                               .getChildFile (".waive_cache")
+                               .getChildFile (projectManager->getProjectName());
+            }
+            else
+            {
+                cacheDir = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                               .getChildFile ("Waive")
+                               .getChildFile ("cache")
+                               .getChildFile ("unsaved");
+            }
             cacheDir.createDirectory();
 
             return { *editSession, *projectManager, mc->getSessionComponentForTesting(),

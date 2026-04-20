@@ -85,10 +85,10 @@ The Tool Sidebar (`ToolSidebarComponent`) is a collapsible right panel inside `S
 
 The `AutoSaveManager` (if present) provides periodic automatic project saving to prevent data loss:
 
-- **Save interval**: Default 5 minutes, configurable via settings.
+- **Save interval**: Default 5 minutes. Configurable via the `autoSaveIntervalSeconds` user setting.
 - **Dirty state detection**: Monitors `Edit::hasChanged()` flag before triggering saves.
 - **Auto-save file naming**: Saves to `.waive-autosave-{projectName}.tracktionedit` in the project directory.
-- **Recovery flow**: On next launch, if auto-save file is newer than the project file, prompt user to recover unsaved changes.
+- **Recovery flow**: When opening a project, if the auto-save file is newer than the project file, prompt the user to recover unsaved changes.
 - **Cleanup**: Auto-save files are deleted on successful explicit save or clean exit.
 
 ### Clip Fade Handles
@@ -124,7 +124,7 @@ Components access palette colours via `getWaivePalette(component)` with fallback
 
 GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push and PR:
 - **build-and-test** job: Ubuntu 22.04, installs system deps, cmake build, `xvfb-run ctest`
-- **python-tests** job: advisory (continue-on-error), runs `pytest ai/tests/`
+- **python-tests** job: Ubuntu 22.04, installs Python and runs `pytest tools/tests/`
 - Build caching via `actions/cache` on the `build/` directory
 - Concurrency group with cancel-in-progress for rapid pushes
 
