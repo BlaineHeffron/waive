@@ -64,6 +64,7 @@ public:
     juce::Array<int> getToolPreviewTracksForTesting() const;
     juce::String getTransportTooltipForTesting (const juce::String& controlName);
     juce::String getSelectionStatusTextForTesting() const;
+    int getKeyboardFocusOrderForTesting (const juce::String& controlName) const;
 
     void applyToolPreviewDiff (const juce::Array<waive::ToolDiffEntry>& changes);
     void clearToolPreview();
@@ -92,6 +93,7 @@ private:
     int getSelectedTimeSigNumerator() const;
     int getSelectedTimeSigDenominator() const;
     void applyPanelLayoutMode (PanelLayoutMode mode);
+    void configureKeyboardFocusOrder();
 
     EditSession& editSession;
     UndoableCommandHandler& commandHandler;

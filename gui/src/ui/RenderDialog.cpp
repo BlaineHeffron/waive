@@ -41,6 +41,102 @@ double getProjectSampleRate (te::Edit& edit)
     return edit.engine.getDeviceManager().getSampleRate();
 }
 
+juce::String sanitiseStemFileComponent (const juce::String& name)
+{
+    auto safe = name.replaceCharacters ("\\/:*?\"<>|", "________");
+    safe = safe.trim();
+    return safe.isEmpty() ? "Track" : safe;
+}
+
+bool normaliseRenderedFile (const juce::File& targetFile,
+                            int formatId,
+                            double sampleRate,
+                            int bitDepth,
+                            double oggQuality,
+                            double normalizeLevelDb)
+{
+    juce::AudioFormatManager formatManager;
+    formatManager.registerBasicFormats();
+
+    std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (targetFile));
+    if (reader == nullptr)
+        return false;
+
+    constexpr int blockSize = 8192;
+    juce::AudioBuffer<float> buffer ((int) reader->numChannels, blockSize);
+    float maxPeak = 0.0f;
+
+    for (juce::int64 pos = 0; pos < reader->lengthInSamples; pos += blockSize)
+    {
+        auto numToRead = juce::jmin (blockSize, (int) (reader->lengthInSamples - pos));
+        reader->read (&buffer, 0, numToRead, pos, true, true);
+
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            maxPeak = juce::jmax (maxPeak, buffer.getMagnitude (ch, 0, numToRead));
+    }
+
+    if (maxPeak <= 0.0001f)
+        return true;
+
+    const float targetLevel = juce::Decibels::decibelsToGain ((float) normalizeLevelDb);
+    const float gain = targetLevel / maxPeak;
+
+    reader.reset (formatManager.createReaderFor (targetFile));
+    if (reader == nullptr)
+        return false;
+
+    const auto tempFile = targetFile.getSiblingFile (targetFile.getFileNameWithoutExtension()
+                                                     + "_temp"
+                                                     + targetFile.getFileExtension());
+
+    std::unique_ptr<juce::AudioFormat> writeFormat;
+    switch (formatId)
+    {
+        case 1: writeFormat = std::make_unique<juce::WavAudioFormat>(); break;
+        case 2: writeFormat = std::make_unique<juce::FlacAudioFormat>(); break;
+        case 3: writeFormat = std::make_unique<juce::OggVorbisAudioFormat>(); break;
+        default: writeFormat = std::make_unique<juce::WavAudioFormat>(); break;
+    }
+
+    auto outStream = std::make_unique<juce::FileOutputStream> (tempFile);
+    if (! outStream->openedOk())
+        return false;
+
+    JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
+    std::unique_ptr<juce::AudioFormatWriter> writer (writeFormat->createWriterFor (
+        outStream.release(), sampleRate, reader->numChannels, bitDepth,
+        reader->metadataValues, (formatId == 3) ? (int) (oggQuality * 10) : 0));
+    JUCE_END_IGNORE_WARNINGS_GCC_LIKE
+
+    if (writer == nullptr)
+        return false;
+
+    for (juce::int64 pos = 0; pos < reader->lengthInSamples; pos += blockSize)
+    {
+        auto numToRead = juce::jmin (blockSize, (int) (reader->lengthInSamples - pos));
+        reader->read (&buffer, 0, numToRead, pos, true, true);
+        buffer.applyGain (0, numToRead, gain);
+        writer->writeFromAudioSampleBuffer (buffer, 0, numToRead);
+    }
+
+    writer.reset();
+    reader.reset();
+
+    if (targetFile.existsAsFile() && ! targetFile.deleteFile())
+    {
+        tempFile.deleteFile();
+        return false;
+    }
+
+    if (! tempFile.moveFileTo (targetFile))
+    {
+        tempFile.deleteFile();
+        return false;
+    }
+
+    return true;
+}
+
 }
 
 //==============================================================================
@@ -439,6 +535,7 @@ void RenderDialog::performRender()
 
         auto& editRef = *snapshotEdit;
         bool success = false;
+        juce::Array<juce::File> renderedFiles;
 
         // Create AudioFormat pointer
         std::unique_ptr<juce::AudioFormat> format;
@@ -465,7 +562,7 @@ void RenderDialog::performRender()
 
                 auto stemFile = outputDir.getChildFile (juce::String::formatted ("%02d_%s%s",
                                                                                   i + 1,
-                                                                                  tracksToRender[i]->getName().toRawUTF8(),
+                                                                                  sanitiseStemFileComponent (tracksToRender[i]->getName()).toRawUTF8(),
                                                                                   ext.toRawUTF8()));
 
                 // Create Parameters with format settings
@@ -486,6 +583,8 @@ void RenderDialog::performRender()
                     success = false;
                     break; // Stop rendering on first failure
                 }
+
+                renderedFiles.add (result);
             }
         }
         else
@@ -504,94 +603,28 @@ void RenderDialog::performRender()
 
             auto result = te::Renderer::renderToFile ("Rendering mixdown", params);
             success = (result != juce::File());
+            if (success)
+                renderedFiles.add (result);
         }
 
-        // Normalize if requested
-        juce::File finalFile = data.outputFile;
         if (success && data.normalize)
         {
-            juce::AudioFormatManager formatManager;
-            formatManager.registerBasicFormats();
-
-            std::unique_ptr<juce::AudioFormatReader> reader (formatManager.createReaderFor (finalFile));
-            if (reader)
+            for (auto& renderedFile : renderedFiles)
             {
-                // Find peak across all channels
-                const int blockSize = 8192;
-                juce::AudioBuffer<float> buffer ((int)reader->numChannels, blockSize);
-                float maxPeak = 0.0f;
-
-                for (juce::int64 pos = 0; pos < reader->lengthInSamples; pos += blockSize)
+                if (! normaliseRenderedFile (renderedFile,
+                                             data.formatId,
+                                             data.sampleRate,
+                                             data.bitDepth,
+                                             data.oggQuality,
+                                             data.normalizeLevel))
                 {
-                    auto numToRead = juce::jmin (blockSize, (int)(reader->lengthInSamples - pos));
-                    reader->read (&buffer, 0, numToRead, pos, true, true);
-
-                    for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
-                    {
-                        auto mag = buffer.getMagnitude (ch, 0, numToRead);
-                        maxPeak = juce::jmax (maxPeak, mag);
-                    }
-                }
-
-                // Apply normalization gain if peak exists
-                if (maxPeak > 0.0001f)
-                {
-                    float targetLevel = juce::Decibels::decibelsToGain ((float)data.normalizeLevel);
-                    float gain = targetLevel / maxPeak;
-
-                    // Re-read and write with gain applied
-                    reader.reset();
-                    reader.reset (formatManager.createReaderFor (finalFile));
-
-                    juce::File tempFile = finalFile.getSiblingFile (finalFile.getFileNameWithoutExtension() + "_temp" + finalFile.getFileExtension());
-
-                    std::unique_ptr<juce::AudioFormat> writeFormat;
-                    switch (data.formatId)
-                    {
-                        case 1: writeFormat = std::make_unique<juce::WavAudioFormat>(); break;
-                        case 2: writeFormat = std::make_unique<juce::FlacAudioFormat>(); break;
-                        case 3: writeFormat = std::make_unique<juce::OggVorbisAudioFormat>(); break;
-                        default: writeFormat = std::make_unique<juce::WavAudioFormat>(); break;
-                    }
-
-                    std::unique_ptr<juce::FileOutputStream> outStream = std::make_unique<juce::FileOutputStream> (tempFile);
-                    if (outStream->openedOk())
-                    {
-                        JUCE_BEGIN_IGNORE_WARNINGS_GCC_LIKE ("-Wdeprecated-declarations")
-                        std::unique_ptr<juce::AudioFormatWriter> writer (writeFormat->createWriterFor (
-                            outStream.release(), data.sampleRate, reader->numChannels, data.bitDepth,
-                            reader->metadataValues, (data.formatId == 3) ? (int)(data.oggQuality * 10) : 0));
-                        JUCE_END_IGNORE_WARNINGS_GCC_LIKE
-
-                        if (writer)
-                        {
-                            for (juce::int64 pos = 0; pos < reader->lengthInSamples; pos += blockSize)
-                            {
-                                auto numToRead = juce::jmin (blockSize, (int)(reader->lengthInSamples - pos));
-                                reader->read (&buffer, 0, numToRead, pos, true, true);
-                                buffer.applyGain (0, numToRead, gain);
-                                writer->writeFromAudioSampleBuffer (buffer, 0, numToRead);
-                            }
-
-                            writer.reset();
-                            reader.reset();
-
-                            // Replace original with normalized
-                            if (tempFile.moveFileTo (finalFile))
-                            {
-                                // Success - temp file replaced original
-                            }
-                            else
-                            {
-                                // Restore original by deleting temp
-                                tempFile.deleteFile();
-                            }
-                        }
-                    }
+                    success = false;
+                    break;
                 }
             }
         }
 
+        const auto finalFile = renderedFiles.isEmpty() ? data.outputFile : renderedFiles.getFirst();
         juce::MessageManager::callAsync ([safeThis, success, finalFile]
         {
             if (safeThis == nullptr)

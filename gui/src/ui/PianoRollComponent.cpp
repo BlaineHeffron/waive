@@ -1213,7 +1213,12 @@ PianoRollComponent::PianoRollComponent (te::MidiClip& clip, EditSession& session
 
 }
 
-PianoRollComponent::~PianoRollComponent() = default;
+PianoRollComponent::~PianoRollComponent()
+{
+    // The viewport does not own noteGrid, so detach it before member teardown.
+    if (viewport != nullptr)
+        viewport->setViewedComponent (nullptr, false);
+}
 
 void PianoRollComponent::paint (juce::Graphics& g)
 {

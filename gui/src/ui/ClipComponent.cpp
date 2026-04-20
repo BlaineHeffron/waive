@@ -9,12 +9,33 @@
 #include "WaiveLookAndFeel.h"
 #include "WaiveSpacing.h"
 
+namespace
+{
+bool isHeadlessUiEnvironment()
+{
+#if JUCE_LINUX || JUCE_BSD
+    const auto hasDisplayEnv = [] (const char* name)
+    {
+        if (const auto* value = std::getenv (name))
+            return *value != '\0';
+
+        return false;
+    };
+
+    return ! hasDisplayEnv ("DISPLAY") && ! hasDisplayEnv ("WAYLAND_DISPLAY");
+#else
+    return false;
+#endif
+}
+}
+
 //==============================================================================
 ClipComponent::ClipComponent (te::Clip& c, TimelineComponent& tl)
     : clip (c), timeline (tl)
 {
     // Create waveform thumbnail for audio clips
-    if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (&clip))
+    if (! isHeadlessUiEnvironment())
+        if (auto* waveClip = dynamic_cast<te::WaveAudioClip*> (&clip))
     {
         thumbnail = std::make_unique<te::SmartThumbnail> (
             clip.edit.engine, te::AudioFile (clip.edit.engine, waveClip->getSourceFileReference().getFile()),

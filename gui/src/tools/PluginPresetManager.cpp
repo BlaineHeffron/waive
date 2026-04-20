@@ -27,20 +27,36 @@ juce::File PluginPresetManager::getPresetsDirectory() const
 
 juce::String PluginPresetManager::getPluginIdentifier (tracktion::engine::Plugin& plugin)
 {
-    // Use plugin name and type to create unique identifier
-    juce::String identifier = plugin.getPluginType() + "_" + plugin.getName();
+    juce::StringArray parts;
+    parts.add (plugin.getPluginType());
+    parts.add (plugin.getName());
 
-    // Sanitize for use as folder name using PathSanitizer
+    if (plugin.state.isValid())
+    {
+        auto pluginTag = plugin.state.getType().toString();
+        if (pluginTag.isNotEmpty())
+            parts.add (pluginTag);
+
+        auto fileOrIdentifier = plugin.state.getProperty ("file", {}).toString();
+        if (fileOrIdentifier.isEmpty())
+            fileOrIdentifier = plugin.state.getProperty ("identifier", {}).toString();
+        if (fileOrIdentifier.isNotEmpty())
+            parts.add (fileOrIdentifier);
+
+        auto manufacturer = plugin.state.getProperty ("manufacturer", {}).toString();
+        if (manufacturer.isNotEmpty())
+            parts.add (manufacturer);
+    }
+
+    juce::String identifier = parts.joinIntoString ("_");
+
     auto sanitized = PathSanitizer::sanitizePathComponent (identifier);
 
-    // If rejected by PathSanitizer (contains dangerous chars), create safe fallback
     if (sanitized.isEmpty())
     {
-        // Remove dangerous characters manually for fallback
         identifier = identifier.replaceCharacters ("/\\:*?\"<>|.", "__________");
         sanitized = PathSanitizer::sanitizePathComponent (identifier);
 
-        // If still rejected, use generic name
         if (sanitized.isEmpty())
             return "Unknown";
     }

@@ -169,24 +169,6 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     snapToggle.setWantsKeyboardFocus (true);
     snapResolutionBox.setWantsKeyboardFocus (true);
 
-    // Set explicit Tab navigation focus order: transport → timeline → mixer → tool sidebar
-    // REMOVED: causes segfault in tests. Tab order implementation needs revision.
-    // playButton.setExplicitFocusOrder (1);
-    // stopButton.setExplicitFocusOrder (2);
-    // recordButton.setExplicitFocusOrder (3);
-    // addTrackButton.setExplicitFocusOrder (4);
-    // loopButton.setExplicitFocusOrder (5);
-    // punchButton.setExplicitFocusOrder (6);
-    // tempoSlider.setExplicitFocusOrder (7);
-    // timeSigNumeratorBox.setExplicitFocusOrder (8);
-    // timeSigDenominatorBox.setExplicitFocusOrder (9);
-    // snapToggle.setExplicitFocusOrder (10);
-    // snapResolutionBox.setExplicitFocusOrder (11);
-    // timeline->setExplicitFocusOrder (100);
-    // mixer->setExplicitFocusOrder (200);
-    // if (toolSidebar != nullptr)
-    //     toolSidebar->setExplicitFocusOrder (300);
-
     addAndMakeVisible (playButton);
     addAndMakeVisible (stopButton);
     addAndMakeVisible (recordButton);
@@ -406,6 +388,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     closePianoRollButton.setTooltip ("Close Piano Roll");
     addChildComponent (closePianoRollButton);
 
+    configureKeyboardFocusOrder();
     startTimerHz (10);
 }
 
@@ -713,6 +696,31 @@ void SessionComponent::applyPanelLayoutMode (PanelLayoutMode mode)
 
     panelLayoutMode = mode;
     panelLayoutInitialised = true;
+}
+
+void SessionComponent::configureKeyboardFocusOrder()
+{
+    // Configure focus order only after dependent child components exist.
+    playButton.setExplicitFocusOrder (1);
+    stopButton.setExplicitFocusOrder (2);
+    recordButton.setExplicitFocusOrder (3);
+    addTrackButton.setExplicitFocusOrder (4);
+    loopButton.setExplicitFocusOrder (5);
+    punchButton.setExplicitFocusOrder (6);
+    tempoSlider.setExplicitFocusOrder (7);
+    timeSigNumeratorBox.setExplicitFocusOrder (8);
+    timeSigDenominatorBox.setExplicitFocusOrder (9);
+    snapToggle.setExplicitFocusOrder (10);
+    snapResolutionBox.setExplicitFocusOrder (11);
+
+    if (timeline != nullptr)
+        timeline->setExplicitFocusOrder (100);
+
+    if (mixer != nullptr)
+        mixer->setExplicitFocusOrder (200);
+
+    if (toolSidebar != nullptr)
+        toolSidebar->setExplicitFocusOrder (300);
 }
 
 TimelineComponent& SessionComponent::getTimeline()
@@ -1396,6 +1404,25 @@ juce::String SessionComponent::getTransportTooltipForTesting (const juce::String
 juce::String SessionComponent::getSelectionStatusTextForTesting() const
 {
     return selectionStatusLabel.getText();
+}
+
+int SessionComponent::getKeyboardFocusOrderForTesting (const juce::String& controlName) const
+{
+    if (controlName == "play") return playButton.getExplicitFocusOrder();
+    if (controlName == "stop") return stopButton.getExplicitFocusOrder();
+    if (controlName == "record") return recordButton.getExplicitFocusOrder();
+    if (controlName == "add_track") return addTrackButton.getExplicitFocusOrder();
+    if (controlName == "loop") return loopButton.getExplicitFocusOrder();
+    if (controlName == "punch") return punchButton.getExplicitFocusOrder();
+    if (controlName == "tempo") return tempoSlider.getExplicitFocusOrder();
+    if (controlName == "time_sig_num") return timeSigNumeratorBox.getExplicitFocusOrder();
+    if (controlName == "time_sig_den") return timeSigDenominatorBox.getExplicitFocusOrder();
+    if (controlName == "snap") return snapToggle.getExplicitFocusOrder();
+    if (controlName == "snap_resolution") return snapResolutionBox.getExplicitFocusOrder();
+    if (controlName == "timeline") return timeline != nullptr ? timeline->getExplicitFocusOrder() : 0;
+    if (controlName == "mixer") return mixer != nullptr ? mixer->getExplicitFocusOrder() : 0;
+    if (controlName == "tool_sidebar") return toolSidebar != nullptr ? toolSidebar->getExplicitFocusOrder() : 0;
+    return 0;
 }
 
 void SessionComponent::applyToolPreviewDiff (const juce::Array<waive::ToolDiffEntry>& changes)

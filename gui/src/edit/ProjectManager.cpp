@@ -3,8 +3,31 @@
 #include "AutoSaveManager.h"
 
 #include <tracktion_engine/tracktion_engine.h>
+#include <cstdlib>
 
 namespace te = tracktion;
+
+namespace
+{
+
+bool isHeadlessUiEnvironment()
+{
+#if JUCE_LINUX || JUCE_BSD
+    const auto hasDisplayEnv = [] (const char* name)
+    {
+        if (const auto* value = std::getenv (name))
+            return *value != '\0';
+
+        return false;
+    };
+
+    return ! hasDisplayEnv ("DISPLAY") && ! hasDisplayEnv ("WAYLAND_DISPLAY");
+#else
+    return false;
+#endif
+}
+
+}
 
 //==============================================================================
 ProjectManager::ProjectManager (EditSession& session)
@@ -52,11 +75,19 @@ bool ProjectManager::openProject (const juce::File& file)
     if (const auto autoSaveFile = AutoSaveManager::checkForAutoSave (file);
         autoSaveFile != juce::File())
     {
-        const bool shouldRecover = juce::AlertWindow::showOkCancelBox (
-            juce::MessageBoxIconType::QuestionIcon,
-            "Recover Unsaved Changes?",
-            "A newer auto-save was found for this project. Recover it before opening?",
-            "Recover", "Open Saved Version");
+        bool shouldRecover = false;
+        if (isHeadlessUiEnvironment())
+        {
+            juce::Logger::writeToLog ("ProjectManager: headless environment detected, opening saved project version without recovery prompt");
+        }
+        else
+        {
+            shouldRecover = juce::AlertWindow::showOkCancelBox (
+                juce::MessageBoxIconType::QuestionIcon,
+                "Recover Unsaved Changes?",
+                "A newer auto-save was found for this project. Recover it before opening?",
+                "Recover", "Open Saved Version");
+        }
 
         if (shouldRecover)
             return openProjectInternal (autoSaveFile, file, true);
@@ -248,6 +279,12 @@ bool ProjectManager::confirmSaveIfDirty()
 {
     if (! isDirty())
         return true;
+
+    if (isHeadlessUiEnvironment())
+    {
+        juce::Logger::writeToLog ("ProjectManager: headless environment detected, discarding unsaved changes without prompt");
+        return true;
+    }
 
     auto result = juce::AlertWindow::showYesNoCancelBox (
         juce::AlertWindow::QuestionIcon,

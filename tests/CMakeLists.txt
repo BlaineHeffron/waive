@@ -50,6 +50,7 @@ target_compile_definitions(WaiveCoreTests PRIVATE
 )
 
 add_test(NAME WaiveCoreTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveCoreTests_artefacts/Release/WaiveCoreTests)
+set_tests_properties(WaiveCoreTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 juce_add_console_app(WaiveUiTests
     PRODUCT_NAME "Waive UI Tests"
@@ -206,6 +207,7 @@ target_compile_definitions(WaiveUiTests PRIVATE
 )
 
 add_test(NAME WaiveUiTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveUiTests_artefacts/Release/WaiveUiTests)
+set_tests_properties(WaiveUiTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # ── Waive Tool Tests ─────────────────────────────────────────────────────────
 # Tests audio analysis engine and built-in tool logic against synthetic WAV files.
@@ -377,3 +379,4 @@ target_compile_definitions(WaiveToolTests PRIVATE
 )
 
 add_test(NAME WaiveToolTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveToolTests_artefacts/Release/WaiveToolTests)
+set_tests_properties(WaiveToolTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})

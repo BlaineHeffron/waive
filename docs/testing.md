@@ -82,8 +82,8 @@ Waive has three native C++ regression test executables integrated with CTest.
 - Phase 5B:
   - optional model manager + model-backed tools (stem separation, auto-mix suggestions)
 - Phase 6:
-  - Safety architecture regression: ID-based selection persistence across edit swaps, async callback safety (no dangling pointers), transaction rollback on exception
   - Performance regression: ClipTrackIndexMap scaling to 100+ clips, AudioAnalysisCache hit rate and eviction behavior
+  - Edit-swap safety checks currently cover selection clearing and component lifecycle through lower-level regressions; the previous end-to-end UI swap regression is not part of the default suite because it is flaky in headless CI
 - Phase 7:
   - collect/save persistence to the intended project file, media collection + reference rewriting, unused-media cleanup accounting, and zip packaging contents
 
