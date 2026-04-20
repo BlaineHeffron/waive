@@ -10,14 +10,14 @@
 //==============================================================================
 double SnapSettings::snapBeat (double rawBeat, double beatsPerBar) const
 {
-    if (! snapEnabled || gridSize == Off)
+    if (! snapEnabled || snapGridSize == Off)
         return rawBeat;
 
-    double resolution = getBeatsForGridSize (beatsPerBar);
+    double resolution = getSnapResolution (beatsPerBar);
     return std::round (rawBeat / resolution) * resolution;
 }
 
-double SnapSettings::getBeatsForGridSize (double beatsPerBar) const
+double SnapSettings::getBeatsForGridSize (GridSize gridSize, double beatsPerBar) const
 {
     switch (gridSize)
     {
@@ -31,6 +31,16 @@ double SnapSettings::getBeatsForGridSize (double beatsPerBar) const
         case Off:         return 1.0;
         default:          return 1.0;
     }
+}
+
+double SnapSettings::getSnapResolution (double beatsPerBar) const
+{
+    return getBeatsForGridSize (snapGridSize, beatsPerBar);
+}
+
+double SnapSettings::getDisplayResolution (double beatsPerBar) const
+{
+    return getBeatsForGridSize (displayGridSize, beatsPerBar);
 }
 
 //==============================================================================
@@ -149,7 +159,7 @@ void PianoRollComponent::NoteGridComponent::paint (juce::Graphics& g)
     double clipLengthBeats = beatRange.getLength().inBeats();
     double beatsPerBar = 4.0; // Default 4/4 time
 
-    double gridRes = pianoRoll.snapSettings.getBeatsForGridSize (beatsPerBar);
+    double gridRes = pianoRoll.snapSettings.getDisplayResolution (beatsPerBar);
     for (double beat = 0.0; beat <= clipLengthBeats; beat += gridRes)
     {
         int x = (int) beatToX (beat);
@@ -263,7 +273,7 @@ void PianoRollComponent::NoteGridComponent::paint (juce::Graphics& g)
     {
         double endBeat = xToBeat (getMouseXYRelative().x);
         double snappedEnd = snapBeat (endBeat);
-        double gridSize = pianoRoll.snapSettings.getBeatsForGridSize (beatsPerBar);
+        double gridSize = pianoRoll.snapSettings.getSnapResolution (beatsPerBar);
         double length = std::max (gridSize, snappedEnd - createNoteStartBeat);
 
         juce::Rectangle<float> previewRect (
@@ -411,7 +421,7 @@ void PianoRollComponent::NoteGridComponent::mouseDrag (const juce::MouseEvent& e
 
             double newEndBeat = snapBeat (xToBeat (e.x));
             double beatsPerBar = 4.0;
-            double minLength = pianoRoll.snapSettings.getBeatsForGridSize (beatsPerBar);
+            double minLength = pianoRoll.snapSettings.getSnapResolution (beatsPerBar);
             double newLength = std::max (minLength, newEndBeat - resizeNote->getStartBeat().inBeats());
 
             editSession.performEdit ("Resize Note", true, [this, newLength] (te::Edit& edit)
@@ -439,7 +449,7 @@ void PianoRollComponent::NoteGridComponent::mouseUp (const juce::MouseEvent& e)
         double endBeat = xToBeat (e.x);
         double snappedEnd = snapBeat (endBeat);
         double beatsPerBar = 4.0;
-        double minLength = pianoRoll.snapSettings.getBeatsForGridSize (beatsPerBar);
+        double minLength = pianoRoll.snapSettings.getSnapResolution (beatsPerBar);
         double length = std::max (minLength, snappedEnd - createNoteStartBeat);
 
         editSession.performEdit ("Add Note", [this, length] (te::Edit& edit)
@@ -551,6 +561,7 @@ void PianoRollComponent::NoteGridComponent::mouseWheelMove (const juce::MouseEve
             int newCursorX = (int) beatToX (cursorBeat);
             int targetViewX = newCursorX - e.x;
             viewport->setViewPosition (targetViewX, viewPos.y);
+            pianoRoll.syncVelocityLaneToViewport();
         }
 
         rebuildNoteRectangles();
@@ -566,6 +577,7 @@ void PianoRollComponent::NoteGridComponent::mouseWheelMove (const juce::MouseEve
             auto viewPos = viewport->getViewPosition();
             int delta = (int) (wheel.deltaY * 30.0f);
             viewport->setViewPosition (viewPos.x + delta, viewPos.y);
+            pianoRoll.syncVelocityLaneToViewport();
         }
     }
     else
@@ -576,6 +588,7 @@ void PianoRollComponent::NoteGridComponent::mouseWheelMove (const juce::MouseEve
             auto viewPos = viewport->getViewPosition();
             int delta = (int) (wheel.deltaY * 30.0f);
             viewport->setViewPosition (viewPos.x, viewPos.y + delta);
+            pianoRoll.syncVelocityLaneToViewport();
         }
     }
 }
@@ -698,7 +711,7 @@ bool PianoRollComponent::NoteGridComponent::keyPressed (const juce::KeyPress& ke
         if (! selectedNotes.empty())
         {
             double beatsPerBar = 4.0;
-            double gridSize = pianoRoll.snapSettings.getBeatsForGridSize (beatsPerBar);
+            double gridSize = pianoRoll.snapSettings.getSnapResolution (beatsPerBar);
 
             editSession.performEdit ("Duplicate Notes", [this, gridSize] (te::Edit& edit)
             {
@@ -796,6 +809,7 @@ bool PianoRollComponent::NoteGridComponent::keyPressed (const juce::KeyPress& ke
                 if (pianoRoll.velocityLane)
                     pianoRoll.velocityLane->updateVisibleNotes();
                 viewport->setViewPosition ((int) beatToX (minBeat) - 10, viewport->getViewPosition().y);
+                pianoRoll.syncVelocityLaneToViewport();
                 repaint();
             }
         }
@@ -1091,13 +1105,13 @@ PianoRollComponent::Toolbar::Toolbar (PianoRollComponent& parent)
         switch (id)
         {
             case 1: pianoRoll.snapSettings.snapEnabled = false; break;
-            case 2: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.gridSize = SnapSettings::Bar; break;
-            case 3: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.gridSize = SnapSettings::Beat; break;
-            case 4: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.gridSize = SnapSettings::HalfBeat; break;
-            case 5: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.gridSize = SnapSettings::QuarterBeat; break;
-            case 6: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.gridSize = SnapSettings::Eighth; break;
-            case 7: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.gridSize = SnapSettings::Sixteenth; break;
-            case 8: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.gridSize = SnapSettings::Triplet; break;
+            case 2: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.snapGridSize = SnapSettings::Bar; break;
+            case 3: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.snapGridSize = SnapSettings::Beat; break;
+            case 4: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.snapGridSize = SnapSettings::HalfBeat; break;
+            case 5: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.snapGridSize = SnapSettings::QuarterBeat; break;
+            case 6: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.snapGridSize = SnapSettings::Eighth; break;
+            case 7: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.snapGridSize = SnapSettings::Sixteenth; break;
+            case 8: pianoRoll.snapSettings.snapEnabled = true; pianoRoll.snapSettings.snapGridSize = SnapSettings::Triplet; break;
             default: break;
         }
         if (pianoRoll.noteGrid)
@@ -1109,13 +1123,13 @@ PianoRollComponent::Toolbar::Toolbar (PianoRollComponent& parent)
         int id = gridBox.getSelectedId();
         switch (id)
         {
-            case 1: pianoRoll.snapSettings.gridSize = SnapSettings::Bar; break;
-            case 2: pianoRoll.snapSettings.gridSize = SnapSettings::Beat; break;
-            case 3: pianoRoll.snapSettings.gridSize = SnapSettings::HalfBeat; break;
-            case 4: pianoRoll.snapSettings.gridSize = SnapSettings::QuarterBeat; break;
-            case 5: pianoRoll.snapSettings.gridSize = SnapSettings::Eighth; break;
-            case 6: pianoRoll.snapSettings.gridSize = SnapSettings::Sixteenth; break;
-            case 7: pianoRoll.snapSettings.gridSize = SnapSettings::Triplet; break;
+            case 1: pianoRoll.snapSettings.displayGridSize = SnapSettings::Bar; break;
+            case 2: pianoRoll.snapSettings.displayGridSize = SnapSettings::Beat; break;
+            case 3: pianoRoll.snapSettings.displayGridSize = SnapSettings::HalfBeat; break;
+            case 4: pianoRoll.snapSettings.displayGridSize = SnapSettings::QuarterBeat; break;
+            case 5: pianoRoll.snapSettings.displayGridSize = SnapSettings::Eighth; break;
+            case 6: pianoRoll.snapSettings.displayGridSize = SnapSettings::Sixteenth; break;
+            case 7: pianoRoll.snapSettings.displayGridSize = SnapSettings::Triplet; break;
             default: break;
         }
         if (pianoRoll.noteGrid)
@@ -1141,6 +1155,7 @@ PianoRollComponent::Toolbar::Toolbar (PianoRollComponent& parent)
             pianoRoll.velocityLane->updateVisibleNotes();
             pianoRoll.velocityLane->repaint();
         }
+        pianoRoll.syncVelocityLaneToViewport();
     };
 
     zoomOutButton.onClick = [this]
@@ -1156,6 +1171,7 @@ PianoRollComponent::Toolbar::Toolbar (PianoRollComponent& parent)
             pianoRoll.velocityLane->updateVisibleNotes();
             pianoRoll.velocityLane->repaint();
         }
+        pianoRoll.syncVelocityLaneToViewport();
     };
 
     addAndMakeVisible (snapLabel);
@@ -1239,11 +1255,11 @@ void PianoRollComponent::resized()
 
     // Velocity lane at bottom
     auto velocityBounds = bounds.removeFromBottom (VelocityLane::height);
-    velocityBounds.removeFromLeft (0); // Align with note grid (no keyboard offset)
     velocityLane->setBounds (velocityBounds);
 
     // Note grid viewport in center
     viewport->setBounds (bounds);
+    syncVelocityLaneToViewport();
 }
 
 void PianoRollComponent::previewMidiNote (int pitch)
@@ -1264,4 +1280,16 @@ void PianoRollComponent::previewMidiNote (int pitch)
             out != nullptr && out->isEnabled())
             out->fireMessage (juce::MidiMessage::noteOff (channel, pitch));
     });
+}
+
+void PianoRollComponent::syncVelocityLaneToViewport()
+{
+    if (velocityLane == nullptr || viewport == nullptr || noteGrid == nullptr)
+        return;
+
+    auto laneBounds = velocityLane->getBounds();
+    laneBounds.setX (PianoKeyboardSidebar::width - viewport->getViewPositionX());
+    laneBounds.setWidth (noteGrid->getWidth());
+    velocityLane->setBounds (laneBounds);
+    velocityLane->repaint();
 }

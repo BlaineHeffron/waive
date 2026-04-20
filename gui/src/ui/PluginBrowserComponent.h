@@ -52,6 +52,7 @@ public:
     int getMasterReverbCountForTesting() const;
 
 private:
+    void updatePresetBrowserSelection();
     void editAboutToChange() override;
     void editChanged() override;
     void timerCallback() override;

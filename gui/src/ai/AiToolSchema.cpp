@@ -334,6 +334,62 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                                   { "output_dir" }),
                       "export" });
 
+    // save_plugin_preset
+    defs.push_back ({ "cmd_save_plugin_preset",
+                      "Save the current state of a plugin as a named preset.",
+                      makeSchema ("object",
+                                  { { "track_index", prop ("integer", "0-based track index") },
+                                    { "plugin_index", prop ("integer", "0-based user plugin index on the track") },
+                                    { "preset_name", prop ("string", "Preset name to save") } },
+                                  { "track_index", "plugin_index", "preset_name" }),
+                      "mixing" });
+
+    // load_plugin_preset
+    defs.push_back ({ "cmd_load_plugin_preset",
+                      "Load a named preset onto a plugin.",
+                      makeSchema ("object",
+                                  { { "track_index", prop ("integer", "0-based track index") },
+                                    { "plugin_index", prop ("integer", "0-based user plugin index on the track") },
+                                    { "preset_name", prop ("string", "Preset name to load") } },
+                                  { "track_index", "plugin_index", "preset_name" }),
+                      "mixing" });
+
+    // add_folder_track
+    defs.push_back ({ "cmd_add_folder_track",
+                      "Create a new folder track for grouped mixing and routing.",
+                      makeSchema ("object",
+                                  { { "name", prop ("string", "Optional name for the folder track") } }),
+                      "track" });
+
+    // move_track_to_folder
+    defs.push_back ({ "cmd_move_track_to_folder",
+                      "Move a track into an existing folder track.",
+                      makeSchema ("object",
+                                  { { "track_index", prop ("integer", "0-based track index to move") },
+                                    { "folder_index", prop ("integer", "0-based folder track index") } },
+                                  { "track_index", "folder_index" }),
+                      "track" });
+
+    // remove_from_folder
+    defs.push_back ({ "cmd_remove_from_folder",
+                      "Move a track out of its current parent folder back to the top level.",
+                      makeSchema ("object",
+                                  { { "track_index", prop ("integer", "0-based track index to remove from its folder") } },
+                                  { "track_index" }),
+                      "track" });
+
+    // collect_and_save
+    defs.push_back ({ "cmd_collect_and_save",
+                      "Copy referenced media into the project folder and save updated file references.",
+                      makeSchema ("object"),
+                      "export" });
+
+    // remove_unused_media
+    defs.push_back ({ "cmd_remove_unused_media",
+                      "Move unreferenced audio files from the project Audio folder into .trash.",
+                      makeSchema ("object"),
+                      "export" });
+
     // bounce_track
     defs.push_back ({ "cmd_bounce_track",
                       "Render a track to a single audio file, replacing all clips with the bounced result.",

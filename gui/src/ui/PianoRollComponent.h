@@ -13,11 +13,14 @@ class EditSession;
 struct SnapSettings
 {
     enum GridSize { Bar, Beat, HalfBeat, QuarterBeat, Eighth, Sixteenth, Triplet, Off };
-    GridSize gridSize = Beat;
+    GridSize snapGridSize = Beat;
+    GridSize displayGridSize = Beat;
     bool snapEnabled = true;
 
     double snapBeat (double rawBeat, double beatsPerBar) const;
-    double getBeatsForGridSize (double beatsPerBar) const;
+    double getBeatsForGridSize (GridSize gridSize, double beatsPerBar) const;
+    double getSnapResolution (double beatsPerBar) const;
+    double getDisplayResolution (double beatsPerBar) const;
 };
 
 //==============================================================================
@@ -31,6 +34,7 @@ public:
     void paint (juce::Graphics& g) override;
     void resized() override;
     void previewMidiNote (int pitch);
+    void syncVelocityLaneToViewport();
 
     SnapSettings snapSettings;
 

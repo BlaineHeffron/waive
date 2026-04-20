@@ -136,6 +136,11 @@ struct PluginBrowserComponent::ChainModel : public juce::ListBoxModel
         g.drawFittedText (text, 6, 0, width - 12, height, juce::Justification::centredLeft, 1);
     }
 
+    void selectedRowsChanged (int) override
+    {
+        owner.updatePresetBrowserSelection();
+    }
+
     PluginBrowserComponent& owner;
 };
 
@@ -798,8 +803,14 @@ void PluginBrowserComponent::updateControlsFromSelection()
     }
 
     // Update preset browser with currently selected plugin in chain
+    updatePresetBrowserSelection();
+}
+
+void PluginBrowserComponent::updatePresetBrowserSelection()
+{
     auto selectedRow = chainList.getSelectedRow();
     auto plugins = getChainPlugins (getSelectedPluginList());
+
     if (juce::isPositiveAndBelow (selectedRow, plugins.size()))
         presetBrowser.setPlugin (plugins[selectedRow]);
     else
