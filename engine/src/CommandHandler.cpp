@@ -1470,15 +1470,10 @@ juce::var CommandHandler::handleBypassPlugin (const juce::var& params)
     if (track == nullptr)
         return makeError ("Audio track not found: " + juce::String (trackId));
 
-    juce::Array<te::Plugin*> userPlugins;
-    for (auto* p : track->pluginList)
-    {
-        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
-            userPlugins.add (p);
-    }
+    auto userPlugins = getAddressablePlugins (track->pluginList);
 
     if (pluginIdx < 0 || pluginIdx >= userPlugins.size())
-        return makeError ("Plugin index out of range");
+        return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");
 
     auto* plugin = userPlugins[pluginIdx];
     plugin->setEnabled (! bypassed);
@@ -1505,15 +1500,10 @@ juce::var CommandHandler::handleGetPluginParameters (const juce::var& params)
     if (track == nullptr)
         return makeError ("Audio track not found: " + juce::String (trackId));
 
-    juce::Array<te::Plugin*> userPlugins;
-    for (auto* p : track->pluginList)
-    {
-        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
-            userPlugins.add (p);
-    }
+    auto userPlugins = getAddressablePlugins (track->pluginList);
 
     if (pluginIdx < 0 || pluginIdx >= userPlugins.size())
-        return makeError ("Plugin index out of range");
+        return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");
 
     auto* plugin = userPlugins[pluginIdx];
 
@@ -1956,13 +1946,7 @@ juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
     if (track == nullptr)
         return makeError ("Audio track " + juce::String (trackId) + " not found");
 
-    // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
-    juce::Array<te::Plugin*> userPlugins;
-    for (auto* p : track->pluginList)
-    {
-        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
-            userPlugins.add (p);
-    }
+    auto userPlugins = getAddressablePlugins (track->pluginList);
 
     if (pluginIndex < 0 || pluginIndex >= userPlugins.size())
         return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");

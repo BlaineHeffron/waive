@@ -562,6 +562,7 @@ void TimelineComponent::selectionChanged()
 void TimelineComponent::editAboutToChange()
 {
     selectionManager->deselectAll();
+    collapsedFolderTrackIDs.clear();
     trackLanes.clear();
     trackContainer.removeAllChildren();
     lastTrackCount = -1;

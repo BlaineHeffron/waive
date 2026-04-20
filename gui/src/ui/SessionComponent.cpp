@@ -741,6 +741,8 @@ void SessionComponent::toggleChatPanel()
 
 void SessionComponent::openPianoRoll (te::MidiClip& clip)
 {
+    closePianoRollInternal (false);
+
     pianoRollPanel = std::make_unique<PianoRollComponent> (clip, editSession);
     addAndMakeVisible (pianoRollPanel.get());
 
@@ -749,16 +751,24 @@ void SessionComponent::openPianoRoll (te::MidiClip& clip)
 
     closePianoRollButton.setVisible (true);
     pianoRollVisible = true;
-    resized();
+    if (! editSwapInProgress)
+        resized();
 }
 
 void SessionComponent::closePianoRoll()
+{
+    closePianoRollInternal (true);
+}
+
+void SessionComponent::closePianoRollInternal (bool relayout)
 {
     pianoRollPanel.reset();
     pianoRollResizerBar.reset();
     closePianoRollButton.setVisible (false);
     pianoRollVisible = false;
-    resized();
+
+    if (relayout && ! editSwapInProgress)
+        resized();
 }
 
 waive::ChatPanelComponent* SessionComponent::getChatPanelForTesting()
@@ -1223,12 +1233,14 @@ void SessionComponent::selectionChanged()
 
 void SessionComponent::editAboutToChange()
 {
-    if (pianoRollVisible)
-        closePianoRoll();
+    editSwapInProgress = true;
+    if (pianoRollVisible || pianoRollPanel != nullptr)
+        closePianoRollInternal (false);
 }
 
 void SessionComponent::editChanged()
 {
+    editSwapInProgress = false;
     refreshMicInputDevices();
     selectionChanged();
 }

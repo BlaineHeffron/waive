@@ -51,6 +51,18 @@ te::AudioTrack* getFirstTrack (te::Edit& edit)
     return tracks.getFirst();
 }
 
+juce::var runJsonCommand (CommandHandler& handler, const juce::String& payload)
+{
+    auto response = juce::JSON::parse (handler.handleCommand (payload));
+    expect (response.isObject(), "Expected JSON command response object");
+    return response;
+}
+
+bool commandSucceeded (const juce::var& response)
+{
+    return response.isObject() && response["status"].toString() == "ok";
+}
+
 te::Clip* findClipAtStart (te::AudioTrack& track, double startSeconds)
 {
     for (auto* clip : track.getClips())
@@ -1851,9 +1863,19 @@ void runPhase6SafetyArchitectureRegression()
         expect (clip1ID.isValid(), "Expected original clip to have valid persistent ID");
         clip1 = nullptr;
 
+        auto collapsedFolder = edit.insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
+        expect (collapsedFolder != nullptr, "Expected collapsed-state fixture folder track");
+        timeline.rebuildTracks();
+        timeline.toggleFolderCollapsed (collapsedFolder->itemID);
+        expect (timeline.isFolderCollapsed (collapsedFolder->itemID),
+                "Expected folder collapsed before edit replacement");
+        const auto collapsedFolderId = collapsedFolder->itemID;
+
         // Simulate edit swap by creating new project and reopening
         auto fixtureProject = createLifecycleFixtureProject (engine);
         expect (projectManager.openProject (fixtureProject), "Expected fixture project open for safety test");
+        expect (! timeline.isFolderCollapsed (collapsedFolderId),
+                "Expected collapsed folder cache to clear after edit replacement");
 
         // After edit swap, old clip pointer is invalid but ID-based lookup should still work
         selectedClips = timeline.getSelectionManager().getSelectedClips();
@@ -2127,6 +2149,8 @@ void runPhase5TimelineMixerPolishTests()
     laneComponents = timeline.getTrackLaneComponentsForTesting();
     expect (laneComponents.size() == 1, "Expected collapsed folder to hide child lanes");
     expect (laneComponents[0]->isFolderLane(), "Expected collapsed lane to remain the folder lane");
+    expect (timeline.isFolderCollapsed (folderTrack->itemID),
+            "Expected collapsed folder state to be tracked");
 
     timeline.toggleFolderCollapsed (folderTrack->itemID);
     juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
@@ -2178,6 +2202,60 @@ void testGridLineStruct()
     std::cout << "testGridLineStruct: PASS (GridLine struct handles all X values correctly)" << std::endl;
 }
 
+void runPluginIndexCommandConsistencyRegression()
+{
+    std::cout << "runPluginIndexCommandConsistencyRegression..." << std::endl;
+
+    te::Engine engine ("WaivePluginIndexCommandTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    CommandHandler commandHandler (session.getEdit());
+    auto* track = getFirstTrack (session.getEdit());
+    expect (track != nullptr, "Expected first track for plugin-index consistency test");
+    const int trackId = track->getIndexInEditTrackList();
+
+    juce::ValueTree reverbState (te::IDs::PLUGIN);
+    reverbState.setProperty (te::IDs::type, te::ReverbPlugin::xmlTypeName, nullptr);
+    auto plugin = session.getEdit().getPluginCache().createNewPlugin (reverbState);
+    expect (plugin != nullptr, "Expected creating built-in reverb plugin");
+    track->pluginList.insertPlugin (plugin, 0, nullptr);
+
+    auto getParamsResult = runJsonCommand (commandHandler,
+                                           juce::String::formatted ("{\"action\":\"get_plugin_parameters\",\"track_id\":%d,\"plugin_index\":0}",
+                                                                    trackId));
+    expect (commandSucceeded (getParamsResult),
+            "Expected get_plugin_parameters to resolve built-in plugin at index 0");
+    const auto pluginName = getParamsResult["plugin_name"].toString();
+    expect (pluginName.isNotEmpty(), "Expected plugin name in get_plugin_parameters response");
+    expect ((int) getParamsResult["plugin_index"] == 0,
+            "Expected get_plugin_parameters to echo plugin_index 0");
+
+    auto bypassResult = runJsonCommand (commandHandler,
+                                        juce::String::formatted ("{\"action\":\"bypass_plugin\",\"track_id\":%d,\"plugin_index\":0,\"bypassed\":true}",
+                                                                 trackId));
+    expect (commandSucceeded (bypassResult),
+            "Expected bypass_plugin to target same built-in plugin index");
+    expect (bypassResult["plugin_name"].toString() == pluginName,
+            "Expected bypass_plugin to reference same plugin as get_plugin_parameters");
+
+    auto removeResult = runJsonCommand (commandHandler,
+                                        juce::String::formatted ("{\"action\":\"remove_plugin\",\"track_id\":%d,\"plugin_index\":0}",
+                                                                 trackId));
+    expect (commandSucceeded (removeResult),
+            "Expected remove_plugin to target same built-in plugin index");
+    expect (removeResult["removed_plugin"].toString() == pluginName,
+            "Expected remove_plugin to remove same plugin as get_plugin_parameters");
+
+    auto missingResult = runJsonCommand (commandHandler,
+                                         juce::String::formatted ("{\"action\":\"get_plugin_parameters\",\"track_id\":%d,\"plugin_index\":0}",
+                                                                  trackId));
+    expect (! commandSucceeded (missingResult),
+            "Expected removed plugin index to no longer resolve");
+
+    std::cout << "runPluginIndexCommandConsistencyRegression: PASS" << std::endl;
+}
+
 } // namespace
 
 int main()
@@ -2216,6 +2294,7 @@ int main()
     RUN_TEST_SAFELY(testTooltipKeyboardShortcuts);
     RUN_TEST_SAFELY(testTrackColorDeterminism);
     RUN_TEST_SAFELY(runPhase5TimelineMixerPolishTests);
+    RUN_TEST_SAFELY(runPluginIndexCommandConsistencyRegression);
     RUN_TEST_SAFELY(testGridLineStruct);
 
     juce::LookAndFeel::setDefaultLookAndFeel (nullptr);

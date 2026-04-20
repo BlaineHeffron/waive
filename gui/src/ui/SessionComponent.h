@@ -86,6 +86,7 @@ private:
     void requestMicrophoneAccess (std::function<void (bool)> callback);
     bool ensureMicInputReady (juce::String& errorMessage);
     juce::String getMicAccessHelpText() const;
+    void closePianoRollInternal (bool relayout);
     void applyTempo (double bpm, bool coalesce);
     void applyTimeSignature (int numerator, int denominator);
     int getSelectedTimeSigNumerator() const;
@@ -152,6 +153,7 @@ private:
     std::unique_ptr<PianoRollComponent> pianoRollPanel;
     std::unique_ptr<juce::StretchableLayoutResizerBar> pianoRollResizerBar;
     bool pianoRollVisible = false;
+    bool editSwapInProgress = false;
     juce::TextButton closePianoRollButton { "X" };
     PanelLayoutMode panelLayoutMode = PanelLayoutMode::timelineMixer;
     bool panelLayoutInitialised = false;
