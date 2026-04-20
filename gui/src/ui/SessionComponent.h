@@ -20,7 +20,8 @@ namespace waive { class ToolRegistry; class ModelManager; class JobQueue;
 /** Transport toolbar + timeline + mixer. */
 class SessionComponent : public juce::Component,
                          private juce::Timer,
-                         private SelectionManager::Listener
+                         private SelectionManager::Listener,
+                         private EditSession::Listener
 {
 public:
     SessionComponent (EditSession& session, UndoableCommandHandler& handler,
@@ -43,6 +44,7 @@ public:
     void closePianoRoll();
     waive::ChatPanelComponent* getChatPanelForTesting();
     MixerComponent& getMixerForTesting();
+    bool isPianoRollOpenForTesting() const { return pianoRollVisible && pianoRollPanel != nullptr; }
     void play();
     void stop();
     void record();
@@ -75,6 +77,8 @@ private:
 
     void timerCallback() override;
     void selectionChanged() override;
+    void editAboutToChange() override;
+    void editChanged() override;
     void runTransportAction (const juce::String& action);
     void stopRecording();
     void refreshMicInputDevices();

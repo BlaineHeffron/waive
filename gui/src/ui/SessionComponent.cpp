@@ -305,6 +305,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     timeline = std::make_unique<TimelineComponent> (editSession);
     addAndMakeVisible (timeline.get());
     timeline->getSelectionManager().addListener (this);
+    editSession.addListener (this);
 
     snapToggle.onClick = [this]
     {
@@ -411,6 +412,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
 SessionComponent::~SessionComponent()
 {
     stopTimer();
+
+    editSession.removeListener (this);
 
     if (timeline)
         timeline->getSelectionManager().removeListener (this);
@@ -1216,6 +1219,18 @@ void SessionComponent::selectionChanged()
     {
         selectionStatusLabel.setText (juce::String (count) + " clips selected", juce::dontSendNotification);
     }
+}
+
+void SessionComponent::editAboutToChange()
+{
+    if (pianoRollVisible)
+        closePianoRoll();
+}
+
+void SessionComponent::editChanged()
+{
+    refreshMicInputDevices();
+    selectionChanged();
 }
 
 void SessionComponent::runTransportAction (const juce::String& action)

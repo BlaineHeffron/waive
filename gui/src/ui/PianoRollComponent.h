@@ -30,6 +30,7 @@ public:
 
     void paint (juce::Graphics& g) override;
     void resized() override;
+    void previewMidiNote (int pitch);
 
     SnapSettings snapSettings;
 
@@ -192,6 +193,7 @@ private:
     std::unique_ptr<VelocityLane> velocityLane;
 
     double pixelsPerBeat = 60.0;
+    int previewMidiChannel = 1;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PianoRollComponent)
 };

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <thread>
 
 class EditSession;
 class UndoableCommandHandler;
@@ -63,5 +64,6 @@ private:
     double progressValue = 0.0;
     juce::ProgressBar progressBar;
 
+    std::thread renderThread;
     bool rendering = false;
 };

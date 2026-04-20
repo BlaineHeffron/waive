@@ -4,8 +4,44 @@
 #include "WaiveSpacing.h"
 #include "WaiveLookAndFeel.h"
 #include <tracktion_engine/tracktion_engine.h>
+#include <cmath>
 
 namespace te = tracktion;
+
+namespace
+{
+
+std::unique_ptr<te::Edit> createSnapshotEditForRender (te::Engine& engine,
+                                                       const juce::ValueTree& state,
+                                                       const juce::File& editFile)
+{
+    auto projectItemId = te::ProjectItemID::fromProperty (state, te::IDs::projectID);
+    if (! projectItemId.isValid())
+        projectItemId = te::ProjectItemID::createNewID (0);
+
+    return te::Edit::createEdit (te::Edit::Options
+    {
+        engine,
+        state.createCopy(),
+        projectItemId,
+        te::Edit::forEditing,
+        nullptr,
+        te::Edit::getDefaultNumUndoLevels(),
+        [editFile] { return editFile; },
+        {},
+        0
+    });
+}
+
+double getProjectSampleRate (te::Edit& edit)
+{
+    if (auto* device = edit.engine.getDeviceManager().deviceManager.getCurrentAudioDevice())
+        return device->getCurrentSampleRate();
+
+    return edit.engine.getDeviceManager().getSampleRate();
+}
+
+}
 
 //==============================================================================
 RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handler)
@@ -30,7 +66,17 @@ RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handle
     sampleRateCombo.addItem ("48000 Hz", 2);
     sampleRateCombo.addItem ("88200 Hz", 3);
     sampleRateCombo.addItem ("96000 Hz", 4);
-    sampleRateCombo.setSelectedId (2); // default 48kHz
+    const auto projectSampleRate = getProjectSampleRate (editSession.getEdit());
+    if (std::abs (projectSampleRate - 44100.0) < 1.0)
+        sampleRateCombo.setSelectedId (1);
+    else if (std::abs (projectSampleRate - 48000.0) < 1.0)
+        sampleRateCombo.setSelectedId (2);
+    else if (std::abs (projectSampleRate - 88200.0) < 1.0)
+        sampleRateCombo.setSelectedId (3);
+    else if (std::abs (projectSampleRate - 96000.0) < 1.0)
+        sampleRateCombo.setSelectedId (4);
+    else
+        sampleRateCombo.setSelectedId (2);
     addAndMakeVisible (sampleRateCombo);
 
     // Bit depth
@@ -123,7 +169,11 @@ RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handle
     setSize (600, 520);
 }
 
-RenderDialog::~RenderDialog() = default;
+RenderDialog::~RenderDialog()
+{
+    if (renderThread.joinable())
+        renderThread.join();
+}
 
 void RenderDialog::resized()
 {
@@ -290,7 +340,9 @@ void RenderDialog::performRender()
         juce::File outputFile;
         bool normalize;
         double normalizeLevel;
-        te::Edit* editPtr; // Safe to use pointer if we never delete Edit during render
+        juce::ValueTree editState;
+        juce::File editFile;
+        te::Engine* enginePtr;
     };
 
     // Determine format
@@ -356,12 +408,36 @@ void RenderDialog::performRender()
     bool normalize = normalizeToggle.getToggleState();
     double normalizeLevel = -0.1; // -0.1 dBFS
 
-    RenderData data { formatId, sampleRate, bitDepth, oggQuality, range, tracksMask,
-                      doStems, outputFile, normalize, normalizeLevel, &edit };
+    if (renderThread.joinable())
+        renderThread.join();
 
-    juce::Thread::launch ([this, data]()
+    RenderData data { formatId, sampleRate, bitDepth, oggQuality, range, tracksMask,
+                      doStems, outputFile, normalize, normalizeLevel,
+                      edit.state.createCopy(),
+                      te::EditFileOperations (edit).getEditFile(),
+                      &edit.engine };
+
+    auto safeThis = juce::Component::SafePointer<RenderDialog> (this);
+    renderThread = std::thread ([safeThis, data]() mutable
     {
-        auto& editRef = *data.editPtr;
+        auto snapshotEdit = createSnapshotEditForRender (*data.enginePtr, data.editState, data.editFile);
+        if (snapshotEdit == nullptr)
+        {
+            juce::MessageManager::callAsync ([safeThis]
+            {
+                if (safeThis == nullptr)
+                    return;
+
+                safeThis->progressBar.setVisible (false);
+                juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
+                                                         "Render Failed",
+                                                         "Failed to create a render snapshot.");
+                safeThis->resetControls();
+            });
+            return;
+        }
+
+        auto& editRef = *snapshotEdit;
         bool success = false;
 
         // Create AudioFormat pointer
@@ -516,9 +592,12 @@ void RenderDialog::performRender()
             }
         }
 
-        juce::MessageManager::callAsync ([this, success, finalFile]
+        juce::MessageManager::callAsync ([safeThis, success, finalFile]
         {
-            progressBar.setVisible (false);
+            if (safeThis == nullptr)
+                return;
+
+            safeThis->progressBar.setVisible (false);
 
             if (success)
             {
@@ -538,7 +617,7 @@ void RenderDialog::performRender()
                                                          "Failed to render audio.");
             }
 
-            resetControls();
+            safeThis->resetControls();
         });
     });
 }

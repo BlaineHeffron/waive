@@ -23,7 +23,7 @@ class TrackLaneComponent : public juce::Component
 public:
     static constexpr int automationLaneHeight = 34;
 
-    TrackLaneComponent (te::AudioTrack& track, TimelineComponent& timeline, int trackIndex = 0);
+    TrackLaneComponent (te::Track& track, TimelineComponent& timeline, int trackIndex = 0, int depth = 0);
     ~TrackLaneComponent() override;
 
     void paint (juce::Graphics& g) override;
@@ -38,7 +38,10 @@ public:
     void updateClips();
     void pollState();
 
-    te::AudioTrack& getTrack()  { return track; }
+    te::Track& getTrack()                   { return track; }
+    te::AudioTrack* getAudioTrack() const   { return audioTrack; }
+    bool isFolderLane() const               { return folderTrack != nullptr; }
+    int getIndentDepth() const              { return depth; }
 
     juce::Colour getTrackColorForTesting() const;
 
@@ -53,12 +56,19 @@ private:
     int automationYForNormalisedValue (float normalised) const;
     int findNearbyAutomationPoint (te::AutomationCurve& curve, te::AutomatableParameter& param, int mouseX, int mouseY) const;
 
-    te::AudioTrack& track;
+    te::Track& track;
+    te::AudioTrack* audioTrack = nullptr;
+    te::FolderTrack* folderTrack = nullptr;
     TimelineComponent& timeline;
     int trackIndex = 0;
+    int depth = 0;
 
     juce::Label headerLabel;
     juce::ComboBox automationParamCombo;
+    juce::TextButton folderToggleButton { ">" };
+    juce::ToggleButton folderSoloButton { "S" };
+    juce::ToggleButton folderMuteButton { "M" };
+    juce::Slider folderVolumeSlider;
     juce::ReferenceCountedArray<te::AutomatableParameter> automationParams;
     std::vector<std::unique_ptr<ClipComponent>> clipComponents;
 

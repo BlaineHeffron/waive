@@ -1,6 +1,7 @@
 #include "TrackLaneComponent.h"
 #include "ClipComponent.h"
 #include "TimelineComponent.h"
+#include "WaiveFonts.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveSpacing.h"
 
@@ -19,8 +20,13 @@ float toNormalised (float value, const juce::Range<float>& range)
 }
 
 //==============================================================================
-TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl, int trackIdx)
-    : track (t), timeline (tl), trackIndex (trackIdx)
+TrackLaneComponent::TrackLaneComponent (te::Track& t, TimelineComponent& tl, int trackIdx, int indentDepth)
+    : track (t),
+      audioTrack (dynamic_cast<te::AudioTrack*> (&t)),
+      folderTrack (dynamic_cast<te::FolderTrack*> (&t)),
+      timeline (tl),
+      trackIndex (trackIdx),
+      depth (indentDepth)
 {
     headerLabel.setText (track.getName(), juce::dontSendNotification);
     headerLabel.setJustificationType (juce::Justification::centredLeft);
@@ -37,10 +43,78 @@ TrackLaneComponent::TrackLaneComponent (te::AudioTrack& t, TimelineComponent& tl
     automationParamCombo.setTextWhenNothingSelected ("Automation: none");
     automationParamCombo.onChange = [this] { repaint(); };
     automationParamCombo.setTooltip ("Select automation parameter to display");
-    addAndMakeVisible (automationParamCombo);
+    addChildComponent (automationParamCombo);
 
-    refreshAutomationParams();
-    updateClips();
+    folderToggleButton.onClick = [this]
+    {
+        if (folderTrack != nullptr)
+            timeline.toggleFolderCollapsed (track.itemID);
+    };
+    addChildComponent (folderToggleButton);
+
+    folderSoloButton.onClick = [this]
+    {
+        if (folderTrack == nullptr)
+            return;
+
+        const auto newState = folderSoloButton.getToggleState();
+        timeline.getEditSession().performEdit ("Toggle Folder Solo", [this, newState] (te::Edit&)
+        {
+            folderTrack->setSolo (newState);
+            for (auto* child : folderTrack->getAllSubTracks (false))
+                child->setSolo (newState);
+        });
+    };
+    addChildComponent (folderSoloButton);
+
+    folderMuteButton.onClick = [this]
+    {
+        if (folderTrack == nullptr)
+            return;
+
+        const auto newState = folderMuteButton.getToggleState();
+        timeline.getEditSession().performEdit ("Toggle Folder Mute", [this, newState] (te::Edit&)
+        {
+            folderTrack->setMute (newState);
+            for (auto* child : folderTrack->getAllSubTracks (false))
+                child->setMute (newState);
+        });
+    };
+    addChildComponent (folderMuteButton);
+
+    folderVolumeSlider.setSliderStyle (juce::Slider::LinearHorizontal);
+    folderVolumeSlider.setRange (-60.0, 6.0, 0.1);
+    folderVolumeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    folderVolumeSlider.onValueChange = [this]
+    {
+        if (folderTrack == nullptr)
+            return;
+
+        const auto db = (float) folderVolumeSlider.getValue();
+        timeline.getEditSession().performEdit ("Set Folder Volume", true, [this, db] (te::Edit&)
+        {
+            auto plugins = folderTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+            if (! plugins.isEmpty())
+                plugins.getFirst()->volParam->setParameter (te::decibelsToVolumeFaderPosition (db),
+                                                            juce::sendNotification);
+        });
+    };
+    folderVolumeSlider.onDragEnd = [this] { timeline.getEditSession().endCoalescedTransaction(); };
+    addChildComponent (folderVolumeSlider);
+
+    if (audioTrack != nullptr)
+    {
+        automationParamCombo.setVisible (true);
+        refreshAutomationParams();
+        updateClips();
+    }
+    else if (folderTrack != nullptr)
+    {
+        folderToggleButton.setVisible (true);
+        folderSoloButton.setVisible (true);
+        folderMuteButton.setVisible (true);
+        folderVolumeSlider.setVisible (true);
+    }
 
     setTitle (track.getName());
     setDescription ("Track lane - contains clips and automation for " + track.getName());
@@ -52,10 +126,8 @@ TrackLaneComponent::~TrackLaneComponent() = default;
 void TrackLaneComponent::paint (juce::Graphics& g)
 {
     auto bounds = getLocalBounds();
-
     auto* pal = waive::getWaivePalette (*this);
 
-    // Track header background
     auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth);
     auto headerColour = pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a);
     if (isHeaderHovered)
@@ -63,7 +135,6 @@ void TrackLaneComponent::paint (juce::Graphics& g)
     g.setColour (headerColour);
     g.fillRect (headerBounds);
 
-    // Draw 4px track color strip on left edge
     if (pal)
     {
         const juce::Colour* trackColors[] = {
@@ -71,23 +142,41 @@ void TrackLaneComponent::paint (juce::Graphics& g)
             &pal->trackColor5, &pal->trackColor6, &pal->trackColor7, &pal->trackColor8,
             &pal->trackColor9, &pal->trackColor10, &pal->trackColor11, &pal->trackColor12
         };
-        juce::Colour trackColor = *trackColors[trackIndex % 12];
-        g.setColour (trackColor);
+        g.setColour (*trackColors[trackIndex % 12]);
         g.fillRect (0, 0, 4, getHeight());
     }
 
-    // Lane background
+    if (depth > 0)
+    {
+        g.setColour ((pal ? pal->borderSubtle : juce::Colours::darkgrey).withAlpha (0.6f));
+        for (int i = 0; i < depth; ++i)
+            g.drawVerticalLine (8 + i * 20, 0.0f, (float) getHeight());
+    }
+
     g.setColour (pal ? pal->panelBg : juce::Colour (0xff1a1a1a));
     g.fillRect (bounds);
 
-    // Grid lines (clip + automation area) - use cache
+    if (folderTrack != nullptr)
+    {
+        auto contentBounds = bounds.reduced (0, 8);
+        g.setColour (pal ? pal->insetBg : juce::Colour (0xff202020));
+        g.fillRect (contentBounds);
+        g.setColour (pal ? pal->borderSubtle : juce::Colour (0xff444444));
+        g.drawRect (contentBounds);
+        g.setFont (waive::Fonts::caption());
+        g.setColour (pal ? pal->textMuted : juce::Colour (0xffa0a0a0));
+        g.drawText ("Folder track", contentBounds.withTrimmedLeft (12),
+                    juce::Justification::centredLeft, true);
+        g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
+        return;
+    }
+
     const auto currentScroll = timeline.getScrollOffsetSeconds();
     const auto currentPPS = timeline.getPixelsPerSecond();
 
-    if (std::abs (currentScroll - cachedScrollOffsetForGrid) > 0.001 ||
-        std::abs (currentPPS - cachedPixelsPerSecondForGrid) > 0.001)
+    if (std::abs (currentScroll - cachedScrollOffsetForGrid) > 0.001
+        || std::abs (currentPPS - cachedPixelsPerSecondForGrid) > 0.001)
     {
-        // Recalculate grid lines
         juce::Array<double> majorLines, minorLines;
         const auto startTime = currentScroll;
         const auto endTime = startTime + bounds.getWidth() / currentPPS;
@@ -103,18 +192,14 @@ void TrackLaneComponent::paint (juce::Graphics& g)
         cachedPixelsPerSecondForGrid = currentPPS;
     }
 
-    // Draw cached grid lines - batch into paths for performance
     juce::Path majorPath, minorPath;
-    float top = 0.0f;
-    float bottom = (float) getHeight();
-
     for (const auto& gridLine : cachedGridLines)
     {
-        float xf = (float) gridLine.x;
+        const float xf = (float) gridLine.x;
         if (gridLine.isMinor)
-            minorPath.addLineSegment ({ xf, top, xf, bottom }, 1.0f);
+            minorPath.addLineSegment ({ xf, 0.0f, xf, (float) getHeight() }, 1.0f);
         else
-            majorPath.addLineSegment ({ xf, top, xf, bottom }, 1.0f);
+            majorPath.addLineSegment ({ xf, 0.0f, xf, (float) getHeight() }, 1.0f);
     }
 
     g.setColour (pal ? pal->gridMinor : juce::Colour (0xff333333));
@@ -122,7 +207,6 @@ void TrackLaneComponent::paint (juce::Graphics& g)
     g.setColour (pal ? pal->gridMajor : juce::Colour (0xff555555));
     g.fillPath (majorPath);
 
-    // Automation lane background
     auto automationBounds = getAutomationBounds();
     g.setColour (pal ? pal->insetBg : juce::Colour (0xff202020));
     g.fillRect (automationBounds);
@@ -163,7 +247,6 @@ void TrackLaneComponent::paint (juce::Graphics& g)
         }
     }
 
-    // Bottom separator
     g.setColour (pal ? pal->border : juce::Colour (0xff555555));
     g.drawHorizontalLine (getHeight() - 1, 0.0f, (float) getWidth());
 }
@@ -172,36 +255,72 @@ void TrackLaneComponent::resized()
 {
     auto bounds = getLocalBounds();
     auto headerBounds = bounds.removeFromLeft (TimelineComponent::trackHeaderWidth).reduced (waive::Spacing::xs);
-    headerLabel.setBounds (headerBounds.removeFromTop (waive::Spacing::controlHeightSmall));
-    headerBounds.removeFromTop (waive::Spacing::xxs);
-    automationParamCombo.setBounds (headerBounds.removeFromTop (waive::Spacing::controlHeightSmall));
+    headerBounds.removeFromLeft (depth * 20);
+
+    if (folderTrack != nullptr)
+    {
+        folderToggleButton.setBounds (headerBounds.removeFromLeft (20));
+        headerBounds.removeFromLeft (waive::Spacing::xxs);
+        folderSoloButton.setBounds (headerBounds.removeFromLeft (22));
+        headerBounds.removeFromLeft (waive::Spacing::xxs);
+        folderMuteButton.setBounds (headerBounds.removeFromLeft (22));
+        headerBounds.removeFromLeft (waive::Spacing::xs);
+        headerLabel.setBounds (headerBounds.removeFromTop (waive::Spacing::controlHeightSmall));
+        headerBounds.removeFromTop (waive::Spacing::xs);
+        folderVolumeSlider.setBounds (headerBounds.removeFromTop (18));
+    }
+    else
+    {
+        headerLabel.setBounds (headerBounds.removeFromTop (waive::Spacing::controlHeightSmall));
+        headerBounds.removeFromTop (waive::Spacing::xxs);
+        automationParamCombo.setBounds (headerBounds.removeFromTop (waive::Spacing::controlHeightSmall));
+    }
 
     layoutClipComponents();
 }
 
 void TrackLaneComponent::updateClips()
 {
+    if (audioTrack == nullptr)
+        return;
+
     clipComponents.clear();
     removeAllChildren();
     addAndMakeVisible (headerLabel);
     addAndMakeVisible (automationParamCombo);
 
-    for (auto* clip : track.getClips())
+    for (auto* clip : audioTrack->getClips())
     {
         auto cc = std::make_unique<ClipComponent> (*clip, timeline);
         addAndMakeVisible (cc.get());
         clipComponents.push_back (std::move (cc));
     }
 
-    lastClipCount = track.getClips().size();
+    lastClipCount = audioTrack->getClips().size();
     layoutDirty = true;
     resized();
 }
 
 void TrackLaneComponent::pollState()
 {
-    const int currentCount = track.getClips().size();
-    const int automatableCount = track.getAllAutomatableParams().size();
+    headerLabel.setText (track.getName(), juce::dontSendNotification);
+
+    if (folderTrack != nullptr)
+    {
+        folderToggleButton.setButtonText (timeline.isFolderCollapsed (track.itemID) ? ">" : "v");
+        folderSoloButton.setToggleState (folderTrack->isSolo (false), juce::dontSendNotification);
+        folderMuteButton.setToggleState (folderTrack->isMuted (false), juce::dontSendNotification);
+
+        auto plugins = folderTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+        if (! plugins.isEmpty())
+            folderVolumeSlider.setValue (te::volumeFaderPositionToDB (plugins.getFirst()->volParam->getCurrentValue()),
+                                         juce::dontSendNotification);
+        repaint();
+        return;
+    }
+
+    const int currentCount = audioTrack->getClips().size();
+    const int automatableCount = audioTrack->getAllAutomatableParams().size();
 
     if (currentCount != lastClipCount)
         updateClips();
@@ -211,9 +330,8 @@ void TrackLaneComponent::pollState()
 
     const double currentScroll = timeline.getScrollOffsetSeconds();
     const double currentPPS = timeline.getPixelsPerSecond();
-
-    const bool viewportChanged = (std::abs (currentScroll - lastScrollOffset) > 0.001) ||
-                                  (std::abs (currentPPS - lastPixelsPerSecond) > 0.001);
+    const bool viewportChanged = (std::abs (currentScroll - lastScrollOffset) > 0.001)
+                              || (std::abs (currentPPS - lastPixelsPerSecond) > 0.001);
 
     if (layoutDirty || viewportChanged)
     {
@@ -227,7 +345,6 @@ void TrackLaneComponent::pollState()
 
 void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
 {
-    // Check for right-click on header
     auto headerBounds = getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
     if (e.mods.isPopupMenu() && headerBounds.contains (e.getPosition()))
     {
@@ -235,7 +352,7 @@ void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
         return;
     }
 
-    if (! getAutomationBounds().contains (e.getPosition()))
+    if (audioTrack == nullptr || ! getAutomationBounds().contains (e.getPosition()))
         return;
 
     auto* param = getSelectedAutomationParameter();
@@ -263,7 +380,7 @@ void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
 
 void TrackLaneComponent::mouseDrag (const juce::MouseEvent& e)
 {
-    if (draggingAutomationPointIndex < 0)
+    if (audioTrack == nullptr || draggingAutomationPointIndex < 0)
         return;
 
     auto* param = getSelectedAutomationParameter();
@@ -299,7 +416,7 @@ void TrackLaneComponent::mouseUp (const juce::MouseEvent&)
 void TrackLaneComponent::mouseMove (const juce::MouseEvent& e)
 {
     auto headerBounds = getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
-    bool nowInHeader = headerBounds.contains (e.getPosition());
+    const bool nowInHeader = headerBounds.contains (e.getPosition());
     if (nowInHeader != isHeaderHovered)
     {
         isHeaderHovered = nowInHeader;
@@ -325,7 +442,10 @@ void TrackLaneComponent::mouseExit (const juce::MouseEvent&)
 
 void TrackLaneComponent::refreshAutomationParams()
 {
-    lastAutomatableParamCount = track.getAllAutomatableParams().size();
+    if (audioTrack == nullptr)
+        return;
+
+    lastAutomatableParamCount = audioTrack->getAllAutomatableParams().size();
 
     const auto previousId = automationParamCombo.getSelectedId();
 
@@ -333,14 +453,13 @@ void TrackLaneComponent::refreshAutomationParams()
     automationParamCombo.addItem ("Automation: none", 1);
 
     automationParams.clear();
-    for (auto* param : track.getAllAutomatableParams())
+    for (auto* param : audioTrack->getAllAutomatableParams())
     {
         if (param == nullptr || param->getPlugin() == nullptr)
             continue;
 
         automationParams.add (param);
-        const auto itemId = automationParams.size() + 1;
-        automationParamCombo.addItem (param->getPluginAndParamName(), itemId);
+        automationParamCombo.addItem (param->getPluginAndParamName(), automationParams.size() + 1);
     }
 
     bool hasPrevious = false;
@@ -363,6 +482,9 @@ void TrackLaneComponent::refreshAutomationParams()
 
 void TrackLaneComponent::layoutClipComponents()
 {
+    if (audioTrack == nullptr)
+        return;
+
     auto clipBounds = getClipLaneBounds();
     const int clipHeight = juce::jmax (10, clipBounds.getHeight() - 2);
 
@@ -379,11 +501,16 @@ juce::Rectangle<int> TrackLaneComponent::getClipLaneBounds() const
 {
     auto bounds = getLocalBounds();
     bounds.removeFromLeft (TimelineComponent::trackHeaderWidth);
+    if (audioTrack == nullptr)
+        return bounds;
     return bounds.removeFromTop (getHeight() - automationLaneHeight);
 }
 
 juce::Rectangle<int> TrackLaneComponent::getAutomationBounds() const
 {
+    if (audioTrack == nullptr)
+        return {};
+
     auto bounds = getLocalBounds();
     bounds.removeFromLeft (TimelineComponent::trackHeaderWidth);
     return bounds.removeFromBottom (automationLaneHeight);
@@ -451,38 +578,39 @@ void TrackLaneComponent::showTrackContextMenu()
 
         switch (result)
         {
-            case 1: // Rename
+            case 1:
                 safeThis->headerLabel.showEditor();
                 break;
 
-            case 5: // Delete
+            case 5:
             {
-                bool hasClips = trk.getClips().size() > 0;
+                const auto clipCount = safeThis->audioTrack != nullptr ? safeThis->audioTrack->getClips().size() : 0;
+                const bool hasClips = clipCount > 0;
+
                 if (hasClips)
                 {
-                    // Capture track itemID to safely locate track in async callback
                     auto trackID = trk.itemID;
                     juce::AlertWindow::showOkCancelBox (
                         juce::MessageBoxIconType::WarningIcon,
                         "Delete Track",
-                        "This track contains " + juce::String (trk.getClips().size()) + " clip(s). Are you sure?",
+                        "This track contains " + juce::String (clipCount) + " clip(s). Are you sure?",
                         "Delete", "Cancel",
                         nullptr,
                         juce::ModalCallbackFunction::create ([safeThis, trackID] (int choice)
                         {
-                            if (choice == 1 && safeThis)
+                            if (choice != 1 || ! safeThis)
+                                return;
+
+                            auto& edit = safeThis->timeline.getEditSession().getEdit();
+                            for (auto* candidate : edit.getTrackList())
                             {
-                                auto& edit = safeThis->timeline.getEditSession().getEdit();
-                                for (auto* t : edit.getTrackList())
+                                if (candidate != nullptr && candidate->itemID == trackID)
                                 {
-                                    if (t->itemID == trackID)
+                                    safeThis->timeline.getEditSession().performEdit ("Delete Track", [candidate] (te::Edit&)
                                     {
-                                        safeThis->timeline.getEditSession().performEdit ("Delete Track", [t] (te::Edit&)
-                                        {
-                                            t->edit.deleteTrack (t);
-                                        });
-                                        break;
-                                    }
+                                        candidate->edit.deleteTrack (candidate);
+                                    });
+                                    break;
                                 }
                             }
                         })

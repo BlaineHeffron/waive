@@ -88,6 +88,7 @@ void PianoRollComponent::PianoKeyboardSidebar::mouseDown (const juce::MouseEvent
         if (parent && parent->noteGrid)
         {
             parent->noteGrid->selectNotesByPitch (pitch, e.mods.isShiftDown());
+            parent->previewMidiNote (pitch);
         }
     }
 }
@@ -1209,6 +1210,7 @@ PianoRollComponent::PianoRollComponent (te::MidiClip& clip, EditSession& session
     addAndMakeVisible (viewport.get());
 
     addAndMakeVisible (velocityLane.get());
+
 }
 
 PianoRollComponent::~PianoRollComponent() = default;
@@ -1237,4 +1239,24 @@ void PianoRollComponent::resized()
 
     // Note grid viewport in center
     viewport->setBounds (bounds);
+}
+
+void PianoRollComponent::previewMidiNote (int pitch)
+{
+    auto* midiOut = editSession.getEngine().getDeviceManager().getDefaultMidiOutDevice();
+    if (midiOut == nullptr || ! midiOut->isEnabled())
+        return;
+
+    midiOut->fireMessage (juce::MidiMessage::noteOn (previewMidiChannel, pitch, (juce::uint8) 100));
+
+    juce::Component::SafePointer<PianoRollComponent> safeThis (this);
+    juce::Timer::callAfterDelay (180, [safeThis, pitch, channel = previewMidiChannel]
+    {
+        if (safeThis == nullptr)
+            return;
+
+        if (auto* out = safeThis->editSession.getEngine().getDeviceManager().getDefaultMidiOutDevice();
+            out != nullptr && out->isEnabled())
+            out->fireMessage (juce::MidiMessage::noteOff (channel, pitch));
+    });
 }

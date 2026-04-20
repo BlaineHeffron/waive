@@ -1859,6 +1859,24 @@ void runPhase6SafetyArchitectureRegression()
         selectedClips = timeline.getSelectionManager().getSelectedClips();
         expect (selectedClips.isEmpty(), "Expected selection to clear after edit swap");
 
+        auto* liveTrackAfterSwap = getFirstTrack (session.getEdit());
+        expect (liveTrackAfterSwap != nullptr, "Expected live track after edit swap");
+
+        auto pianoClip = liveTrackAfterSwap->insertMIDIClip (
+            "safety_piano_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.5),
+                           te::TimePosition::fromSeconds (2.5)),
+            nullptr);
+        expect (pianoClip != nullptr, "Expected piano-roll safety clip insertion");
+        sessionComponent.openPianoRoll (*pianoClip);
+        expect (sessionComponent.isPianoRollOpenForTesting(),
+                "Expected piano roll to open before edit swap");
+
+        projectManager.newProject();
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+        expect (! sessionComponent.isPianoRollOpenForTesting(),
+                "Expected piano roll to close before replacing the edit");
+
         // Verify no dangling pointer dereference occurs
         timeline.rebuildTracks();
         juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
@@ -2086,6 +2104,34 @@ void runPhase5TimelineMixerPolishTests()
     expect (timeline.getTrackLaneHeight() == 150, "Expected height 150");
 
     std::cout << "Track height zoom bounds test: PASS" << std::endl;
+
+    auto& edit = session->getEdit();
+    auto audioTracks = te::getAudioTracks (edit);
+    auto* sourceTrack = audioTracks.isEmpty() ? nullptr : audioTracks.getFirst();
+    expect (sourceTrack != nullptr, "Expected source audio track for folder timeline test");
+
+    auto folderTrack = edit.insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
+    expect (folderTrack != nullptr, "Expected folder track creation");
+    folderTrack->setName ("Folder A");
+    edit.moveTrack (sourceTrack, te::TrackInsertPoint (folderTrack.get(), nullptr));
+
+    timeline.rebuildTracks();
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    auto laneComponents = timeline.getTrackLaneComponentsForTesting();
+    expect (laneComponents.size() >= 2, "Expected folder and child track lanes to be visible");
+    expect (laneComponents[0]->isFolderLane(), "Expected first visible lane to be a folder lane");
+    expect (laneComponents[1]->getIndentDepth() == 1, "Expected child track lane to be indented");
+
+    timeline.toggleFolderCollapsed (folderTrack->itemID);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    laneComponents = timeline.getTrackLaneComponentsForTesting();
+    expect (laneComponents.size() == 1, "Expected collapsed folder to hide child lanes");
+    expect (laneComponents[0]->isFolderLane(), "Expected collapsed lane to remain the folder lane");
+
+    timeline.toggleFolderCollapsed (folderTrack->itemID);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    laneComponents = timeline.getTrackLaneComponentsForTesting();
+    expect (laneComponents.size() >= 2, "Expected expanding folder to restore child lanes");
 
     // Test 2: Transport responsive breakpoint at 900px
     sessionComponent.setBounds (0, 0, 1200, 800);

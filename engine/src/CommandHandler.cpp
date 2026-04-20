@@ -16,6 +16,22 @@ juce::String getMicAccessHelpText()
     return "Enable microphone permission for this app in your operating system settings.";
 #endif
 }
+
+bool isAddressablePlugin (te::Plugin* plugin)
+{
+    return plugin != nullptr
+        && dynamic_cast<te::VolumeAndPanPlugin*> (plugin) == nullptr
+        && dynamic_cast<te::LevelMeterPlugin*> (plugin) == nullptr;
+}
+
+juce::Array<te::Plugin*> getAddressablePlugins (te::PluginList& pluginList)
+{
+    juce::Array<te::Plugin*> plugins;
+    for (auto* plugin : pluginList)
+        if (isAddressablePlugin (plugin))
+            plugins.add (plugin);
+    return plugins;
+}
 }
 
 CommandHandler::CommandHandler (te::Edit& e)
@@ -1423,13 +1439,7 @@ juce::var CommandHandler::handleRemovePlugin (const juce::var& params)
     if (track == nullptr)
         return makeError ("Audio track not found: " + juce::String (trackId));
 
-    // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
-    juce::Array<te::Plugin*> userPlugins;
-    for (auto* p : track->pluginList)
-    {
-        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
-            userPlugins.add (p);
-    }
+    auto userPlugins = getAddressablePlugins (track->pluginList);
 
     if (pluginIdx < 0 || pluginIdx >= userPlugins.size())
         return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");
@@ -1915,13 +1925,7 @@ juce::var CommandHandler::handleSavePluginPreset (const juce::var& params)
     if (track == nullptr)
         return makeError ("Audio track " + juce::String (trackId) + " not found");
 
-    // Only count user plugins (skip built-in VolumeAndPan, LevelMeter)
-    juce::Array<te::Plugin*> userPlugins;
-    for (auto* p : track->pluginList)
-    {
-        if (dynamic_cast<te::ExternalPlugin*> (p) != nullptr)
-            userPlugins.add (p);
-    }
+    auto userPlugins = getAddressablePlugins (track->pluginList);
 
     if (pluginIndex < 0 || pluginIndex >= userPlugins.size())
         return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");

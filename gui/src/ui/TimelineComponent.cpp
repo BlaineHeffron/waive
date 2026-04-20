@@ -188,13 +188,10 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
 
         auto localPos = details.localPosition;
         double dropTime = snapTimeToGrid (juce::jmax (0.0, xToTime (localPos.x)));
-        int trackIdx = trackIndexAtY (localPos.y - waive::Spacing::rulerHeight);
+        int laneIndex = trackIndexAtY (localPos.y - waive::Spacing::rulerHeight);
 
         auto& edit = editSession.getEdit();
         auto tracks = te::getAudioTracks (edit);
-
-        if (trackIdx < 0 || trackIdx >= tracks.size())
-            trackIdx = 0;
 
         if (tracks.isEmpty())
         {
@@ -203,7 +200,9 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
             return;
         }
 
-        auto* track = tracks[trackIdx];
+        auto* track = getAudioTrackForLaneIndex (laneIndex);
+        if (track == nullptr)
+            track = tracks.getFirst();
         te::AudioFile audioFile (edit.engine, file);
         auto duration = audioFile.getLength();
 
@@ -391,27 +390,20 @@ void TimelineComponent::rebuildTracks()
     selectionManager->deselectAll();
 
     trackLanes.clear();
+    laneDescriptors.clear();
     trackContainer.removeAllChildren();
 
-    auto tracks = te::getAudioTracks (editSession.getEdit());
+    for (auto* track : editSession.getEdit().getTrackList())
+        if (track != nullptr && track->getParentFolderTrack() == nullptr)
+            appendTrackLaneRecursive (*track, 0);
 
-    int trackIndex = 0;
-    for (auto* track : tracks)
-    {
-        auto lane = std::make_unique<TrackLaneComponent> (*track, *this, trackIndex);
-        trackContainer.addAndMakeVisible (lane.get());
-        trackLanes.push_back (std::move (lane));
-        ++trackIndex;
-    }
-
-    lastTrackCount = tracks.size();
+    lastTrackCount = getDisplayTrackCount();
     resized();
 }
 
 void TimelineComponent::timerCallback()
 {
-    auto tracks = te::getAudioTracks (editSession.getEdit());
-    if (tracks.size() != lastTrackCount)
+    if (getDisplayTrackCount() != lastTrackCount)
         rebuildTracks();
 
     // Poll all track lanes
@@ -590,4 +582,69 @@ std::vector<TrackLaneComponent*> TimelineComponent::getTrackLaneComponentsForTes
     for (auto& lane : trackLanes)
         result.push_back (lane.get());
     return result;
+}
+
+bool TimelineComponent::isFolderCollapsed (te::EditItemID trackID) const
+{
+    return collapsedFolderTrackIDs.count (trackID) > 0;
+}
+
+void TimelineComponent::toggleFolderCollapsed (te::EditItemID trackID)
+{
+    if (collapsedFolderTrackIDs.count (trackID) > 0)
+        collapsedFolderTrackIDs.erase (trackID);
+    else
+        collapsedFolderTrackIDs.insert (trackID);
+
+    rebuildTracks();
+}
+
+te::AudioTrack* TimelineComponent::getAudioTrackForLaneIndex (int laneIndex) const
+{
+    if (! juce::isPositiveAndBelow (laneIndex, (int) trackLanes.size()))
+        return nullptr;
+
+    if (auto* audioTrack = trackLanes[(size_t) laneIndex]->getAudioTrack())
+        return audioTrack;
+
+    for (int i = laneIndex + 1; i < (int) trackLanes.size(); ++i)
+        if (auto* audioTrack = trackLanes[(size_t) i]->getAudioTrack())
+            return audioTrack;
+
+    for (int i = laneIndex - 1; i >= 0; --i)
+        if (auto* audioTrack = trackLanes[(size_t) i]->getAudioTrack())
+            return audioTrack;
+
+    return nullptr;
+}
+
+void TimelineComponent::appendTrackLaneRecursive (te::Track& track, int depth)
+{
+    auto* audioTrack = dynamic_cast<te::AudioTrack*> (&track);
+    auto* folderTrack = dynamic_cast<te::FolderTrack*> (&track);
+
+    if (audioTrack == nullptr && folderTrack == nullptr)
+        return;
+
+    auto lane = std::make_unique<TrackLaneComponent> (track, *this, (int) trackLanes.size(), depth);
+    trackContainer.addAndMakeVisible (lane.get());
+    laneDescriptors.push_back ({ &track, depth });
+    trackLanes.push_back (std::move (lane));
+
+    if (folderTrack == nullptr || isFolderCollapsed (track.itemID))
+        return;
+
+    for (auto* child : folderTrack->getAllSubTracks (false))
+        if (child != nullptr)
+            appendTrackLaneRecursive (*child, depth + 1);
+}
+
+int TimelineComponent::getDisplayTrackCount() const
+{
+    int count = 0;
+    for (auto* track : editSession.getEdit().getTrackList())
+        if (dynamic_cast<te::AudioTrack*> (track) != nullptr
+            || dynamic_cast<te::FolderTrack*> (track) != nullptr)
+            ++count;
+    return count;
 }

@@ -13,6 +13,12 @@ class TrackLaneComponent;
 class PlayheadComponent;
 class TimeRulerComponent;
 
+struct TimelineLaneDescriptor
+{
+    te::Track* track = nullptr;
+    int depth = 0;
+};
+
 //==============================================================================
 /** Main timeline container — manages zoom, scroll, track lanes, and playhead. */
 class TimelineComponent : public juce::Component,
@@ -88,6 +94,8 @@ public:
     void clearPreviewSelection();
 
     std::vector<TrackLaneComponent*> getTrackLaneComponentsForTesting() const;
+    bool isFolderCollapsed (te::EditItemID trackID) const;
+    void toggleFolderCollapsed (te::EditItemID trackID);
 
 private:
     void selectionChanged() override;
@@ -95,6 +103,9 @@ private:
     void editChanged() override;
     void timerCallback() override;
     void scrollBarMoved (juce::ScrollBar* scrollBarThatHasMoved, double newRangeStart) override;
+    te::AudioTrack* getAudioTrackForLaneIndex (int laneIndex) const;
+    void appendTrackLaneRecursive (te::Track& track, int depth);
+    int getDisplayTrackCount() const;
 
     EditSession& editSession;
 
@@ -112,7 +123,9 @@ private:
     juce::Viewport trackViewport;
     juce::Component trackContainer;
     std::vector<std::unique_ptr<TrackLaneComponent>> trackLanes;
+    std::vector<TimelineLaneDescriptor> laneDescriptors;
     juce::ScrollBar horizontalScrollbar {false};
+    std::unordered_set<te::EditItemID> collapsedFolderTrackIDs;
 
     int lastTrackCount = 0;
 
