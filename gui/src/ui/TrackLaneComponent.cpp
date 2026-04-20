@@ -6,6 +6,7 @@
 #include "WaiveSpacing.h"
 
 #include <cmath>
+#include <functional>
 
 namespace
 {
@@ -16,6 +17,15 @@ float toNormalised (float value, const juce::Range<float>& range)
 
     return juce::jlimit (0.0f, 1.0f,
                          (value - range.getStart()) / range.getLength());
+}
+
+bool isTrackInsideFolderSubtree (te::Track& candidateFolder, te::Track& trackToMove)
+{
+    for (auto* parent = candidateFolder.getParentFolderTrack(); parent != nullptr; parent = parent->getParentFolderTrack())
+        if (parent == &trackToMove)
+            return true;
+
+    return false;
 }
 }
 
@@ -60,9 +70,21 @@ TrackLaneComponent::TrackLaneComponent (te::Track& t, TimelineComponent& tl, int
         const auto newState = folderSoloButton.getToggleState();
         timeline.getEditSession().performEdit ("Toggle Folder Solo", [this, newState] (te::Edit&)
         {
-            folderTrack->setSolo (newState);
-            for (auto* child : folderTrack->getAllSubTracks (false))
-                child->setSolo (newState);
+            std::function<void (te::FolderTrack&)> applySolo = [&] (te::FolderTrack& folder)
+            {
+                folder.setSolo (newState);
+                for (auto* child : folder.getAllSubTracks (false))
+                {
+                    if (child == nullptr)
+                        continue;
+
+                    child->setSolo (newState);
+                    if (auto* childFolder = dynamic_cast<te::FolderTrack*> (child))
+                        applySolo (*childFolder);
+                }
+            };
+
+            applySolo (*folderTrack);
         });
     };
     addChildComponent (folderSoloButton);
@@ -75,9 +97,21 @@ TrackLaneComponent::TrackLaneComponent (te::Track& t, TimelineComponent& tl, int
         const auto newState = folderMuteButton.getToggleState();
         timeline.getEditSession().performEdit ("Toggle Folder Mute", [this, newState] (te::Edit&)
         {
-            folderTrack->setMute (newState);
-            for (auto* child : folderTrack->getAllSubTracks (false))
-                child->setMute (newState);
+            std::function<void (te::FolderTrack&)> applyMute = [&] (te::FolderTrack& folder)
+            {
+                folder.setMute (newState);
+                for (auto* child : folder.getAllSubTracks (false))
+                {
+                    if (child == nullptr)
+                        continue;
+
+                    child->setMute (newState);
+                    if (auto* childFolder = dynamic_cast<te::FolderTrack*> (child))
+                        applyMute (*childFolder);
+                }
+            };
+
+            applyMute (*folderTrack);
         });
     };
     addChildComponent (folderMuteButton);
@@ -142,7 +176,7 @@ void TrackLaneComponent::paint (juce::Graphics& g)
             &pal->trackColor5, &pal->trackColor6, &pal->trackColor7, &pal->trackColor8,
             &pal->trackColor9, &pal->trackColor10, &pal->trackColor11, &pal->trackColor12
         };
-        g.setColour (*trackColors[trackIndex % 12]);
+        g.setColour (*trackColors[track.getIndexInEditTrackList() % 12]);
         g.fillRect (0, 0, 4, getHeight());
     }
 
@@ -562,9 +596,31 @@ int TrackLaneComponent::findNearbyAutomationPoint (te::AutomationCurve& curve, t
 void TrackLaneComponent::showTrackContextMenu()
 {
     juce::PopupMenu menu;
-    menu.addItem (1, "Rename Track");
+    menu.addItem (menuRenameTrack, "Rename Track");
+
+    juce::PopupMenu moveToFolderMenu;
+    int folderMenuIndex = 0;
+    for (auto* candidate : timeline.getEditSession().getEdit().getTrackList())
+    {
+        auto* candidateFolder = dynamic_cast<te::FolderTrack*> (candidate);
+        if (candidateFolder == nullptr)
+            continue;
+
+        if (candidateFolder == &track || isTrackInsideFolderSubtree (*candidateFolder, track))
+            continue;
+
+        moveToFolderMenu.addItem (menuMoveToFolderBase + folderMenuIndex, candidateFolder->getName());
+        ++folderMenuIndex;
+    }
+
+    if (folderMenuIndex > 0)
+        menu.addSubMenu ("Move to Folder", moveToFolderMenu);
+
+    if (track.getParentFolderTrack() != nullptr)
+        menu.addItem (menuRemoveFromFolder, "Remove from Folder");
+
     menu.addSeparator();
-    menu.addItem (5, "Delete Track");
+    menu.addItem (menuDeleteTrack, "Delete Track");
 
     juce::Component::SafePointer<TrackLaneComponent> safeThis (this);
 
@@ -578,11 +634,19 @@ void TrackLaneComponent::showTrackContextMenu()
 
         switch (result)
         {
-            case 1:
+            case menuRenameTrack:
                 safeThis->headerLabel.showEditor();
                 break;
 
-            case 5:
+            case menuRemoveFromFolder:
+                tl.getEditSession().performEdit ("Remove From Folder", [&trk] (te::Edit& edit)
+                {
+                    if (auto* parentFolder = trk.getParentFolderTrack())
+                        edit.moveTrack (&trk, te::TrackInsertPoint (nullptr, parentFolder));
+                });
+                break;
+
+            case menuDeleteTrack:
             {
                 const auto clipCount = safeThis->audioTrack != nullptr ? safeThis->audioTrack->getClips().size() : 0;
                 const bool hasClips = clipCount > 0;
@@ -626,6 +690,38 @@ void TrackLaneComponent::showTrackContextMenu()
                 break;
             }
             default:
+                if (result >= menuMoveToFolderBase && result < menuRemoveFromFolder)
+                {
+                    const auto folderOffset = result - menuMoveToFolderBase;
+                    int folderIndex = 0;
+                    te::FolderTrack* destinationFolder = nullptr;
+
+                    for (auto* candidate : tl.getEditSession().getEdit().getTrackList())
+                    {
+                        auto* candidateFolder = dynamic_cast<te::FolderTrack*> (candidate);
+                        if (candidateFolder == nullptr)
+                            continue;
+
+                        if (candidateFolder == &trk || isTrackInsideFolderSubtree (*candidateFolder, trk))
+                            continue;
+
+                        if (folderIndex == folderOffset)
+                        {
+                            destinationFolder = candidateFolder;
+                            break;
+                        }
+
+                        ++folderIndex;
+                    }
+
+                    if (destinationFolder != nullptr)
+                    {
+                        tl.getEditSession().performEdit ("Move Track To Folder", [&trk, destinationFolder] (te::Edit& edit)
+                        {
+                            edit.moveTrack (&trk, te::TrackInsertPoint (destinationFolder, nullptr));
+                        });
+                    }
+                }
                 break;
         }
     });
@@ -643,5 +739,5 @@ juce::Colour TrackLaneComponent::getTrackColorForTesting() const
         &pal->trackColor9, &pal->trackColor10, &pal->trackColor11, &pal->trackColor12
     };
 
-    return *trackColors[trackIndex % 12];
+    return *trackColors[track.getIndexInEditTrackList() % 12];
 }

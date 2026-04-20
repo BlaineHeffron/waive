@@ -8,8 +8,11 @@
 #include "AudioAnalysisCache.h"
 #include "AudioAnalysis.h"
 #include "ProjectPackager.h"
+#include "PluginPresetManager.h"
+#include "CommandHandler.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -82,6 +85,13 @@ juce::File createSavedProjectFixture (te::Engine& engine, const juce::File& proj
         (void) backingFile.deleteFile();
 
     return projectFile;
+}
+
+juce::var runJsonCommand (CommandHandler& handler, const juce::String& payload)
+{
+    auto response = juce::JSON::parse (handler.handleCommand (payload));
+    expect (response.isObject(), "Expected JSON command response object");
+    return response;
 }
 
 void testCoalescedTransactionsAndReset (EditSession& session)
@@ -634,6 +644,278 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testCollectAndSaveCommandReturnsErrorOnPackagingFailure (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("collect_command_failure");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto externalDir = fixtureDir.getChildFile ("external");
+    projectDir.createDirectory();
+    externalDir.createDirectory();
+
+    auto projectFile = projectDir.getChildFile ("broken_collect.tracktionedit");
+    auto externalAudio = writeTestWav (externalDir.getChildFile ("source.wav"));
+
+    auto edit = te::createEmptyEdit (engine, projectFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected collect-command fixture track");
+    expect (track->insertWaveClip (
+                "source",
+                externalAudio,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.1) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected collect-command wave clip insertion");
+    expect (projectDir.deleteRecursively(), "Expected collect-command project directory deletion");
+
+    CommandHandler handler (*edit);
+    auto response = runJsonCommand (handler, R"({ "action":"collect_and_save" })");
+    expect (response["status"].toString() == "error",
+            "Expected collect_and_save command to return error when collect/save fails");
+    expect (response.hasProperty ("errors"), "Expected collect_and_save error response to include errors array");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("remove_unused_media_command_failure");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto audioDir = projectDir.getChildFile ("Audio");
+    projectDir.createDirectory();
+    audioDir.createDirectory();
+
+    auto projectFile = projectDir.getChildFile ("cleanup.tracktionedit");
+    auto usedAudio = writeTestWav (audioDir.getChildFile ("used.wav"), 0.4f);
+    auto unusedAudio = writeTestWav (audioDir.getChildFile ("unused.wav"), 0.2f);
+
+    auto edit = te::createEmptyEdit (engine, projectFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected cleanup-command fixture track");
+    expect (track->insertWaveClip (
+                "used",
+                usedAudio,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.1) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected cleanup-command used clip insertion");
+
+    expect (projectDir.getChildFile (".trash").replaceWithText ("blocking file"),
+            "Expected .trash blocker file");
+    expect (unusedAudio.existsAsFile(), "Expected unused media fixture file");
+
+    CommandHandler handler (*edit);
+    auto response = runJsonCommand (handler, R"({ "action":"remove_unused_media" })");
+    expect (response["status"].toString() == "error",
+            "Expected remove_unused_media command to return error when file moves fail");
+    expect (response.hasProperty ("errors"), "Expected remove_unused_media error response to include errors array");
+    expect (unusedAudio.existsAsFile(), "Expected failed removal to leave unused file in place");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("plugin_preset_manager");
+    auto homeDir = fixtureDir.getChildFile ("home");
+    expect (homeDir.createDirectory().wasOk(), "Expected preset fixture home directory");
+
+    auto previousHome = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
+    expect (fixtureDir.setAsCurrentWorkingDirectory(),
+            "Expected preset fixture directory to become current working directory");
+    setenv ("HOME", homeDir.getFullPathName().toRawUTF8(), 1);
+
+    auto backingFile = fixtureDir.getChildFile ("preset_fixture.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+
+    auto pluginState = te::createValueTree (te::IDs::PLUGIN,
+                                            te::IDs::type, te::ReverbPlugin::xmlTypeName,
+                                            "pluginFormatName", te::PluginManager::builtInPluginFormatName,
+                                            "fileOrIdentifier", te::ReverbPlugin::xmlTypeName,
+                                            "manufacturer", "Waive");
+    auto plugin = edit->getPluginCache().createNewPlugin (pluginState);
+    expect (plugin != nullptr, "Expected built-in plugin creation for preset test");
+
+    auto pluginIdentifier = waive::PluginPresetManager::getPluginIdentifier (*plugin);
+    expect (pluginIdentifier.contains (te::ReverbPlugin::xmlTypeName),
+            "Expected plugin identifier to include the stable file/type identifier");
+
+    waive::PluginPresetManager presetManager;
+    expect (presetManager.savePreset (*plugin, "Room A"),
+            "Expected preset save to succeed");
+
+    auto presetFile = homeDir.getChildFile (".config/Waive/presets")
+                             .getChildFile (pluginIdentifier)
+                             .getChildFile ("Room A.xml");
+    expect (presetFile.existsAsFile(), "Expected preset file to be created");
+
+    auto xml = juce::parseXML (presetFile);
+    expect (xml != nullptr, "Expected preset XML to parse");
+    auto presetTree = juce::ValueTree::fromXml (*xml);
+    expect (presetTree.isValid(), "Expected preset tree to be valid");
+    expect (presetTree.getType() == juce::Identifier ("WaivePreset"),
+            "Expected WaivePreset root element");
+    expect (presetTree.getNumChildren() == 1, "Expected PluginState wrapper child");
+    expect (presetTree.getChild (0).getType() == juce::Identifier ("PluginState"),
+            "Expected PluginState wrapper element");
+    expect (presetTree.getChild (0).getNumChildren() == 1,
+            "Expected wrapped plugin state child");
+
+    (void) fixtureDir.deleteRecursively();
+    setenv ("HOME", previousHome.getFullPathName().toRawUTF8(), 1);
+}
+
+void testMoveTrackToFolderRejectsCycles (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("folder_cycle");
+    auto backingFile = fixtureDir.getChildFile ("folder_cycle.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto rootFolder = edit->insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
+    expect (rootFolder != nullptr, "Expected root folder creation");
+    rootFolder->setName ("Root");
+
+    auto childFolder = edit->insertNewFolderTrack (te::TrackInsertPoint (rootFolder.get(), nullptr), nullptr, false);
+    expect (childFolder != nullptr, "Expected child folder creation");
+    childFolder->setName ("Child");
+
+    CommandHandler handler (*edit);
+    auto tracksResponse = juce::JSON::parse (handler.handleCommand (R"({ "action":"get_tracks" })"));
+    expect (tracksResponse.isObject(), "Expected get_tracks response object");
+
+    int rootFolderIndex = -1;
+    if (auto* tracksArray = tracksResponse.getProperty ("tracks", juce::var()).getArray())
+    {
+        for (const auto& entry : *tracksArray)
+        {
+            if (! entry.isObject())
+                continue;
+
+            auto name = entry["name"].toString();
+            auto index = (int) entry["track_id"];
+            if (name == "Root")
+                rootFolderIndex = index;
+        }
+    }
+
+    expect (rootFolderIndex >= 0, "Expected root folder index in get_tracks output");
+
+    auto response = juce::JSON::parse (handler.handleCommand (
+        juce::String::formatted (R"({
+        "action":"move_track_to_folder",
+        "track_index":%d,
+        "folder_index":%d
+    })", rootFolderIndex, rootFolderIndex)));
+    expect (response.isObject(), "Expected JSON object response for invalid folder move");
+    expect (response["status"].toString() == "error",
+            "Expected invalid cyclic folder move to be rejected");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testCommandHandlerRejectsRelativePaths (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("command_handler_paths");
+    auto backingFile = fixtureDir.getChildFile ("command_handler_paths.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto audioFile = writeTestWav (fixtureDir.getChildFile ("source.wav"));
+    expect (audioFile.existsAsFile(), "Expected source WAV fixture");
+
+    auto previousWorkingDirectory = juce::File::getCurrentWorkingDirectory();
+    expect (fixtureDir.setAsCurrentWorkingDirectory(),
+            "Expected fixture directory to become current working directory");
+
+    CommandHandler handler (*edit);
+
+    auto insertAudioResponse = juce::JSON::parse (handler.handleCommand (R"({
+        "action":"insert_audio_clip",
+        "track_id":0,
+        "start_time":0.0,
+        "file_path":"source.wav"
+    })"));
+    expect (insertAudioResponse.isObject(), "Expected relative audio insert response object");
+    expect (insertAudioResponse["status"].toString() == "error",
+            "Expected relative audio clip path to be rejected");
+
+    auto insertMidiResponse = juce::JSON::parse (handler.handleCommand (R"({
+        "action":"insert_midi_clip",
+        "track_id":0,
+        "file_path":"clip.mid"
+    })"));
+    expect (insertMidiResponse.isObject(), "Expected relative MIDI insert response object");
+    expect (insertMidiResponse["status"].toString() == "error",
+            "Expected relative MIDI clip path to be rejected");
+
+    auto exportMixdownResponse = juce::JSON::parse (handler.handleCommand (R"({
+        "action":"export_mixdown",
+        "file_path":"mixdown.wav"
+    })"));
+    expect (exportMixdownResponse.isObject(), "Expected relative export response object");
+    expect (exportMixdownResponse["status"].toString() == "error",
+            "Expected relative mixdown path to be rejected");
+
+    auto packageResponse = juce::JSON::parse (handler.handleCommand (R"({
+        "action":"package_as_zip",
+        "file_path":"archive.zip"
+    })"));
+    expect (packageResponse.isObject(), "Expected relative package response object");
+    expect (packageResponse["status"].toString() == "error",
+            "Expected relative package path to be rejected");
+
+    expect (previousWorkingDirectory.setAsCurrentWorkingDirectory(),
+            "Expected original working directory to be restored");
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testFolderSoloMutePropagatesThroughNestedFolders (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("nested_folder_propagation");
+    auto backingFile = fixtureDir.getChildFile ("nested_folder_propagation.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto* leafTrack = te::getAudioTracks (*edit).getFirst();
+    expect (leafTrack != nullptr, "Expected leaf audio track");
+
+    auto rootFolder = edit->insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
+    auto childFolder = edit->insertNewFolderTrack (te::TrackInsertPoint (rootFolder.get(), nullptr), nullptr, false);
+    expect (rootFolder != nullptr && childFolder != nullptr, "Expected nested folder hierarchy");
+
+    edit->moveTrack (leafTrack, te::TrackInsertPoint (childFolder.get(), nullptr));
+
+    CommandHandler handler (*edit);
+
+    auto soloResponse = juce::JSON::parse (handler.handleCommand (R"({
+        "action":"solo_track",
+        "track_id":1,
+        "solo":true
+    })"));
+    expect (soloResponse.isObject() && soloResponse["status"].toString() == "ok",
+            "Expected folder solo command to succeed");
+    expect (rootFolder->isSolo (false), "Expected root folder soloed");
+    expect (childFolder->isSolo (false), "Expected child folder soloed through propagation");
+    expect (leafTrack->isSolo (false), "Expected leaf track soloed through propagation");
+
+    auto muteResponse = juce::JSON::parse (handler.handleCommand (R"({
+        "action":"mute_track",
+        "track_id":1,
+        "mute":true
+    })"));
+    expect (muteResponse.isObject() && muteResponse["status"].toString() == "ok",
+            "Expected folder mute command to succeed");
+    expect (rootFolder->isMuted (false), "Expected root folder muted");
+    expect (childFolder->isMuted (false), "Expected child folder muted through propagation");
+    expect (leafTrack->isMuted (false), "Expected leaf track muted through propagation");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 } // namespace
 
 int main()
@@ -663,6 +945,12 @@ int main()
         testRemoveUnusedMediaReportsActualBytesFreed (engine);
         testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
+        testCollectAndSaveCommandReturnsErrorOnPackagingFailure (engine);
+        testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
+        testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
+        testMoveTrackToFolderRejectsCycles (engine);
+        testCommandHandlerRejectsRelativePaths (engine);
+        testFolderSoloMutePropagatesThroughNestedFolders (engine);
 
         std::cout << "WaiveCoreTests: PASS" << std::endl;
         return 0;

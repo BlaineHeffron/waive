@@ -4,6 +4,8 @@
 #include "WaiveFonts.h"
 #include "WaiveSpacing.h"
 
+#include <functional>
+
 //==============================================================================
 MixerChannelStrip::MixerChannelStrip (te::AudioTrack& t, EditSession& session)
     : editSession (session), stripType (StripType::Track), track (&t), isMaster (false)
@@ -155,10 +157,21 @@ void MixerChannelStrip::setupControls()
                 }
                 else if (folderTrack != nullptr)
                 {
-                    folderTrack->setSolo (newState);
-                    // Apply to all children
-                    for (auto* child : folderTrack->getAllSubTracks (false))
-                        child->setSolo (newState);
+                    std::function<void (te::FolderTrack&)> applySolo = [&] (te::FolderTrack& folder)
+                    {
+                        folder.setSolo (newState);
+                        for (auto* child : folder.getAllSubTracks (false))
+                        {
+                            if (child == nullptr)
+                                continue;
+
+                            child->setSolo (newState);
+                            if (auto* childFolder = dynamic_cast<te::FolderTrack*> (child))
+                                applySolo (*childFolder);
+                        }
+                    };
+
+                    applySolo (*folderTrack);
                 }
             });
         };
@@ -183,10 +196,21 @@ void MixerChannelStrip::setupControls()
                 }
                 else if (folderTrack != nullptr)
                 {
-                    folderTrack->setMute (newState);
-                    // Apply to all children
-                    for (auto* child : folderTrack->getAllSubTracks (false))
-                        child->setMute (newState);
+                    std::function<void (te::FolderTrack&)> applyMute = [&] (te::FolderTrack& folder)
+                    {
+                        folder.setMute (newState);
+                        for (auto* child : folder.getAllSubTracks (false))
+                        {
+                            if (child == nullptr)
+                                continue;
+
+                            child->setMute (newState);
+                            if (auto* childFolder = dynamic_cast<te::FolderTrack*> (child))
+                                applyMute (*childFolder);
+                        }
+                    };
+
+                    applyMute (*folderTrack);
                 }
             });
         };

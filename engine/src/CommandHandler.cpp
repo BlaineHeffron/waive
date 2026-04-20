@@ -32,6 +32,81 @@ juce::Array<te::Plugin*> getAddressablePlugins (te::PluginList& pluginList)
             plugins.add (plugin);
     return plugins;
 }
+
+bool wouldCreateFolderCycle (te::Track& trackToMove, te::FolderTrack& destinationFolder)
+{
+    if (&trackToMove == &destinationFolder)
+        return true;
+
+    for (auto* parent = destinationFolder.getParentFolderTrack(); parent != nullptr; parent = parent->getParentFolderTrack())
+        if (parent == &trackToMove)
+            return true;
+
+    return false;
+}
+
+bool isWithinAllowedDirectories (const juce::File& candidate,
+                                 const juce::Array<juce::File>& allowedDirectories)
+{
+    if (! juce::File::isAbsolutePath (candidate.getFullPathName()))
+        return false;
+
+    auto canonicalCandidate = candidate.getLinkedTarget();
+
+    for (const auto& allowedDir : allowedDirectories)
+    {
+        auto canonicalAllowedDir = allowedDir.getLinkedTarget();
+        if (canonicalCandidate == canonicalAllowedDir || canonicalCandidate.isAChildOf (canonicalAllowedDir))
+            return true;
+    }
+
+    return false;
+}
+
+bool isOutputPathAllowed (const juce::File& outputPath,
+                          const juce::Array<juce::File>& allowedDirectories)
+{
+    if (! juce::File::isAbsolutePath (outputPath.getFullPathName()))
+        return false;
+
+    auto parentDir = outputPath.getParentDirectory();
+    if (parentDir == juce::File())
+        return false;
+
+    return isWithinAllowedDirectories (parentDir, allowedDirectories);
+}
+
+void applyFolderSoloToSubtree (te::FolderTrack& folderTrack, bool solo)
+{
+    folderTrack.setSolo (solo);
+
+    for (auto* child : folderTrack.getAllSubTracks (false))
+    {
+        if (child == nullptr)
+            continue;
+
+        child->setSolo (solo);
+
+        if (auto* childFolder = dynamic_cast<te::FolderTrack*> (child))
+            applyFolderSoloToSubtree (*childFolder, solo);
+    }
+}
+
+void applyFolderMuteToSubtree (te::FolderTrack& folderTrack, bool mute)
+{
+    folderTrack.setMute (mute);
+
+    for (auto* child : folderTrack.getAllSubTracks (false))
+    {
+        if (child == nullptr)
+            continue;
+
+        child->setMute (mute);
+
+        if (auto* childFolder = dynamic_cast<te::FolderTrack*> (child))
+            applyFolderMuteToSubtree (*childFolder, mute);
+    }
+}
 }
 
 CommandHandler::CommandHandler (te::Edit& e)
@@ -122,6 +197,7 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     else if (action == "remove_from_folder")       result = handleRemoveFromFolder (parsed);
     else if (action == "collect_and_save")         result = handleCollectAndSave();
     else if (action == "remove_unused_media")      result = handleRemoveUnusedMedia();
+    else if (action == "package_as_zip")           result = handlePackageAsZip (parsed);
     else                                    result = makeError ("Unknown action: " + action);
 
     return juce::JSON::toString (result);
@@ -322,18 +398,7 @@ juce::var CommandHandler::handleInsertAudioClip (const juce::var& params)
         return makeError ("File not found: " + filePath);
 
     // Validate file path is within allowed directories
-    auto canonicalFile = file.getLinkedTarget();
-    bool isAllowed = false;
-    for (const auto& allowedDir : allowedMediaDirectories)
-    {
-        if (canonicalFile.isAChildOf (allowedDir) || canonicalFile == allowedDir)
-        {
-            isAllowed = true;
-            break;
-        }
-    }
-
-    if (! isAllowed)
+    if (! isWithinAllowedDirectories (file, allowedMediaDirectories))
         return makeError ("File path is outside allowed directories: " + filePath);
 
     te::AudioFile audioFile (edit.engine, file);
@@ -392,18 +457,7 @@ juce::var CommandHandler::handleInsertMidiClip (const juce::var& params)
         return makeError ("File not found: " + filePath);
 
     // Validate file path is within allowed directories
-    auto canonicalFile = file.getLinkedTarget();
-    bool isAllowed = false;
-    for (const auto& allowedDir : allowedMediaDirectories)
-    {
-        if (canonicalFile.isAChildOf (allowedDir) || canonicalFile == allowedDir)
-        {
-            isAllowed = true;
-            break;
-        }
-    }
-
-    if (! isAllowed)
+    if (! isWithinAllowedDirectories (file, allowedMediaDirectories))
         return makeError ("File path is outside allowed directories: " + filePath);
 
     // Load MIDI file
@@ -1000,10 +1054,7 @@ juce::var CommandHandler::handleSoloTrack (const juce::var& params)
     // Check if folder track
     if (auto* folderTrack = dynamic_cast<te::FolderTrack*> (track))
     {
-        folderTrack->setSolo (solo);
-        // Apply to all children
-        for (auto* child : folderTrack->getAllSubTracks (false))
-            child->setSolo (solo);
+        applyFolderSoloToSubtree (*folderTrack, solo);
     }
     else
     {
@@ -1049,10 +1100,7 @@ juce::var CommandHandler::handleMuteTrack (const juce::var& params)
     // Check if folder track
     if (auto* folderTrack = dynamic_cast<te::FolderTrack*> (track))
     {
-        folderTrack->setMute (mute);
-        // Apply to all children
-        for (auto* child : folderTrack->getAllSubTracks (false))
-            child->setMute (mute);
+        applyFolderMuteToSubtree (*folderTrack, mute);
     }
     else
     {
@@ -1226,17 +1274,7 @@ juce::var CommandHandler::handleExportMixdown (const juce::var& params)
     juce::File outputFile (filePath);
 
     // Validate output path
-    auto canonicalFile = outputFile.getLinkedTarget();
-    bool isAllowed = false;
-    for (const auto& allowedDir : allowedMediaDirectories)
-    {
-        if (canonicalFile.isAChildOf (allowedDir) || canonicalFile.getParentDirectory() == allowedDir)
-        {
-            isAllowed = true;
-            break;
-        }
-    }
-    if (! isAllowed)
+    if (! isOutputPathAllowed (outputFile, allowedMediaDirectories))
         return makeError ("Output path is outside allowed directories: " + filePath);
 
     // Ensure parent directory exists
@@ -1288,17 +1326,7 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
     juce::File outputDir (outputDirPath);
 
     // Validate path (with symlink resolution)
-    auto canonicalDir = outputDir.getLinkedTarget();
-    bool isAllowed = false;
-    for (const auto& allowedDir : allowedMediaDirectories)
-    {
-        if (canonicalDir.isAChildOf (allowedDir) || canonicalDir == allowedDir)
-        {
-            isAllowed = true;
-            break;
-        }
-    }
-    if (! isAllowed)
+    if (! isWithinAllowedDirectories (outputDir, allowedMediaDirectories))
         return makeError ("Output directory is outside allowed directories");
 
     outputDir.createDirectory();
@@ -2028,6 +2056,8 @@ juce::var CommandHandler::handleMoveTrackToFolder (const juce::var& params)
     auto* folderTrack = dynamic_cast<te::FolderTrack*> (folder);
     if (folderTrack == nullptr)
         return makeError ("Target track is not a folder: " + juce::String (folderIndex));
+    if (wouldCreateFolderCycle (*track, *folderTrack))
+        return makeError ("Invalid folder move: destination is the same track or inside its subtree");
 
     // Move track into folder using Edit::moveTrack
     edit.moveTrack (track, te::TrackInsertPoint (folderTrack, nullptr));
@@ -2089,13 +2119,15 @@ juce::var CommandHandler::handleCollectAndSave()
     auto projectDir = editFile.getParentDirectory();
     auto result = waive::ProjectPackager::collectAndSave (edit, projectDir, editFile);
 
-    auto response = makeOk();
+    auto response = result.errors.isEmpty()
+                        ? makeOk()
+                        : makeError ("Collect and save failed: " + result.errors.joinIntoString ("; "));
     if (auto* obj = response.getDynamicObject())
     {
         obj->setProperty ("files_copied", result.filesCopied);
         obj->setProperty ("bytes_copied", result.bytesCopied);
 
-        if (!result.errors.isEmpty())
+        if (! result.errors.isEmpty())
         {
             juce::Array<juce::var> errorArray;
             for (const auto& err : result.errors)
@@ -2115,7 +2147,9 @@ juce::var CommandHandler::handleRemoveUnusedMedia()
     auto projectDir = editFile.getParentDirectory();
     auto removeResult = waive::ProjectPackager::removeUnusedMedia (edit, projectDir);
 
-    auto response = makeOk();
+    auto response = removeResult.errors.isEmpty()
+                        ? makeOk()
+                        : makeError ("Remove unused media failed: " + removeResult.errors.joinIntoString ("; "));
     if (auto* obj = response.getDynamicObject())
     {
         obj->setProperty ("files_removed", removeResult.filesRemoved);
@@ -2128,6 +2162,41 @@ juce::var CommandHandler::handleRemoveUnusedMedia()
                 errorArray.add (err);
             obj->setProperty ("errors", errorArray);
         }
+    }
+    return response;
+}
+
+juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
+{
+    if (! params.hasProperty ("file_path"))
+        return makeError ("Missing required parameter: file_path");
+
+    auto projectFile = edit.editFileRetriever();
+    if (projectFile == juce::File())
+        return makeError ("Edit file not saved - cannot package project");
+
+    auto outputPath = params["file_path"].toString();
+    juce::File outputZip (outputPath);
+
+    if (! isOutputPathAllowed (outputZip, allowedMediaDirectories))
+        return makeError ("Output path is outside allowed directories: " + outputPath);
+
+    auto projectDir = projectFile.getParentDirectory();
+    auto collectResult = waive::ProjectPackager::collectAndSave (edit, projectDir, projectFile);
+    if (! collectResult.errors.isEmpty())
+        return makeError ("Failed to collect project media before packaging: "
+                          + collectResult.errors.joinIntoString ("; "));
+
+    outputZip.getParentDirectory().createDirectory();
+    if (! waive::ProjectPackager::packageAsZip (projectFile, outputZip))
+        return makeError ("Failed to create zip archive");
+
+    auto response = makeOk();
+    if (auto* obj = response.getDynamicObject())
+    {
+        obj->setProperty ("file_path", outputZip.getFullPathName());
+        obj->setProperty ("files_copied", collectResult.filesCopied);
+        obj->setProperty ("bytes_copied", collectResult.bytesCopied);
     }
     return response;
 }

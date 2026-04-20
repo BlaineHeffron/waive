@@ -458,6 +458,53 @@ void runUiProjectLifecycleRegression()
     (void) projectFile.deleteFile();
 }
 
+void runAutoSaveSnapshotRegression()
+{
+    te::Engine engine ("WaiveUiAutoSaveTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto projectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (projectFile), "Expected autosave fixture project to open");
+
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
+    (void) autoSaveFile.deleteFile();
+
+    AutoSaveManager autoSaveManager (session, projectManager, 1);
+
+    expect (session.performEdit ("Autosave Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "autosaved_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (72, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected autosave mutation to succeed");
+
+    autoSaveManager.triggerAutoSaveForTesting();
+    expect (autoSaveFile.existsAsFile(), "Expected autosave file to be created");
+
+    te::Engine verifyEngine ("WaiveUiAutoSaveVerify");
+    verifyEngine.getPluginManager().initialise();
+    auto autoSavedEdit = te::loadEditFromFile (verifyEngine, autoSaveFile);
+    auto* autoSavedTrack = getFirstTrack (*autoSavedEdit);
+    expect (autoSavedTrack != nullptr, "Expected autosaved project track");
+    expect (getClipCount (*autoSavedTrack) == 2,
+            "Expected autosave snapshot to include unsaved in-memory clip");
+
+    (void) projectFile.deleteFile();
+}
+
 void runUiAsyncTeardownRegression()
 {
     te::Engine engine ("WaiveUiAsyncTeardownTests");
@@ -2182,6 +2229,16 @@ void runPhase5TimelineMixerPolishTests()
     laneComponents = timeline.getTrackLaneComponentsForTesting();
     expect (laneComponents.size() >= 2, "Expected expanding folder to restore child lanes");
 
+    auto stableColorBeforeCollapse = laneComponents[1]->getTrackColorForTesting();
+    timeline.toggleFolderCollapsed (folderTrack->itemID);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    timeline.toggleFolderCollapsed (folderTrack->itemID);
+    juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+    laneComponents = timeline.getTrackLaneComponentsForTesting();
+    expect (laneComponents.size() >= 2, "Expected child lane after re-expanding folder");
+    expect (laneComponents[1]->getTrackColorForTesting() == stableColorBeforeCollapse,
+            "Expected child track color to remain stable across folder collapse changes");
+
     // Test 2: Transport responsive breakpoint at 900px
     sessionComponent.setBounds (0, 0, 1200, 800);
     sessionComponent.resized();
@@ -2307,6 +2364,7 @@ int main()
     RUN_TEST_SAFELY(runPhase2UxFoundationsRegression);
     RUN_TEST_SAFELY(runUiCommandRoutingRegression);
     RUN_TEST_SAFELY(runUiProjectLifecycleRegression);
+    RUN_TEST_SAFELY(runAutoSaveSnapshotRegression);
     RUN_TEST_SAFELY(runUiAsyncTeardownRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);

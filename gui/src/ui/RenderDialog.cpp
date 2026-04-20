@@ -662,6 +662,7 @@ void RenderDialog::resetControls()
 {
     rendering = false;
     progressValue = 0.0;
+    progressBar.setVisible (false);
     renderButton.setEnabled (true);
     formatCombo.setEnabled (true);
     sampleRateCombo.setEnabled (true);
