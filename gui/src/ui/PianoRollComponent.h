@@ -35,6 +35,7 @@ public:
     void resized() override;
     void previewMidiNote (int pitch);
     void syncVelocityLaneToViewport();
+    void focusEditor();
 
     SnapSettings snapSettings;
 
@@ -100,7 +101,7 @@ private:
             int velocity;
         };
 
-        enum class DragMode { None, CreateNote, SelectLasso, MoveNotes, ResizeNote };
+        enum class DragMode { None, PendingEmptyAction, CreateNote, SelectLasso, MoveNotes, ResizeNote };
 
         te::MidiClip& midiClip;
         EditSession& editSession;
@@ -115,6 +116,7 @@ private:
         juce::Rectangle<int> lassoRect;
         double createNoteStartBeat = 0.0;
         int createNotePitch = 60;
+        bool selectionExistedAtDragStart = false;
         te::MidiNote* resizeNote = nullptr;
         double noteOriginalStart = 0.0;
         double noteOriginalLength = 0.0;

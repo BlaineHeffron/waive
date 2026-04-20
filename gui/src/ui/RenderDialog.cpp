@@ -410,6 +410,7 @@ void RenderDialog::performRender()
     }
 
     rendering = true;
+    progressValue = -1.0;
     renderButton.setEnabled (false);
     formatCombo.setEnabled (false);
     sampleRateCombo.setEnabled (false);
@@ -524,6 +525,7 @@ void RenderDialog::performRender()
                 if (safeThis == nullptr)
                     return;
 
+                safeThis->progressValue = 0.0;
                 safeThis->progressBar.setVisible (false);
                 juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
                                                          "Render Failed",
@@ -630,6 +632,7 @@ void RenderDialog::performRender()
             if (safeThis == nullptr)
                 return;
 
+            safeThis->progressValue = 0.0;
             safeThis->progressBar.setVisible (false);
 
             if (success)
@@ -658,6 +661,7 @@ void RenderDialog::performRender()
 void RenderDialog::resetControls()
 {
     rendering = false;
+    progressValue = 0.0;
     renderButton.setEnabled (true);
     formatCombo.setEnabled (true);
     sampleRateCombo.setEnabled (true);

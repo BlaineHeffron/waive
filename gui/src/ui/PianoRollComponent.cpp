@@ -296,6 +296,7 @@ void PianoRollComponent::NoteGridComponent::mouseDown (const juce::MouseEvent& e
         return;
 
     dragStart = e.getPosition();
+    selectionExistedAtDragStart = ! selectedNotes.empty();
 
     // Check if clicking on a note
     te::MidiNote* clickedNote = nullptr;
@@ -342,19 +343,10 @@ void PianoRollComponent::NoteGridComponent::mouseDown (const juce::MouseEvent& e
     }
     else
     {
-        // Empty grid - start note creation or lasso
-        if (e.mods.isShiftDown())
-        {
-            dragMode = DragMode::SelectLasso;
-            lassoRect = juce::Rectangle<int> (e.x, e.y, 0, 0);
-        }
-        else
-        {
-            dragMode = DragMode::CreateNote;
-            createNoteStartBeat = snapBeat (xToBeat (e.x));
-            createNotePitch = yToPitch (e.y);
-            selectedNotes.clear();
-        }
+        dragMode = DragMode::PendingEmptyAction;
+        createNoteStartBeat = snapBeat (xToBeat (e.x));
+        createNotePitch = yToPitch (e.y);
+        lassoRect = juce::Rectangle<int> (e.x, e.y, 0, 0);
     }
 
     repaint();
@@ -370,6 +362,22 @@ void PianoRollComponent::NoteGridComponent::mouseDrag (const juce::MouseEvent& e
         case DragMode::CreateNote:
             repaint();
             break;
+
+        case DragMode::PendingEmptyAction:
+        {
+            if (e.getDistanceFromDragStart() < 4)
+                break;
+
+            dragMode = DragMode::SelectLasso;
+            lassoRect = juce::Rectangle<int>::leftTopRightBottom (
+                std::min (dragStart.x, e.x),
+                std::min (dragStart.y, e.y),
+                std::max (dragStart.x, e.x),
+                std::max (dragStart.y, e.y)
+            );
+            repaint();
+            break;
+        }
 
         case DragMode::SelectLasso:
         {
@@ -443,6 +451,14 @@ void PianoRollComponent::NoteGridComponent::mouseDrag (const juce::MouseEvent& e
 
 void PianoRollComponent::NoteGridComponent::mouseUp (const juce::MouseEvent& e)
 {
+    if (dragMode == DragMode::PendingEmptyAction)
+    {
+        if (selectionExistedAtDragStart && ! e.mods.isShiftDown())
+            selectedNotes.clear();
+        else
+            dragMode = DragMode::CreateNote;
+    }
+
     if (dragMode == DragMode::CreateNote)
     {
         // Finalize note creation
@@ -1292,4 +1308,10 @@ void PianoRollComponent::syncVelocityLaneToViewport()
     laneBounds.setWidth (noteGrid->getWidth());
     velocityLane->setBounds (laneBounds);
     velocityLane->repaint();
+}
+
+void PianoRollComponent::focusEditor()
+{
+    if (noteGrid != nullptr)
+        noteGrid->grabKeyboardFocus();
 }

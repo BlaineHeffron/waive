@@ -560,6 +560,41 @@ void testRemoveUnusedMediaReportsActualBytesFreed (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testCollectAndSaveRestoresReferencesWhenSaveFails (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("collect_save_failure");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto externalDir = fixtureDir.getChildFile ("external");
+    projectDir.createDirectory();
+    externalDir.createDirectory();
+
+    auto externalAudio = writeTestWav (externalDir.getChildFile ("external_source.wav"));
+    auto backingFile = fixtureDir.getChildFile ("external_backing.tracktionedit");
+    auto invalidProjectFile = projectDir.getChildFile ("missing").getChildFile ("portable.tracktionedit");
+
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected save-failure fixture track");
+
+    auto insertedWaveClip = track->insertWaveClip (
+        "external_source",
+        externalAudio,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (0.1) },
+          te::TimeDuration() },
+        false);
+    auto* insertedClip = dynamic_cast<te::AudioClipBase*> (insertedWaveClip.get());
+    expect (insertedClip != nullptr, "Expected save-failure wave clip insertion");
+
+    auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, invalidProjectFile);
+    expect (! result.errors.isEmpty(), "Expected collect/save to report save failure");
+    expect (insertedClip->getSourceFileReference().getFile() == externalAudio,
+            "Expected clip reference to roll back to the original file when save fails");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("package_zip");
@@ -626,6 +661,7 @@ int main()
         testCollectAndSavePersistsToExplicitProjectFile (engine);
         testCollectAndSaveCopiesExternalMediaAndRewritesReferences (engine);
         testRemoveUnusedMediaReportsActualBytesFreed (engine);
+        testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
 
         std::cout << "WaiveCoreTests: PASS" << std::endl;

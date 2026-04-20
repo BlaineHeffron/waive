@@ -72,6 +72,12 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
                                                                 const juce::File& projectFile)
 {
     CollectResult result;
+    struct UpdatedReference
+    {
+        te::AudioClipBase* clip = nullptr;
+        juce::File originalFile;
+    };
+    std::vector<UpdatedReference> updatedReferences;
 
     // Check if projectDir is writable
     auto testFile = projectDir.getChildFile (".waive_write_test");
@@ -90,6 +96,22 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
             result.errors.add ("Failed to create Audio directory: " + audioDir.getFullPathName());
             return result;
         }
+    }
+
+    auto saveTarget = projectFile != juce::File() ? projectFile
+                                                  : te::EditFileOperations (edit).getEditFile();
+
+    if (saveTarget == juce::File())
+    {
+        result.errors.add ("Failed to save edit: no target project file is available");
+        return result;
+    }
+
+    auto saveParentDir = saveTarget.getParentDirectory();
+    if (saveParentDir == juce::File() || ! saveParentDir.exists())
+    {
+        result.errors.add ("Failed to save edit: target directory does not exist");
+        return result;
     }
 
     auto externalFiles = findExternalMedia (edit, projectDir);
@@ -126,6 +148,7 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
                     if (clipSourceFile == sourceFile)
                     {
                         // Update the source file reference to point to the new location
+                        updatedReferences.push_back ({ audioClip, clipSourceFile });
                         audioClip->getSourceFileReference().setToDirectFileReference (targetFile, true);
                     }
                 }
@@ -133,18 +156,14 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
         }
     }
 
-    auto saveTarget = projectFile != juce::File() ? projectFile
-                                                  : te::EditFileOperations (edit).getEditFile();
-
-    if (saveTarget == juce::File())
-    {
-        result.errors.add ("Failed to save edit: no target project file is available");
-        return result;
-    }
-
     edit.flushState();
     if (! te::EditFileOperations (edit).saveAs (saveTarget, true))
+    {
+        for (const auto& ref : updatedReferences)
+            if (ref.clip != nullptr)
+                ref.clip->getSourceFileReference().setToDirectFileReference (ref.originalFile, true);
         result.errors.add ("Failed to save edit with updated paths");
+    }
 
     return result;
 }

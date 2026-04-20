@@ -759,6 +759,7 @@ void SessionComponent::openPianoRoll (te::MidiClip& clip)
 
     closePianoRollButton.setVisible (true);
     pianoRollVisible = true;
+    pianoRollPanel->focusEditor();
     if (! editSwapInProgress)
         resized();
 }
