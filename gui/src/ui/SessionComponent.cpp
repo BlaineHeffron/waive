@@ -90,7 +90,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
 
     playButton.setTooltip ("Play (Space)");
     stopButton.setTooltip ("Stop (Space)");
-    recordButton.setTooltip ("Start recording (Ctrl+R)");
+    recordButton.setTooltip ("Record audio (Ctrl+R)");
     stopRecordButton.setTooltip ("Stop recording");
     recordFromMicButton.setTooltip ("Record from selected microphone (auto-creates armed track)");
     recordStatusLabel.setTooltip ("Current recording status");
@@ -410,6 +410,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
 
 SessionComponent::~SessionComponent()
 {
+    stopTimer();
+
     if (timeline)
         timeline->getSelectionManager().removeListener (this);
 }

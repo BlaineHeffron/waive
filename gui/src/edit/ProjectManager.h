@@ -22,6 +22,8 @@ public:
     bool newProject();
     bool openProject();
     bool openProject (const juce::File& file);
+    bool recoverProjectFromAutoSave (const juce::File& autoSaveFile,
+                                     const juce::File& originalProjectFile);
     bool save();
     bool saveAs();
 

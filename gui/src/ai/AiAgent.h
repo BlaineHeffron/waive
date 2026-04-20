@@ -60,6 +60,10 @@ public:
     void setToolContextProvider (ToolContextProvider provider);
 
 private:
+    void notifyConversationUpdatedAsync();
+    void notifyProcessingStateChangedAsync (bool isProcessing);
+    void notifyAiErrorAsync (const juce::String& error);
+    void notifyToolCallsPendingApprovalAsync (const std::vector<ChatMessage::ToolCall>& calls);
     void runConversationLoop();
     juce::String executeToolCall (const ChatMessage::ToolCall& call);
     juce::String executeCommand (const juce::String& action, const juce::var& args);
@@ -84,6 +88,8 @@ private:
     ToolContextProvider toolContextProvider;
 
     juce::ListenerList<AiAgentListener> listeners;
+
+    JUCE_DECLARE_WEAK_REFERENCEABLE (AiAgent)
 };
 
 } // namespace waive

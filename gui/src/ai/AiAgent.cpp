@@ -77,19 +77,28 @@ void AiAgent::sendMessage (const juce::String& text)
         conversation.push_back (std::move (msg));
     }
 
-    juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
+    notifyConversationUpdatedAsync();
 
     cancelRequested.store (false);
     processing.store (true);
-    juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::processingStateChanged, true); });
+    notifyProcessingStateChangedAsync (true);
+
+    juce::WeakReference<AiAgent> safeThis (this);
 
     currentJobId = jobQueue.submit (
         { "AI Chat", "AI" },
-        [this] (ProgressReporter&) { runConversationLoop(); },
-        [this] (int, JobStatus)
+        [safeThis] (ProgressReporter&)
         {
-            processing.store (false);
-            listeners.call (&AiAgentListener::processingStateChanged, false);
+            if (safeThis != nullptr)
+                safeThis->runConversationLoop();
+        },
+        [safeThis] (int, JobStatus)
+        {
+            if (safeThis == nullptr)
+                return;
+
+            safeThis->processing.store (false);
+            safeThis->notifyProcessingStateChangedAsync (false);
         });
 }
 
@@ -113,7 +122,7 @@ void AiAgent::clearConversation()
         conversation.clear();
     }
     discoveredTools.clear();
-    juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
+    notifyConversationUpdatedAsync();
 }
 
 void AiAgent::cancelRequest()
@@ -160,10 +169,7 @@ void AiAgent::runConversationLoop()
 
         if (response.isError)
         {
-            juce::MessageManager::callAsync ([this, err = response.errorMessage]
-            {
-                listeners.call (&AiAgentListener::aiErrorOccurred, err);
-            });
+            notifyAiErrorAsync (response.errorMessage);
             return;
         }
 
@@ -177,7 +183,7 @@ void AiAgent::runConversationLoop()
                 assistantMsg.content = response.textContent;
                 conversation.push_back (std::move (assistantMsg));
             }
-            juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
+            notifyConversationUpdatedAsync();
             return;
         }
 
@@ -191,7 +197,7 @@ void AiAgent::runConversationLoop()
             assistantMsg.toolCalls = response.toolCalls;
             conversation.push_back (std::move (assistantMsg));
         }
-        juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
+        notifyConversationUpdatedAsync();
 
         // Check auto-apply or ask for approval
         bool shouldExecute = settings.isAutoApply();
@@ -201,10 +207,7 @@ void AiAgent::runConversationLoop()
             pendingToolCalls = response.toolCalls;
             pendingApproved.store (false);
 
-            juce::MessageManager::callAsync ([this, calls = response.toolCalls]
-            {
-                listeners.call (&AiAgentListener::toolCallsPendingApproval, calls);
-            });
+            notifyToolCallsPendingApprovalAsync (response.toolCalls);
 
             // Wait for user decision
             approvalEvent.wait (-1);
@@ -242,7 +245,7 @@ void AiAgent::runConversationLoop()
                 toolResultMsg.content = resultStr;
                 conversation.push_back (std::move (toolResultMsg));
             }
-            juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
+            notifyConversationUpdatedAsync();
         }
 
         // Loop back to get the LLM's next response
@@ -355,18 +358,14 @@ juce::String AiAgent::executeCommand (const juce::String& action, const juce::va
 
     auto cmdJson = juce::JSON::toString (juce::var (cmdObj));
 
-    // Execute on the message thread for thread safety
-    juce::String result;
-    juce::WaitableEvent done;
+    if (juce::MessageManager::getInstance()->isThisTheMessageThread())
+        return commandHandler.handleCommand (cmdJson);
 
-    juce::MessageManager::callAsync ([this, cmdJson, &result, &done]
-    {
-        result = commandHandler.handleCommand (cmdJson);
-        done.signal();
-    });
+    juce::MessageManagerLock messageManagerLock;
+    if (! messageManagerLock.lockWasGained())
+        return "{\"status\":\"error\",\"message\":\"Failed to acquire message-thread lock.\"}";
 
-    done.wait (10000);  // 10s timeout
-    return result;
+    return commandHandler.handleCommand (cmdJson);
 }
 
 void AiAgent::saveConversation (const juce::File& file)
@@ -394,7 +393,7 @@ void AiAgent::loadConversation (const juce::File& file)
         conversation = std::move (loaded);
     }
 
-    juce::MessageManager::callAsync ([this] { listeners.call (&AiAgentListener::conversationUpdated); });
+    notifyConversationUpdatedAsync();
 }
 
 juce::String AiAgent::executeTool (const juce::String& toolName, const juce::var& args)
@@ -411,15 +410,19 @@ juce::String AiAgent::executeTool (const juce::String& toolName, const juce::var
     ToolPlanTask task;
     juce::Result prepareResult = juce::Result::fail ("Not executed");
 
+    if (juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
-        juce::WaitableEvent done;
-        juce::MessageManager::callAsync ([&]
-        {
-            auto context = toolContextProvider();
-            prepareResult = tool->preparePlan (context, args, task);
-            done.signal();
-        });
-        done.wait (30000);  // 30s timeout for plan preparation
+        auto context = toolContextProvider();
+        prepareResult = tool->preparePlan (context, args, task);
+    }
+    else
+    {
+        juce::MessageManagerLock messageManagerLock;
+        if (! messageManagerLock.lockWasGained())
+            return "{\"status\":\"error\",\"message\":\"Failed to acquire message-thread lock for tool planning.\"}";
+
+        auto context = toolContextProvider();
+        prepareResult = tool->preparePlan (context, args, task);
     }
 
     if (prepareResult.failed())
@@ -446,15 +449,19 @@ juce::String AiAgent::executeTool (const juce::String& toolName, const juce::var
     // Step 3: apply on message thread
     juce::Result applyResult = juce::Result::fail ("Not executed");
 
+    if (juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
-        juce::WaitableEvent done;
-        juce::MessageManager::callAsync ([&]
-        {
-            auto context = toolContextProvider();
-            applyResult = tool->apply (context, plan);
-            done.signal();
-        });
-        done.wait (30000);  // 30s timeout for apply
+        auto context = toolContextProvider();
+        applyResult = tool->apply (context, plan);
+    }
+    else
+    {
+        juce::MessageManagerLock messageManagerLock;
+        if (! messageManagerLock.lockWasGained())
+            return "{\"status\":\"error\",\"message\":\"Failed to acquire message-thread lock for tool apply.\"}";
+
+        auto context = toolContextProvider();
+        applyResult = tool->apply (context, plan);
     }
 
     if (applyResult.failed())
@@ -467,6 +474,46 @@ juce::String AiAgent::executeTool (const juce::String& toolName, const juce::var
     result->setProperty ("summary", plan.summary);
     result->setProperty ("changes", plan.changes.size());
     return juce::JSON::toString (juce::var (result));
+}
+
+void AiAgent::notifyConversationUpdatedAsync()
+{
+    juce::WeakReference<AiAgent> safeThis (this);
+    juce::MessageManager::callAsync ([safeThis]
+    {
+        if (safeThis != nullptr)
+            safeThis->listeners.call (&AiAgentListener::conversationUpdated);
+    });
+}
+
+void AiAgent::notifyProcessingStateChangedAsync (bool isProcessingNow)
+{
+    juce::WeakReference<AiAgent> safeThis (this);
+    juce::MessageManager::callAsync ([safeThis, isProcessingNow]
+    {
+        if (safeThis != nullptr)
+            safeThis->listeners.call (&AiAgentListener::processingStateChanged, isProcessingNow);
+    });
+}
+
+void AiAgent::notifyAiErrorAsync (const juce::String& error)
+{
+    juce::WeakReference<AiAgent> safeThis (this);
+    juce::MessageManager::callAsync ([safeThis, error]
+    {
+        if (safeThis != nullptr)
+            safeThis->listeners.call (&AiAgentListener::aiErrorOccurred, error);
+    });
+}
+
+void AiAgent::notifyToolCallsPendingApprovalAsync (const std::vector<ChatMessage::ToolCall>& calls)
+{
+    juce::WeakReference<AiAgent> safeThis (this);
+    juce::MessageManager::callAsync ([safeThis, calls]
+    {
+        if (safeThis != nullptr)
+            safeThis->listeners.call (&AiAgentListener::toolCallsPendingApproval, calls);
+    });
 }
 
 } // namespace waive

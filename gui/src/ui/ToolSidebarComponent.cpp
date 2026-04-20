@@ -365,6 +365,7 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
 
 ToolSidebarComponent::~ToolSidebarComponent()
 {
+    cancelRunningPlan();
     jobQueue.removeListener (this);
 }
 
@@ -518,6 +519,8 @@ void ToolSidebarComponent::runPlan()
 
     auto sharedPlan = std::make_shared<PlanState>();
 
+    juce::Component::SafePointer<ToolSidebarComponent> safeThis (this);
+
     activePlanJobID = jobQueue.submit (
         { task.jobName, "tool_plan" },
         [taskFn = std::move (task.run), sharedPlan] (waive::ProgressReporter& reporter)
@@ -526,8 +529,11 @@ void ToolSidebarComponent::runPlan()
             std::lock_guard<std::mutex> lock (sharedPlan->mutex);
             sharedPlan->plan = std::move (producedPlan);
         },
-        [this, sharedPlan] (int, waive::JobStatus status)
+        [safeThis, sharedPlan] (int, waive::JobStatus status)
         {
+            if (safeThis == nullptr)
+                return;
+
             std::optional<waive::ToolPlan> result;
             {
                 std::lock_guard<std::mutex> lock (sharedPlan->mutex);
@@ -535,7 +541,7 @@ void ToolSidebarComponent::runPlan()
                     result = std::move (sharedPlan->plan.value());
             }
 
-            handlePlanCompletion (status, std::move (result));
+            safeThis->handlePlanCompletion (status, std::move (result));
         });
 
     planRunning = true;

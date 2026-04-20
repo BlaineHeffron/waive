@@ -119,6 +119,16 @@ Run test binaries directly:
 
 Tests run automatically on every push and PR via GitHub Actions (`.github/workflows/ci.yml`). The CI pipeline uses `xvfb-run` to provide a virtual display for JUCE's `ScopedJuceInitialiser_GUI`. See `docs/architecture.md` for pipeline details.
 
+## Python Tool Tests
+
+Use `python3`, not `python`, in environments where only `python3` is installed:
+
+```bash
+python3 -m pytest tools/tests/ -v --tb=short
+```
+
+The repository currently treats `ai/tests` and `ai/requirements.txt` as optional. Only run those paths if they exist locally.
+
 ## Writing New Tests
 
 - Prefer deterministic tests that create/modify an in-memory `Edit`.

@@ -70,15 +70,11 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
     }
     else
     {
-        juce::WaitableEvent done;
-
-        juce::MessageManager::callAsync ([&]
-        {
+        juce::MessageManagerLock messageManagerLock;
+        if (! messageManagerLock.lockWasGained())
+            response = "{\"status\":\"error\",\"message\":\"Failed to acquire message-thread lock\"}";
+        else
             response = handler.handleCommand (json);
-            done.signal();
-        });
-
-        done.wait();
     }
 
     juce::MemoryBlock responseBlock (response.toRawUTF8(),

@@ -20,6 +20,30 @@
 #include "WaiveSpacing.h"
 #include "ProjectPackager.h"
 
+#include <cstdlib>
+
+namespace
+{
+
+bool isHeadlessUiEnvironment()
+{
+   #if JUCE_LINUX || JUCE_BSD
+    const auto hasDisplayEnv = [] (const char* name)
+    {
+        if (const auto* value = std::getenv (name))
+            return *value != '\0';
+
+        return false;
+    };
+
+    return ! hasDisplayEnv ("DISPLAY") && ! hasDisplayEnv ("WAYLAND_DISPLAY");
+   #else
+    return false;
+   #endif
+}
+
+}
+
 //==============================================================================
 MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& session,
                               waive::JobQueue& jobQueue, ProjectManager& projectMgr,
@@ -63,6 +87,7 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
 
 MainComponent::~MainComponent()
 {
+    tabs.clearTabs();
     menuBar.setModel (nullptr);
 }
 
@@ -390,7 +415,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                         "Recover", "Discard");
 
                     if (shouldRecover)
-                        projectManager.openProject (autoSaveFile);
+                        projectManager.recoverProjectFromAutoSave (autoSaveFile, file);
                     else
                     {
                         AutoSaveManager::deleteAutoSave (file);
@@ -517,6 +542,12 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             return true;
         case cmdAudioSettings:
         {
+            if (isHeadlessUiEnvironment())
+            {
+                juce::Logger::writeToLog ("Skipping audio settings dialog: no display server available");
+                return true;
+            }
+
             auto& engine = editSession.getEdit().engine;
             auto& deviceManager = engine.getDeviceManager();
 
@@ -536,6 +567,12 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         }
         case cmdRender:
         {
+            if (isHeadlessUiEnvironment())
+            {
+                juce::Logger::writeToLog ("Skipping render dialog: no display server available");
+                return true;
+            }
+
             auto* renderDialog = new RenderDialog (editSession, commandHandler);
             juce::DialogWindow::LaunchOptions opts;
             opts.content.setOwned (renderDialog);

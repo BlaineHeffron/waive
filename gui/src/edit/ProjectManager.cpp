@@ -58,13 +58,54 @@ bool ProjectManager::openProject (const juce::File& file)
     return true;
 }
 
+bool ProjectManager::recoverProjectFromAutoSave (const juce::File& autoSaveFile,
+                                                 const juce::File& originalProjectFile)
+{
+    if (! autoSaveFile.existsAsFile() || ! originalProjectFile.existsAsFile())
+        return false;
+
+    if (! confirmSaveIfDirty())
+        return false;
+
+    auto recoveryFile = juce::File::createTempFile (".tracktionedit");
+    (void) recoveryFile.deleteFile();
+    if (! autoSaveFile.copyFileTo (recoveryFile))
+        return false;
+
+    editSession.loadFromFile (recoveryFile);
+    currentFile = originalProjectFile;
+    editSession.markAsChanged();
+    addToRecentFiles (originalProjectFile);
+    checkDirtyState();
+    return true;
+}
+
 bool ProjectManager::save()
 {
     if (currentFile == juce::File())
         return saveAs();
 
-    editSession.flushState();
-    te::EditFileOperations (editSession.getEdit()).saveAs (currentFile);
+    auto fileOps = te::EditFileOperations (editSession.getEdit());
+    auto backingFile = fileOps.getEditFile();
+
+    if (backingFile != juce::File() && backingFile != currentFile)
+    {
+        if (! fileOps.save (false, true, false))
+            return false;
+
+        if (currentFile.existsAsFile() && ! currentFile.deleteFile())
+            return false;
+
+        if (! backingFile.copyFileTo (currentFile))
+            return false;
+    }
+    else
+    {
+        editSession.flushState();
+        if (! fileOps.saveAs (currentFile))
+            return false;
+    }
+
     editSession.resetChangedStatus();
     checkDirtyState();
     return true;
@@ -81,8 +122,27 @@ bool ProjectManager::saveAs()
     if (file.getFileExtension().isEmpty())
         file = file.withFileExtension ("tracktionedit");
 
-    editSession.flushState();
-    te::EditFileOperations (editSession.getEdit()).saveAs (file);
+    auto fileOps = te::EditFileOperations (editSession.getEdit());
+    auto backingFile = fileOps.getEditFile();
+
+    if (backingFile != juce::File() && backingFile != file)
+    {
+        if (! fileOps.save (false, true, false))
+            return false;
+
+        if (file.existsAsFile() && ! file.deleteFile())
+            return false;
+
+        if (! backingFile.copyFileTo (file))
+            return false;
+    }
+    else
+    {
+        editSession.flushState();
+        if (! fileOps.saveAs (file))
+            return false;
+    }
+
     currentFile = file;
     editSession.resetChangedStatus();
     addToRecentFiles (file);

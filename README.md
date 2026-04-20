@@ -93,14 +93,14 @@ ctest --test-dir build --output-on-failure
 
 ```bash
 # Install Python dependencies
-pip install -r ai/requirements.txt
+if [ -f ai/requirements.txt ]; then pip install -r ai/requirements.txt; fi
 pip install -r tools/tests/requirements.txt
 
 # Run AI tests
-python -m pytest ai/tests/ -v
+if [ -d ai/tests ]; then python3 -m pytest ai/tests/ -v; fi
 
 # Run audio tool tests
-python -m pytest tools/tests/ -v
+python3 -m pytest tools/tests/ -v
 ```
 
 ## Keyboard Shortcuts

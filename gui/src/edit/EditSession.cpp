@@ -61,6 +61,15 @@ void EditSession::resetChangedStatus()
         edit->resetChangedStatus();
 }
 
+void EditSession::markAsChanged()
+{
+    if (edit != nullptr)
+    {
+        edit->markAsChanged();
+        listeners.call (&Listener::editStateChanged);
+    }
+}
+
 //==============================================================================
 bool EditSession::performEdit (const juce::String& actionName,
                                std::function<void (te::Edit&)> mutation)

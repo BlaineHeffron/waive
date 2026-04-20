@@ -52,7 +52,15 @@ juce::File AutoSaveManager::checkForAutoSave (const juce::File& projectFile)
         return {};
 
     auto autoSave = projectFile.getSiblingFile (projectFile.getFileNameWithoutExtension() + ".autosave");
-    return autoSave.existsAsFile() ? autoSave : juce::File();
+    if (! autoSave.existsAsFile())
+        return {};
+
+    if (! projectFile.existsAsFile())
+        return autoSave;
+
+    return autoSave.getLastModificationTime() > projectFile.getLastModificationTime()
+             ? autoSave
+             : juce::File();
 }
 
 void AutoSaveManager::deleteAutoSave (const juce::File& projectFile)

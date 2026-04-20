@@ -49,6 +49,9 @@ public:
     /** Reset the changed-since-saved flag. */
     void resetChangedStatus();
 
+    /** Mark the edit as changed without mutating through performEdit(). */
+    void markAsChanged();
+
     //==============================================================================
     /** Execute a mutation wrapped in an undo transaction.
         Returns true if the lambda ran without throwing. */
