@@ -24,7 +24,8 @@
       }
     }
   },
-  "command": ["python3", "-m", "mastering_assistant"],
+  "executable": "python3",
+  "arguments": ["__main__.py"],
   "acceptsAudioInput": true,
   "producesAudioOutput": true
 }

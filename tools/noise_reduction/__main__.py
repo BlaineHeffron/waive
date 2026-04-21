@@ -5,6 +5,10 @@ import sys
 import os
 import numpy as np
 
+sys.path.insert (0, os.path.dirname (os.path.dirname (__file__)))
+
+from tool_io import emit_result, load_request
+
 def load_audio(file_path):
     try:
         import soundfile as sf
@@ -98,13 +102,10 @@ def spectral_gate(samples, sr, noise_profile_seconds=0.5, strength=0.5):
     return output
 
 def main():
-    request = json.loads(sys.stdin.read())
-    params = request.get("params", {})
-    input_file = request.get("input_file")
-    output_dir = request.get("output_dir", "/tmp")
+    params, input_file, output_dir = load_request()
 
     if not input_file:
-        print(json.dumps({"status": "error", "message": "No input_file provided"}))
+        emit_result(output_dir, {"status": "error", "message": "No input_file provided"})
         return
 
     strength = float(params.get("strength", 0.5))
@@ -128,10 +129,10 @@ def main():
             },
             "output_files": [output_path]
         }
-        print(json.dumps(result))
+        emit_result(output_dir, result)
 
     except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}))
+        emit_result(output_dir, {"status": "error", "message": str(e)})
 
 if __name__ == "__main__":
     main()

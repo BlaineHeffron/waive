@@ -36,6 +36,10 @@ public:
         addAndMakeVisible (usageLabel);
         addAndMakeVisible (settingsButton);
         settingsButton.setButtonText ("Settings");
+        settingsButton.setTitle ("Model Settings");
+        settingsButton.setDescription ("Configure model storage directory and disk quota");
+        settingsButton.setTooltip ("Open model storage settings");
+        settingsButton.setWantsKeyboardFocus (true);
         settingsButton.onClick = [this] { showSettingsDialog(); };
 
         refreshModelList();
@@ -80,6 +84,14 @@ public:
             entry->statusLabel.setText (statusText, juce::dontSendNotification);
 
             entry->installButton.setButtonText (entry->installedVersion.isEmpty() ? "Install" : "Uninstall");
+            entry->installButton.setTitle ((entry->installedVersion.isEmpty() ? "Install " : "Uninstall ") + catalog.displayName);
+            entry->installButton.setDescription (entry->installedVersion.isEmpty()
+                                                     ? "Install the selected AI model"
+                                                     : "Uninstall the selected AI model");
+            entry->installButton.setTooltip (entry->installedVersion.isEmpty()
+                                                 ? "Install model"
+                                                 : "Uninstall model");
+            entry->installButton.setWantsKeyboardFocus (true);
             entry->installButton.onClick = [this, id = catalog.modelID, installed = !entry->installedVersion.isEmpty()]
             {
                 if (installed)
@@ -89,6 +101,12 @@ public:
             };
 
             entry->pinButton.setButtonText (entry->isPinned ? "Unpin" : "Pin");
+            entry->pinButton.setTitle ((entry->isPinned ? "Unpin " : "Pin ") + catalog.displayName);
+            entry->pinButton.setDescription (entry->isPinned
+                                                 ? "Remove the pinned model version"
+                                                 : "Pin the installed model version");
+            entry->pinButton.setTooltip (entry->isPinned ? "Unpin model version" : "Pin model version");
+            entry->pinButton.setWantsKeyboardFocus (true);
             entry->pinButton.setEnabled (entry->installedVersion.isNotEmpty());
             entry->pinButton.onClick = [this, id = catalog.modelID, pinned = entry->isPinned]
             {
@@ -657,13 +675,23 @@ void ToolSidebarComponent::handlePlanCompletion (waive::JobStatus status, std::o
 
     if (status == waive::JobStatus::Completed)
     {
-        if (planResult.has_value() && ! planResult->changes.isEmpty())
+        if (planResult.has_value())
         {
             pendingPlan = std::move (planResult);
             previewEditor.setText (waive::summariseToolPlan (*pendingPlan), false);
             lastPlanArtifact = pendingPlan->artifactFile;
-            sessionComponent.applyToolPreviewDiff (pendingPlan->changes);
-            setStatusText ("Plan ready");
+
+            if (! pendingPlan->changes.isEmpty())
+            {
+                sessionComponent.applyToolPreviewDiff (pendingPlan->changes);
+                setStatusText ("Plan ready");
+            }
+            else
+            {
+                sessionComponent.clearToolPreview();
+                setStatusText (pendingPlan->summary.isNotEmpty() ? pendingPlan->summary
+                                                                 : "Plan produced no changes");
+            }
         }
         else
         {

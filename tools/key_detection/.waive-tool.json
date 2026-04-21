@@ -8,7 +8,8 @@
     "type": "object",
     "properties": {}
   },
-  "command": ["python3", "-m", "key_detection"],
+  "executable": "python3",
+  "arguments": ["__main__.py"],
   "acceptsAudioInput": true,
   "producesAudioOutput": false
 }

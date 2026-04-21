@@ -6,12 +6,121 @@ namespace waive
 
 namespace
 {
-void drainChildProcessOutput (juce::ChildProcess& process)
+juce::String drainChildProcessOutput (juce::ChildProcess& process)
 {
+    juce::MemoryOutputStream stream;
     char buffer[4096];
-    while (process.readProcessOutput (buffer, sizeof (buffer)) > 0)
+    for (;;)
     {
+        const auto bytesRead = process.readProcessOutput (buffer, sizeof (buffer));
+        if (bytesRead <= 0)
+            break;
+
+        stream.write (buffer, (size_t) bytesRead);
     }
+
+    return stream.toString();
+}
+
+juce::var parseToolResultPayload (const juce::String& text)
+{
+    const auto trimmed = text.trim();
+    if (trimmed.isEmpty())
+        return {};
+
+    auto parsed = juce::JSON::parse (trimmed);
+    if (parsed.isVoid())
+    {
+        const auto lastLine = trimmed.fromLastOccurrenceOf ("\n", false, false).trim();
+        if (lastLine != trimmed)
+            parsed = juce::JSON::parse (lastLine);
+    }
+
+    return parsed;
+}
+
+juce::String extractToolMessage (const juce::var& resultData)
+{
+    if (auto* resultObj = resultData.getDynamicObject())
+    {
+        if (resultObj->hasProperty ("success"))
+        {
+            const auto succeeded = static_cast<bool> (resultObj->getProperty ("success"));
+            if (! succeeded && resultObj->hasProperty ("message"))
+                return resultObj->getProperty ("message").toString();
+        }
+
+        if (resultObj->hasProperty ("message"))
+            return resultObj->getProperty ("message").toString();
+
+        if (resultObj->hasProperty ("status"))
+        {
+            auto status = resultObj->getProperty ("status").toString();
+            if (status.isNotEmpty())
+                return status;
+        }
+    }
+
+    return {};
+}
+
+bool toolReportedSuccess (const juce::var& resultData)
+{
+    if (auto* resultObj = resultData.getDynamicObject())
+    {
+        if (resultObj->hasProperty ("success"))
+            return static_cast<bool> (resultObj->getProperty ("success"));
+
+        if (resultObj->hasProperty ("status"))
+            return resultObj->getProperty ("status").toString().equalsIgnoreCase ("ok");
+    }
+
+    return true;
+}
+
+juce::File findFirstExistingFile (const juce::Array<juce::var>* files, const juce::String& preferredExtension)
+{
+    if (files == nullptr)
+        return {};
+
+    for (const auto& value : *files)
+    {
+        auto candidate = juce::File (value.toString());
+        if (candidate.existsAsFile() && candidate.hasFileExtension (preferredExtension))
+            return candidate;
+    }
+
+    for (const auto& value : *files)
+    {
+        auto candidate = juce::File (value.toString());
+        if (candidate.existsAsFile())
+            return candidate;
+    }
+
+    return {};
+}
+
+void populateOutputPathsFromResult (ExternalToolOutput& output, const juce::File& outputDir)
+{
+    if (auto* resultObj = output.resultData.getDynamicObject())
+    {
+        if (output.message.isEmpty())
+            output.message = extractToolMessage (output.resultData);
+
+        if (resultObj->hasProperty ("output_files"))
+        {
+            if (auto outputFile = findFirstExistingFile (resultObj->getProperty ("output_files").getArray(), ".wav");
+                outputFile != juce::File())
+            {
+                output.outputAudioFile = outputFile;
+                return;
+            }
+        }
+    }
+
+    auto outputAudioFile = outputDir.getChildFile ("output.wav");
+    if (outputAudioFile.existsAsFile())
+        output.outputAudioFile = outputAudioFile;
 }
 }
 
@@ -136,13 +245,13 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
 
     while (true)
     {
-        drainChildProcessOutput (process);
+        output.stdOut << drainChildProcessOutput (process);
 
         bool stillRunning = process.isRunning();
 
         if (! stillRunning)
         {
-            drainChildProcessOutput (process);
+            output.stdOut << drainChildProcessOutput (process);
             exitCode = (int) process.getExitCode();
             processCompleted = true;
             break;
@@ -178,10 +287,10 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
 
     if (exitCode != 0)
     {
-        auto stderrText = process.readAllProcessOutput().trim();
+        output.stdErr = process.readAllProcessOutput().trim();
         output.message = "External tool failed with exit code " + juce::String (exitCode);
-        if (stderrText.isNotEmpty())
-            output.message << ": " << stderrText;
+        if (output.stdErr.isNotEmpty())
+            output.message << ": " << output.stdErr;
         cleanupTempDirectory();
         return output;
     }
@@ -192,23 +301,19 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     {
         auto resultText = resultFile.loadFileAsString();
         output.resultData = juce::JSON::parse (resultText);
-
-        // Extract message from result if present
-        if (auto* resultObj = output.resultData.getDynamicObject())
-        {
-            if (resultObj->hasProperty ("message"))
-                output.message = resultObj->getProperty ("message").toString();
-        }
+    }
+    else
+    {
+        output.resultData = parseToolResultPayload (output.stdOut);
     }
 
-    // Check for output audio
-    auto outputAudioFile = outputDir.getChildFile ("output.wav");
-    if (outputAudioFile.existsAsFile())
-        output.outputAudioFile = outputAudioFile;
-
-    output.success = true;
+    populateOutputPathsFromResult (output, outputDir);
+    output.success = toolReportedSuccess (output.resultData);
     if (output.message.isEmpty())
         output.message = "External tool executed successfully";
+
+    if (! output.success && output.message.isEmpty())
+        output.message = "External tool reported a failure";
 
     return output;
 }

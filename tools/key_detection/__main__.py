@@ -3,6 +3,11 @@
 import json
 import sys
 import numpy as np
+import os
+
+sys.path.insert (0, os.path.dirname (os.path.dirname (__file__)))
+
+from tool_io import emit_result, load_request
 
 def load_audio(file_path):
     try:
@@ -92,11 +97,10 @@ def detect_key(chroma):
     return best_key, round(best_corr, 3), alternatives
 
 def main():
-    request = json.loads(sys.stdin.read())
-    input_file = request.get("input_file")
+    _, input_file, output_dir = load_request()
 
     if not input_file:
-        print(json.dumps({"status": "error", "message": "No input_file provided"}))
+        emit_result(output_dir, {"status": "error", "message": "No input_file provided"})
         return
 
     try:
@@ -113,10 +117,10 @@ def main():
                 "duration": round(len(samples) / sr, 3)
             }
         }
-        print(json.dumps(result))
+        emit_result(output_dir, result)
 
     except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}))
+        emit_result(output_dir, {"status": "error", "message": str(e)})
 
 if __name__ == "__main__":
     main()

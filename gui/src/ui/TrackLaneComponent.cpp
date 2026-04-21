@@ -184,7 +184,7 @@ void TrackLaneComponent::paint (juce::Graphics& g)
 
     if (depth > 0)
     {
-        g.setColour ((pal ? pal->borderSubtle : juce::Colours::darkgrey).withAlpha (0.6f));
+        g.setColour ((pal ? pal->borderSubtle : juce::Colour (0xff3a3a3a)).withAlpha (0.6f));
         for (int i = 0; i < depth; ++i)
             g.drawVerticalLine (8 + i * 20, 0.0f, (float) getHeight());
     }
@@ -789,7 +789,7 @@ juce::Colour TrackLaneComponent::getTrackColorForTesting() const
 {
     auto* pal = waive::getWaivePalette (const_cast<TrackLaneComponent&> (*this));
     if (! pal)
-        return juce::Colours::grey;
+        return juce::Colour (0xff808080);
 
     const juce::Colour* trackColors[] = {
         &pal->trackColor1, &pal->trackColor2, &pal->trackColor3, &pal->trackColor4,

@@ -19,7 +19,8 @@
       }
     }
   },
-  "command": ["python3", "-m", "pitch_correction"],
+  "executable": "python3",
+  "arguments": ["__main__.py"],
   "acceptsAudioInput": true,
   "producesAudioOutput": true
 }

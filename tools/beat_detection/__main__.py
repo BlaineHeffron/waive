@@ -3,6 +3,11 @@
 import json
 import sys
 import numpy as np
+import os
+
+sys.path.insert (0, os.path.dirname (os.path.dirname (__file__)))
+
+from tool_io import emit_result, load_request
 
 def load_audio(file_path):
     """Load audio file, return (samples, sample_rate). Tries soundfile, falls back to scipy."""
@@ -113,12 +118,10 @@ def detect_tempo_autocorrelation(samples, sr):
     return round(bpm, 1), []
 
 def main():
-    request = json.loads(sys.stdin.read())
-    params = request.get("params", {})
-    input_file = request.get("input_file")
+    params, input_file, output_dir = load_request()
 
     if not input_file:
-        print(json.dumps({"status": "error", "message": "No input_file provided"}))
+        emit_result(output_dir, {"status": "error", "message": "No input_file provided"})
         return
 
     method = params.get("method", "onset")
@@ -141,10 +144,10 @@ def main():
                 "method": method
             }
         }
-        print(json.dumps(result))
+        emit_result(output_dir, result)
 
     except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}))
+        emit_result(output_dir, {"status": "error", "message": str(e)})
 
 if __name__ == "__main__":
     main()

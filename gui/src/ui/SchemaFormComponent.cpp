@@ -110,6 +110,7 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
         field->toggle->setToggleState (defaultValue.isVoid() ? false : (bool) defaultValue,
                                        juce::dontSendNotification);
         field->toggle->setTitle (displayName);
+        field->toggle->setDescription (description.isNotEmpty() ? description : displayName);
         field->toggle->setTooltip (description.isNotEmpty() ? description : displayName);
         addAndMakeVisible (field->toggle.get());
     }
@@ -128,6 +129,7 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
             field->slider->setValue ((double) defaultValue, juce::dontSendNotification);
 
         field->slider->setTitle (displayName);
+        field->slider->setDescription (description.isNotEmpty() ? description : displayName);
         field->slider->setTooltip (description.isNotEmpty() ? description : displayName);
         addAndMakeVisible (field->slider.get());
     }
@@ -157,6 +159,7 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
             }
         }
         field->combo->setTitle (displayName);
+        field->combo->setDescription (description.isNotEmpty() ? description : displayName);
         field->combo->setTooltip (description.isNotEmpty() ? description : displayName);
         addAndMakeVisible (field->combo.get());
     }
@@ -173,6 +176,7 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
             field->textEditor->setText (defaultValue.toString(), false);
 
         field->textEditor->setTitle (displayName);
+        field->textEditor->setDescription (description.isNotEmpty() ? description : displayName);
         field->textEditor->setTooltip (description.isNotEmpty() ? description : displayName);
         addAndMakeVisible (field->textEditor.get());
     }

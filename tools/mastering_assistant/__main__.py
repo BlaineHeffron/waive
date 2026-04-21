@@ -5,6 +5,10 @@ import sys
 import os
 import numpy as np
 
+sys.path.insert (0, os.path.dirname (os.path.dirname (__file__)))
+
+from tool_io import emit_result, load_request
+
 def load_audio(file_path):
     try:
         import soundfile as sf
@@ -104,13 +108,10 @@ def soft_limit(samples, ceiling_linear):
     return result
 
 def main():
-    request = json.loads(sys.stdin.read())
-    params = request.get("params", {})
-    input_file = request.get("input_file")
-    output_dir = request.get("output_dir", "/tmp")
+    params, input_file, output_dir = load_request()
 
     if not input_file:
-        print(json.dumps({"status": "error", "message": "No input_file provided"}))
+        emit_result(output_dir, {"status": "error", "message": "No input_file provided"})
         return
 
     target_lufs = float(params.get("target_lufs", -14))
@@ -164,10 +165,10 @@ def main():
             },
             "output_files": [output_path]
         }
-        print(json.dumps(result_json))
+        emit_result(output_dir, result_json)
 
     except Exception as e:
-        print(json.dumps({"status": "error", "message": str(e)}))
+        emit_result(output_dir, {"status": "error", "message": str(e)})
 
 if __name__ == "__main__":
     main()

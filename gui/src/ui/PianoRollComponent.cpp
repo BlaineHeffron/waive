@@ -311,7 +311,7 @@ void PianoRollComponent::NoteGridComponent::paint (juce::Graphics& g)
         if (noteRect.bounds.getWidth() > 30.0f)
         {
             g.setColour (isSelected
-                        ? juce::Colours::white
+                        ? (pal ? pal->textOnPrimary : juce::Colour (0xffffffff))
                         : (pal ? pal->textPrimary : juce::Colour (0xffffffff)));
             g.setFont (waive::Fonts::caption());
             g.drawText (pitchToNoteName (noteRect.note->getNoteNumber()),

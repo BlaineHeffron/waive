@@ -17,6 +17,8 @@ struct ExternalToolOutput
     juce::var resultData;
     juce::File outputAudioFile;
     juce::File temporaryDirectory;
+    juce::String stdOut;
+    juce::String stdErr;
 };
 
 class ExternalToolRunner

@@ -551,7 +551,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
 
             opts.content.setOwned (selector);
             opts.dialogTitle = "Audio Settings";
-            opts.dialogBackgroundColour = juce::Colours::darkgrey;
+            opts.dialogBackgroundColour = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
             opts.escapeKeyTriggersCloseButton = true;
             opts.useNativeTitleBar = true;
             opts.resizable = false;
@@ -570,7 +570,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             juce::DialogWindow::LaunchOptions opts;
             opts.content.setOwned (renderDialog);
             opts.dialogTitle = "Render Audio";
-            opts.dialogBackgroundColour = juce::Colours::darkgrey;
+            opts.dialogBackgroundColour = getLookAndFeel().findColour (juce::ResizableWindow::backgroundColourId);
             opts.escapeKeyTriggersCloseButton = true;
             opts.useNativeTitleBar = true;
             opts.resizable = false;

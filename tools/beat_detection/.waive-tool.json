@@ -14,7 +14,8 @@
       }
     }
   },
-  "command": ["python3", "-m", "beat_detection"],
+  "executable": "python3",
+  "arguments": ["__main__.py"],
   "acceptsAudioInput": true,
   "producesAudioOutput": false
 }

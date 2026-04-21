@@ -19,7 +19,8 @@
       }
     }
   },
-  "command": ["python3", "-m", "audio_to_midi"],
+  "executable": "python3",
+  "arguments": ["__main__.py"],
   "acceptsAudioInput": true,
   "producesAudioOutput": false
 }

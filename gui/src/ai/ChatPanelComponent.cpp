@@ -6,6 +6,25 @@
 namespace waive
 {
 
+namespace
+{
+juce::Colour getMutedTextColour (juce::Component& component)
+{
+    if (auto* pal = getWaivePalette (component))
+        return pal->textMuted;
+
+    return juce::Colour (0xff808080);
+}
+
+juce::Colour getPanelBackgroundColour (juce::Component& component)
+{
+    if (auto* pal = getWaivePalette (component))
+        return pal->panelBg;
+
+    return juce::Colour (0xff2b2b2b);
+}
+}
+
 ChatPanelComponent::ChatPanelComponent (AiAgent& a, AiSettings& s)
     : agent (a), settings (s)
 {
@@ -106,7 +125,7 @@ ChatPanelComponent::ChatPanelComponent (AiAgent& a, AiSettings& s)
 
     // Input bar
     inputField.setMultiLine (false);
-    inputField.setTextToShowWhenEmpty ("Type a message...", juce::Colours::grey);
+    inputField.setTextToShowWhenEmpty ("Type a message...", getMutedTextColour (*this));
     inputField.setFont (waive::Fonts::body());
     inputField.setTitle ("Message Input");
     inputField.setDescription ("Type a message to send to the AI assistant");
@@ -148,10 +167,7 @@ ChatPanelComponent::~ChatPanelComponent()
 void ChatPanelComponent::paint (juce::Graphics& g)
 {
     auto* pal = getWaivePalette (*this);
-    if (pal)
-        g.fillAll (pal->panelBg);
-    else
-        g.fillAll (juce::Colours::darkgrey);
+    g.fillAll (getPanelBackgroundColour (*this));
 
     // Empty state message when no messages
     if (agent.getConversation().empty())
@@ -303,13 +319,13 @@ void ChatPanelComponent::showSettingsDialog()
     note->setText ("Keys are saved in application settings.", juce::dontSendNotification);
     note->setFont (waive::Fonts::caption());
     note->setBounds (10, y + 10, 380, 20);
-    note->setColour (juce::Label::textColourId, juce::Colours::grey);
+    note->setColour (juce::Label::textColourId, getMutedTextColour (*this));
     panel->addAndMakeVisible (note);
 
     juce::DialogWindow::LaunchOptions opts;
     opts.content.setOwned (panel);
     opts.dialogTitle = "AI Settings";
-    opts.dialogBackgroundColour = juce::Colours::darkgrey;
+    opts.dialogBackgroundColour = getPanelBackgroundColour (*this);
     opts.escapeKeyTriggersCloseButton = true;
     opts.useNativeTitleBar = true;
     opts.resizable = false;
