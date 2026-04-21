@@ -1640,6 +1640,49 @@ void testExportStemsReportsRenderFailures (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testExportStemsAllowsNewOutputDirectoriesWithinAllowlist (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("export_stems_new_output");
+    auto backingFile = fixtureDir.getChildFile ("export_stems_new_output.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected audio track for export_stems new output dir test");
+
+    auto audioFile = writeTestWav (fixtureDir.getChildFile ("source.wav"));
+    expect (audioFile.existsAsFile(), "Expected source WAV fixture for export_stems new output dir test");
+
+    auto clip = track->insertWaveClip (
+        "source",
+        audioFile,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (0.1) },
+          te::TimeDuration() },
+        false);
+    expect (clip != nullptr, "Expected clip insertion for export_stems new output dir test");
+    edit->getTransport().ensureContextAllocated();
+
+    auto outputDir = fixtureDir.getChildFile ("exports").getChildFile ("nested").getChildFile ("stems");
+    expect (! outputDir.exists(), "Expected nested output directory fixture to start absent");
+
+    CommandHandler handler (*edit);
+    handler.setAllowedMediaDirectories ({ fixtureDir });
+
+    auto response = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"export_stems",
+        "output_dir":"%s",
+        "start":0.0,
+        "end":0.1
+    })", outputDir.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+
+    expect (outputDir.isDirectory(), "Expected export_stems to create nested output directory");
+    expect (response.getProperty ("message", juce::var()).toString().contains ("outside allowed directories") == false,
+            "Expected export_stems to get past allowlist validation for a new nested output directory");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testSetLoopRegionRejectsInvalidBoundsWithoutMutation (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("invalid_loop_region");
@@ -1767,6 +1810,7 @@ int main()
         testFolderSoloMutePropagatesThroughNestedFolders (engine);
         testCommandHandlerAcceptsDocumentedAliases (engine);
         testExportStemsReportsRenderFailures (engine);
+        testExportStemsAllowsNewOutputDirectoriesWithinAllowlist (engine);
         testSetLoopRegionRejectsInvalidBoundsWithoutMutation (engine);
         testCommandHandlerRejectsMalformedCommandRequests (engine);
 

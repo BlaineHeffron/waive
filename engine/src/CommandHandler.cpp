@@ -3,6 +3,8 @@
 #include "PluginPresetManager.h"
 #include "ProjectPackager.h"
 
+#include <filesystem>
+
 namespace
 {
 juce::String getMicAccessHelpText()
@@ -98,11 +100,22 @@ bool isWithinAllowedDirectories (const juce::String& originalPath,
     if (! juce::File::isAbsolutePath (originalPath))
         return false;
 
-    auto canonicalCandidate = candidate.getLinkedTarget();
+    std::error_code ec;
+    const auto candidatePath = std::filesystem::path (candidate.getFullPathName().toStdString());
+    const auto canonicalCandidatePath = std::filesystem::weakly_canonical (candidatePath, ec);
+    if (ec)
+        return false;
+
+    const auto canonicalCandidate = juce::File (juce::String (canonicalCandidatePath.string()));
 
     for (const auto& allowedDir : allowedDirectories)
     {
-        auto canonicalAllowedDir = allowedDir.getLinkedTarget();
+        const auto allowedPath = std::filesystem::path (allowedDir.getFullPathName().toStdString());
+        const auto canonicalAllowedPath = std::filesystem::weakly_canonical (allowedPath, ec);
+        if (ec)
+            continue;
+
+        const auto canonicalAllowedDir = juce::File (juce::String (canonicalAllowedPath.string()));
         if (canonicalCandidate == canonicalAllowedDir || canonicalCandidate.isAChildOf (canonicalAllowedDir))
             return true;
     }
@@ -1532,7 +1545,7 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
         if (ok)
         {
             auto* fileInfo = new juce::DynamicObject();
-            fileInfo->setProperty ("track_id", i);
+            fileInfo->setProperty ("track_id", getPublicTrackIndex (edit, track));
             fileInfo->setProperty ("track_name", track->getName());
             fileInfo->setProperty ("file_path", stemFile.getFullPathName());
             exportedFiles.add (juce::var (fileInfo));

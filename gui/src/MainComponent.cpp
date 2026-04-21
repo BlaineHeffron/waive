@@ -449,22 +449,22 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         {
             juce::FileChooser chooser ("Open Project...", juce::File(), "*.tracktionedit");
             if (chooser.browseForFileToOpen())
-                projectManager.openProject (chooser.getResult());
-            return true;
+                return projectManager.openProject (chooser.getResult());
+            return false;
         }
         case cmdSave:
         {
             bool success = projectManager.save();
             if (success)
                 AutoSaveManager::deleteAutoSave (projectManager.getCurrentFile());
-            return true;
+            return success;
         }
         case cmdSaveAs:
         {
             bool success = projectManager.saveAs();
             if (success)
                 AutoSaveManager::deleteAutoSave (projectManager.getCurrentFile());
-            return true;
+            return success;
         }
         case cmdDelete:
             sessionComponent->getTimeline().deleteSelectedClips();
