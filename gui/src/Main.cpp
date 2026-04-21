@@ -18,6 +18,18 @@
 
 namespace te = tracktion;
 
+namespace
+{
+juce::File getCompiledSourceToolsDir()
+{
+#ifdef WAIVE_SOURCE_TOOLS_DIR
+    return juce::File (JUCE_STRINGIFY (WAIVE_SOURCE_TOOLS_DIR));
+#else
+    return {};
+#endif
+}
+}
+
 //==============================================================================
 class MainWindow : public juce::DocumentWindow
 {
@@ -88,6 +100,7 @@ public:
         projectManager = std::make_unique<ProjectManager> (*editSession);
 
         commandHandler = std::make_unique<CommandHandler> (editSession->getEdit());
+        commandHandler->setProjectFile (projectManager->getCurrentFile());
         undoableHandler = std::make_unique<UndoableCommandHandler> (*commandHandler, *editSession);
 
         // Application properties for settings persistence
@@ -114,6 +127,10 @@ public:
                                    .getParentDirectory().getParentDirectory().getChildFile ("tools");
         if (builtInToolsDir.isDirectory())
             externalToolRunner->addToolsDirectory (builtInToolsDir);
+
+        auto sourceToolsDir = getCompiledSourceToolsDir();
+        if (sourceToolsDir.isDirectory())
+            externalToolRunner->addToolsDirectory (sourceToolsDir);
 
         // Add user tools directory
         externalToolRunner->addToolsDirectory (externalToolRunner->getToolsDirectory());
@@ -244,6 +261,8 @@ public:
     {
         // Reconstruct CommandHandler with the new edit reference
         commandHandler = std::make_unique<CommandHandler> (editSession->getEdit());
+        commandHandler->setProjectFile (projectManager != nullptr ? projectManager->getCurrentFile()
+                                                                  : juce::File());
         undoableHandler->setCommandHandler (*commandHandler);
 
         updateWindowTitle();
@@ -265,6 +284,14 @@ public:
     // ProjectManager::Listener
     void projectDirtyChanged() override
     {
+        updateWindowTitle();
+    }
+
+    void projectFileChanged (const juce::File& projectFile) override
+    {
+        if (commandHandler != nullptr)
+            commandHandler->setProjectFile (projectFile);
+
         updateWindowTitle();
     }
 

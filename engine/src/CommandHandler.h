@@ -17,6 +17,9 @@ public:
     /** Process a JSON command string and return a JSON response string. */
     juce::String handleCommand (const juce::String& jsonString);
 
+    /** Set the canonical project file path for project-scoped commands. */
+    void setProjectFile (const juce::File& projectFile);
+
     /** Set allowed media directories for file path validation. */
     void setAllowedMediaDirectories (const juce::Array<juce::File>& directories);
 
@@ -25,6 +28,7 @@ public:
 
 private:
     te::Edit& edit;
+    juce::File currentProjectFile;
     juce::Array<juce::File> allowedMediaDirectories;
     std::unique_ptr<waive::PluginPresetManager> presetManager;
 
@@ -90,6 +94,7 @@ private:
     te::PluginList* getPluginListForParams (const juce::var& params,
                                             juce::String& errorMessage,
                                             juce::String* targetDescription = nullptr);
+    juce::File resolveProjectFile() const;
     te::Track* getTrackById (int trackIndex);
     te::AudioTrack* getAudioTrackById (int trackIndex);
     te::Clip* getClipByIndex (int trackIndex, int clipIndex);

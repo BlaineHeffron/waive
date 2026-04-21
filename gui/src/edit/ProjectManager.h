@@ -15,6 +15,7 @@ public:
     {
         virtual ~Listener() = default;
         virtual void projectDirtyChanged() = 0;
+        virtual void projectFileChanged (const juce::File&) {}
     };
 
     explicit ProjectManager (EditSession& session);

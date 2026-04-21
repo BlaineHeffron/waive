@@ -52,6 +52,7 @@ bool ProjectManager::newProject()
 
     editSession.createNew();
     currentFile = juce::File();
+    listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
     checkDirtyState();
     return true;
 }
@@ -119,6 +120,7 @@ bool ProjectManager::openProjectInternal (const juce::File& fileToLoad,
     else
         editSession.resetChangedStatus();
 
+    listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
     addToRecentFiles (currentFile);
     checkDirtyState();
     return true;
@@ -169,6 +171,7 @@ bool ProjectManager::save()
 
     editSession.resetChangedStatus();
     AutoSaveManager::deleteAutoSave (currentFile);
+    listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
     checkDirtyState();
     return true;
 }
@@ -208,6 +211,7 @@ bool ProjectManager::saveAs()
     currentFile = file;
     editSession.resetChangedStatus();
     AutoSaveManager::deleteAutoSave (currentFile);
+    listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
     addToRecentFiles (file);
     checkDirtyState();
     return true;

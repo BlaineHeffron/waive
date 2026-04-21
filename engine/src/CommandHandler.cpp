@@ -190,6 +190,11 @@ CommandHandler::CommandHandler (te::Edit& e)
 
 CommandHandler::~CommandHandler() = default;
 
+void CommandHandler::setProjectFile (const juce::File& projectFile)
+{
+    currentProjectFile = projectFile;
+}
+
 void CommandHandler::setAllowedMediaDirectories (const juce::Array<juce::File>& directories)
 {
     allowedMediaDirectories = directories;
@@ -198,6 +203,14 @@ void CommandHandler::setAllowedMediaDirectories (const juce::Array<juce::File>& 
 const juce::Array<juce::File>& CommandHandler::getAllowedMediaDirectories() const
 {
     return allowedMediaDirectories;
+}
+
+juce::File CommandHandler::resolveProjectFile() const
+{
+    if (currentProjectFile != juce::File())
+        return currentProjectFile;
+
+    return edit.editFileRetriever();
 }
 
 //==============================================================================
@@ -2260,7 +2273,7 @@ juce::var CommandHandler::handleRemoveFromFolder (const juce::var& params)
 
 juce::var CommandHandler::handleCollectAndSave()
 {
-    auto editFile = edit.editFileRetriever();
+    auto editFile = resolveProjectFile();
     if (editFile == juce::File())
         return makeError ("Edit file not saved - cannot determine project directory");
 
@@ -2288,7 +2301,7 @@ juce::var CommandHandler::handleCollectAndSave()
 
 juce::var CommandHandler::handleRemoveUnusedMedia()
 {
-    auto editFile = edit.editFileRetriever();
+    auto editFile = resolveProjectFile();
     if (editFile == juce::File())
         return makeError ("Edit file not saved - cannot determine project directory");
 
@@ -2319,7 +2332,7 @@ juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
     if (! params.hasProperty ("file_path"))
         return makeError ("Missing required parameter: file_path");
 
-    auto projectFile = edit.editFileRetriever();
+    auto projectFile = resolveProjectFile();
     if (projectFile == juce::File())
         return makeError ("Edit file not saved - cannot package project");
 

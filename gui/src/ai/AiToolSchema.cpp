@@ -70,6 +70,12 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
 {
     std::vector<AiToolDefinition> defs;
 
+    // ping
+    defs.push_back ({ "cmd_ping",
+                      "Check that the command layer is reachable.",
+                      makeSchema ("object"),
+                      "query" });
+
     // get_tracks
     defs.push_back ({ "cmd_get_tracks",
                       "Get all audio tracks with their clips, names, and indices.",
@@ -117,6 +123,16 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                                     { "start_time", prop ("number", "Start time in seconds") } },
                                   { "track_id", "file_path", "start_time" }),
                       "audio" });
+
+    // insert_midi_clip
+    defs.push_back ({ "cmd_insert_midi_clip",
+                      "Insert a MIDI file as a clip on a track at a given time.",
+                      makeSchema ("object",
+                                  { { "track_id", prop ("integer", "0-based track index") },
+                                    { "file_path", prop ("string", "Absolute path to the MIDI file") },
+                                    { "start_time", prop ("number", "Start time in seconds") } },
+                                  { "track_id", "file_path" }),
+                      "midi" });
 
     // transport_play
     defs.push_back ({ "cmd_transport_play",
