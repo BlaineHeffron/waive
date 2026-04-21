@@ -109,8 +109,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
         field->toggle = std::make_unique<juce::ToggleButton>();
         field->toggle->setToggleState (defaultValue.isVoid() ? false : (bool) defaultValue,
                                        juce::dontSendNotification);
-        if (description.isNotEmpty())
-            field->toggle->setTooltip (description);
+        field->toggle->setTitle (displayName);
+        field->toggle->setTooltip (description.isNotEmpty() ? description : displayName);
         addAndMakeVisible (field->toggle.get());
     }
     else if ((schemaType == "number" || schemaType == "integer") && field->hasMinMax)
@@ -127,8 +127,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
         if (! defaultValue.isVoid())
             field->slider->setValue ((double) defaultValue, juce::dontSendNotification);
 
-        if (description.isNotEmpty())
-            field->slider->setTooltip (description);
+        field->slider->setTitle (displayName);
+        field->slider->setTooltip (description.isNotEmpty() ? description : displayName);
         addAndMakeVisible (field->slider.get());
     }
     else if (schemaType == "string" && field->hasEnum)
@@ -156,8 +156,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
                 field->combo->setSelectedItemIndex (0, juce::dontSendNotification);
             }
         }
-        if (description.isNotEmpty())
-            field->combo->setTooltip (description);
+        field->combo->setTitle (displayName);
+        field->combo->setTooltip (description.isNotEmpty() ? description : displayName);
         addAndMakeVisible (field->combo.get());
     }
     else
@@ -172,8 +172,8 @@ void SchemaFormComponent::addField (const juce::String& name, const juce::var& p
         if (! defaultValue.isVoid())
             field->textEditor->setText (defaultValue.toString(), false);
 
-        if (description.isNotEmpty())
-            field->textEditor->setTooltip (description);
+        field->textEditor->setTitle (displayName);
+        field->textEditor->setTooltip (description.isNotEmpty() ? description : displayName);
         addAndMakeVisible (field->textEditor.get());
     }
 

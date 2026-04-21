@@ -15,11 +15,14 @@ fi
 echo "Activating virtual environment..."
 source "$SCRIPT_DIR/.venv/bin/activate"
 
-echo "Installing timbre_transfer dependencies..."
-pip install -r "$SCRIPT_DIR/timbre_transfer/requirements.txt"
-
-echo "Installing music_generation dependencies..."
-pip install -r "$SCRIPT_DIR/music_generation/requirements.txt"
+echo "Installing tool dependencies..."
+for req in "$SCRIPT_DIR"/*/requirements.txt; do
+    if [ -f "$req" ]; then
+        tool_name="$(basename "$(dirname "$req")")"
+        echo "Installing ${tool_name} dependencies..."
+        pip install -r "$req"
+    fi
+done
 
 echo ""
 echo "Setup complete! Tools are ready to use."

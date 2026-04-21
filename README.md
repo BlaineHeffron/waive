@@ -7,7 +7,7 @@
 - **56 console commands** for timeline, clip, track, automation, preset, and media operations
 - **3 AI helper commands** for tool discovery and session undo/redo
 - **7 built-in tools** for audio analysis and manipulation
-- **10 Python AI tools** for intelligent audio processing
+- **10 Python tools** for audio analysis and processing
 - **Multi-provider AI chat** integrated into the workflow
 - Full undo/redo support with command coalescing
 - Real-time audio preview and playback
@@ -49,8 +49,8 @@ sudo apt-get install -y \
 # Configure
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 
-# Build (use half the available cores to avoid OOM)
-cmake --build build --target Waive -j$(($(nproc)/2))
+# Build (use half the available cores to avoid OOM, but never fewer than 1)
+cmake --build build --target Waive -j$(( $(nproc) / 2 < 1 ? 1 : $(nproc) / 2 ))
 
 # Binary location
 build/gui/Waive_artefacts/Release/Waive

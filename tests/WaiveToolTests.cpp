@@ -371,6 +371,27 @@ void testExternalToolManifestScanRecursesIntoSubdirectories()
     expect (manifests.front().name == "nested_tool", "Expected nested manifest name to be parsed");
 }
 
+void testExternalToolManifestSupportsLegacyCommandArray()
+{
+    auto fixtureDir = getUniqueFixtureDir ("legacy_manifest");
+    auto manifestFile = fixtureDir.getChildFile ("legacy.waive-tool.json");
+
+    writeTextFile (manifestFile, R"({
+  "name": "legacy_tool",
+  "displayName": "Legacy Tool",
+  "command": ["python3", "-m", "legacy_tool"],
+  "timeoutMs": 1234
+})");
+
+    auto manifest = waive::parseManifest (manifestFile);
+    expect (manifest.has_value(), "Expected legacy command manifest to parse");
+    expect (manifest->executable == "python3", "Expected legacy command executable to be extracted");
+    expect (manifest->arguments.size() == 2, "Expected legacy command arguments to be extracted");
+    expect (manifest->arguments[0] == "-m", "Expected first legacy command argument to be preserved");
+    expect (manifest->arguments[1] == "legacy_tool", "Expected second legacy command argument to be preserved");
+    expect (manifest->timeoutMs == 1234, "Expected timeout to be preserved");
+}
+
 void testExternalToolRunnerResolvesRelativeArgumentsWithoutChangingCwd()
 {
     auto fixtureDir = getUniqueFixtureDir ("external_runner");
@@ -713,6 +734,7 @@ int main()
         runTest ("Tool descriptions", testToolDescriptions);
         runTest ("Tool schema fields", testToolSchemaHasRequiredFields);
         runTest ("External tool manifest recursion", testExternalToolManifestScanRecursesIntoSubdirectories);
+        runTest ("External tool manifest legacy command", testExternalToolManifestSupportsLegacyCommandArray);
         runTest ("External tool runner relative args", testExternalToolRunnerResolvesRelativeArgumentsWithoutChangingCwd);
 
         std::cout << "\n=== Tool Logic Tests ===" << std::endl;

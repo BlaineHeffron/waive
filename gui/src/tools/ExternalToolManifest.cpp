@@ -3,6 +3,50 @@
 namespace waive
 {
 
+namespace
+{
+bool isAllowedExecutable (const juce::String& executable)
+{
+    const juce::StringArray allowedExecutables = { "python3", "python", "node", "ruby", "perl" };
+    return allowedExecutables.contains (executable);
+}
+
+bool containsDangerousArgumentPattern (const juce::String& argument)
+{
+    const juce::StringArray dangerousPatterns = { ";", "&", "|", "`", "$", "(", ")", "<", ">",
+                                                  "rm ", "dd ", "curl ", "/dev/", "--force", "-f " };
+    for (const auto& pattern : dangerousPatterns)
+        if (argument.contains (pattern))
+            return true;
+
+    return false;
+}
+
+bool parseCommandArray (const juce::var& commandVar,
+                        juce::String& executableOut,
+                        juce::StringArray& argumentsOut)
+{
+    auto* commandArray = commandVar.getArray();
+    if (commandArray == nullptr || commandArray->isEmpty())
+        return false;
+
+    executableOut = commandArray->getFirst().toString().trim();
+    if (executableOut.isEmpty())
+        return false;
+
+    for (int i = 1; i < commandArray->size(); ++i)
+    {
+        const auto argument = commandArray->getReference (i).toString();
+        if (containsDangerousArgumentPattern (argument))
+            return false;
+
+        argumentsOut.add (argument);
+    }
+
+    return true;
+}
+}
+
 std::optional<ExternalToolManifest> parseManifest (const juce::File& manifestFile)
 {
     if (! manifestFile.existsAsFile())
@@ -24,40 +68,27 @@ std::optional<ExternalToolManifest> parseManifest (const juce::File& manifestFil
     ExternalToolManifest manifest;
 
     // Required fields
-    if (! obj->hasProperty ("name") || ! obj->hasProperty ("executable"))
+    if (! obj->hasProperty ("name"))
         return std::nullopt;
 
     manifest.name = obj->getProperty ("name").toString().trim();
-    manifest.executable = obj->getProperty ("executable").toString().trim();
 
-    if (manifest.name.isEmpty() || manifest.executable.isEmpty())
+    if (manifest.name.isEmpty())
         return std::nullopt;
 
-    // Validate executable - only allow known safe interpreters and reject paths with shell metacharacters
-    const juce::StringArray allowedExecutables = { "python3", "python", "node", "ruby", "perl" };
-    bool executableAllowed = false;
-    for (const auto& allowed : allowedExecutables)
+    // Support both the current executable+arguments shape and the legacy command array.
+    if (obj->hasProperty ("command"))
     {
-        if (manifest.executable == allowed)
-        {
-            executableAllowed = true;
-            break;
-        }
+        if (! parseCommandArray (obj->getProperty ("command"), manifest.executable, manifest.arguments))
+            return std::nullopt;
     }
-    if (! executableAllowed)
-        return std::nullopt;
+    else if (obj->hasProperty ("executable"))
+    {
+        manifest.executable = obj->getProperty ("executable").toString().trim();
+    }
 
-    // Reject arguments containing shell metacharacters or destructive patterns
-    const juce::StringArray dangerousArgumentPatterns = { ";", "&", "|", "`", "$", "(", ")", "<", ">",
-                                                           "rm ", "dd ", "curl ", "/dev/", "--force", "-f " };
-    for (const auto& arg : manifest.arguments)
-    {
-        for (const auto& pattern : dangerousArgumentPatterns)
-        {
-            if (arg.contains (pattern))
-                return std::nullopt;
-        }
-    }
+    if (manifest.executable.isEmpty() || ! isAllowedExecutable (manifest.executable))
+        return std::nullopt;
 
     // Optional fields
     if (obj->hasProperty ("displayName"))
@@ -87,22 +118,10 @@ std::optional<ExternalToolManifest> parseManifest (const juce::File& manifestFil
             for (const auto& argVar : *argsArray)
             {
                 auto arg = argVar.toString();
-                // Validate argument safety
-                const juce::StringArray dangerousPatterns = { ";", "&", "|", "`", "$", "(", ")", "<", ">",
-                                                               "rm ", "dd ", "curl ", "/dev/", "--force", "-f " };
-                bool argSafe = true;
-                for (const auto& pattern : dangerousPatterns)
-                {
-                    if (arg.contains (pattern))
-                    {
-                        argSafe = false;
-                        break;
-                    }
-                }
-                if (argSafe)
-                    manifest.arguments.add (arg);
-                else
+                if (containsDangerousArgumentPattern (arg))
                     return std::nullopt;  // Reject entire manifest if any arg is unsafe
+
+                manifest.arguments.add (arg);
             }
         }
     }

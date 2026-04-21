@@ -24,6 +24,7 @@ LibraryComponent::LibraryComponent (EditSession& session)
     fileTree->setDragAndDropDescription ("LibraryFile");
     fileTree->setTitle ("File Browser");
     fileTree->setDescription ("Browse and drag audio files");
+    fileTree->setTooltip ("Browse, preview, and drag audio files into the timeline");
     addAndMakeVisible (fileTree.get());
 
     goUpButton.setButtonText ("..");
