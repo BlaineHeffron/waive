@@ -1,5 +1,4 @@
 #include "CommandServer.h"
-#include "CommandHandler.h"
 #include <random>
 #include <sys/stat.h>
 
@@ -7,8 +6,8 @@
 // CommandConnection
 //==============================================================================
 
-CommandConnection::CommandConnection (CommandHandler& h, const juce::String& authToken)
-    : InterprocessConnection (true, 0x0000AD10), handler (h), expectedToken (authToken)
+CommandConnection::CommandConnection (CommandCallback callback, const juce::String& authToken)
+    : InterprocessConnection (true, 0x0000AD10), commandCallback (std::move (callback)), expectedToken (authToken)
 {
     connectionTime = juce::Time::getCurrentTime();
 }
@@ -66,7 +65,9 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
     // and also makes the headless server thread-safe with respect to JUCE/Tracktion state.
     if (juce::MessageManager::getInstance()->isThisTheMessageThread())
     {
-        response = handler.handleCommand (json);
+        response = commandCallback != nullptr
+                     ? commandCallback (json)
+                     : "{\"status\":\"error\",\"message\":\"No command handler configured\"}";
     }
     else
     {
@@ -74,7 +75,9 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
         if (! messageManagerLock.lockWasGained())
             response = "{\"status\":\"error\",\"message\":\"Failed to acquire message-thread lock\"}";
         else
-            response = handler.handleCommand (json);
+            response = commandCallback != nullptr
+                         ? commandCallback (json)
+                         : "{\"status\":\"error\",\"message\":\"No command handler configured\"}";
     }
 
     juce::MemoryBlock responseBlock (response.toRawUTF8(),
@@ -86,8 +89,8 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
 // CommandServer
 //==============================================================================
 
-CommandServer::CommandServer (CommandHandler& h, int p)
-    : handler (h), port (p)
+CommandServer::CommandServer (CommandCallback callback, int p)
+    : commandCallback (std::move (callback)), port (p)
 {
 }
 
@@ -142,7 +145,7 @@ bool CommandServer::start()
 
 juce::InterprocessConnection* CommandServer::createConnectionObject()
 {
-    auto* conn = new CommandConnection (handler, authToken);
+    auto* conn = new CommandConnection (commandCallback, authToken);
 
     juce::ScopedLock lock (connectionLock);
     connections.add (conn);

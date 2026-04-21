@@ -1,22 +1,23 @@
 #pragma once
 
 #include <JuceHeader.h>
-
-class CommandHandler;
+#include <functional>
 
 //==============================================================================
 /** A single client connection to the Waive command server. */
 class CommandConnection : public juce::InterprocessConnection
 {
 public:
-    explicit CommandConnection (CommandHandler& handler, const juce::String& authToken);
+    using CommandCallback = std::function<juce::String (const juce::String&)>;
+
+    explicit CommandConnection (CommandCallback callback, const juce::String& authToken);
 
     void connectionMade() override;
     void connectionLost() override;
     void messageReceived (const juce::MemoryBlock& message) override;
 
 private:
-    CommandHandler& handler;
+    CommandCallback commandCallback;
     juce::String expectedToken;
     bool authenticated = false;
     juce::Time connectionTime;
@@ -27,7 +28,9 @@ private:
 class CommandServer : public juce::InterprocessConnectionServer
 {
 public:
-    CommandServer (CommandHandler& handler, int port);
+    using CommandCallback = CommandConnection::CommandCallback;
+
+    CommandServer (CommandCallback callback, int port);
     ~CommandServer() override;
 
     bool start();
@@ -41,7 +44,7 @@ public:
     juce::File getAuthTokenFile() const { return authTokenFile; }
 
 private:
-    CommandHandler& handler;
+    CommandCallback commandCallback;
     int port;
     juce::String authToken;
     juce::File authTokenFile;

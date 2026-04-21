@@ -338,20 +338,22 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
     defs.push_back ({ "cmd_save_plugin_preset",
                       "Save the current state of a plugin as a named preset.",
                       makeSchema ("object",
-                                  { { "track_index", prop ("integer", "0-based track index") },
+                                  { { "track_index", prop ("integer", "0-based track index; omit and set master=true for the master chain") },
+                                    { "master", prop ("boolean", "Target the master plugin chain instead of a track") },
                                     { "plugin_index", prop ("integer", "0-based user plugin index on the track") },
                                     { "preset_name", prop ("string", "Preset name to save") } },
-                                  { "track_index", "plugin_index", "preset_name" }),
+                                  { "plugin_index", "preset_name" }),
                       "mixing" });
 
     // load_plugin_preset
     defs.push_back ({ "cmd_load_plugin_preset",
                       "Load a named preset onto a plugin.",
                       makeSchema ("object",
-                                  { { "track_index", prop ("integer", "0-based track index") },
+                                  { { "track_index", prop ("integer", "0-based track index; omit and set master=true for the master chain") },
+                                    { "master", prop ("boolean", "Target the master plugin chain instead of a track") },
                                     { "plugin_index", prop ("integer", "0-based user plugin index on the track") },
                                     { "preset_name", prop ("string", "Preset name to load") } },
-                                  { "track_index", "plugin_index", "preset_name" }),
+                                  { "plugin_index", "preset_name" }),
                       "mixing" });
 
     // add_folder_track

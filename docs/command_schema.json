@@ -123,6 +123,10 @@
       "type": "string",
       "description": "Preset name."
     },
+    "master": {
+      "type": "boolean",
+      "description": "When true, target the master plugin chain instead of a track plugin chain."
+    },
     "plugin_id": {
       "type": "string",
       "description": "Plugin identifier string."
@@ -407,11 +411,11 @@
     },
     {
       "if": { "properties": { "action": { "const": "save_plugin_preset" } } },
-      "then": { "required": ["action", "track_index", "plugin_index", "preset_name"] }
+      "then": { "required": ["action", "plugin_index", "preset_name"] }
     },
     {
       "if": { "properties": { "action": { "const": "load_plugin_preset" } } },
-      "then": { "required": ["action", "track_index", "plugin_index", "preset_name"] }
+      "then": { "required": ["action", "plugin_index", "preset_name"] }
     },
     {
       "if": { "properties": { "action": { "const": "move_track_to_folder" } } },

@@ -2,6 +2,7 @@
 #include <tracktion_engine/tracktion_engine.h>
 
 #include "EditSession.h"
+#include "UndoableCommandHandler.h"
 #include "ClipEditActions.h"
 #include "ModelManager.h"
 #include "PathSanitizer.h"
@@ -218,6 +219,23 @@ void testPerformEditExceptionSafety (EditSession& session)
     });
 
     expect (! ok, "Expected performEdit to return false when mutation throws");
+}
+
+void testUndoableCommandHandlerWrapsMutatingCommands (te::Engine& engine)
+{
+    EditSession session (engine);
+    CommandHandler handler (session.getEdit());
+    UndoableCommandHandler undoableHandler (handler, session);
+
+    auto response = juce::JSON::parse (undoableHandler.handleCommand (R"({ "action":"add_track" })"));
+    expect (response.isObject(), "Expected add_track response object through undoable handler");
+    expect (response["status"].toString() == "ok", "Expected add_track to succeed through undoable handler");
+    expect (getAudioTrackCount (session.getEdit()) == 2, "Expected add_track to mutate the edit");
+    expect (session.canUndo(), "Expected undoable handler mutation to create an undo entry");
+
+    session.undo();
+    expect (getAudioTrackCount (session.getEdit()) == 1,
+            "Expected undo to revert command-server style mutation when routed through undoable handler");
 }
 
 void testModelManagerSettingsPersistence()
@@ -900,6 +918,69 @@ void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine
     (void) fixtureDir.deleteRecursively();
 }
 
+void testPluginPresetCommandsSupportMasterChain (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("master_preset_commands");
+    auto homeDir = fixtureDir.getChildFile ("home");
+    expect (homeDir.createDirectory().wasOk(), "Expected master preset fixture home directory");
+    auto backingFile = fixtureDir.getChildFile ("master_preset_fixture.tracktionedit");
+    {
+        ScopedWorkingDirectory scopedWorkingDirectory (fixtureDir);
+        expect (scopedWorkingDirectory.wasChanged(),
+                "Expected master preset fixture directory to become current working directory");
+        setenv ("HOME", homeDir.getFullPathName().toRawUTF8(), 1);
+
+        auto edit = te::createEmptyEdit (engine, backingFile);
+        edit->ensureNumberOfAudioTracks (1);
+
+        auto pluginState = te::createValueTree (te::IDs::PLUGIN,
+                                                te::IDs::type, te::ReverbPlugin::xmlTypeName,
+                                                "pluginFormatName", te::PluginManager::builtInPluginFormatName,
+                                                "fileOrIdentifier", te::ReverbPlugin::xmlTypeName,
+                                                "manufacturer", "Waive");
+        auto plugin = edit->getPluginCache().createNewPlugin (pluginState);
+        expect (plugin != nullptr, "Expected master preset test plugin creation");
+
+        auto* reverb = dynamic_cast<te::ReverbPlugin*> (plugin.get());
+        expect (reverb != nullptr, "Expected built-in reverb plugin for master preset command test");
+        edit->getMasterPluginList().insertPlugin (plugin, 0, nullptr);
+
+        waive::PluginPresetManager presetManager;
+        expect (presetManager.savePreset (*reverb, "Master Room"),
+                "Expected baseline master preset save to succeed");
+
+        CommandHandler handler (*edit);
+        auto saveResponse = runJsonCommand (handler, R"({
+            "action":"save_plugin_preset",
+            "master":true,
+            "plugin_index":0,
+            "preset_name":"Master Command Save"
+        })");
+        expect (saveResponse["status"].toString() == "ok",
+                "Expected save_plugin_preset to target the master chain");
+        expect ((bool) saveResponse["master"],
+                "Expected save_plugin_preset response to indicate master-chain targeting");
+
+        auto params = reverb->getAutomatableParameters();
+        expect (! params.isEmpty(), "Expected master reverb plugin to expose automatable parameters");
+        params.getFirst()->setParameter (0.0f, juce::dontSendNotification);
+        auto loadResponse = runJsonCommand (handler, R"({
+            "action":"load_plugin_preset",
+            "master":true,
+            "plugin_index":0,
+            "preset_name":"Master Room"
+        })");
+        expect (loadResponse["status"].toString() == "ok",
+                "Expected load_plugin_preset to target the master chain");
+        expect ((bool) loadResponse["master"],
+                "Expected load_plugin_preset response to indicate master-chain targeting");
+        expect (edit->hasChangedSinceSaved(),
+                "Expected master preset load to mark the edit dirty");
+    }
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testMoveTrackToFolderRejectsCycles (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("folder_cycle");
@@ -1206,6 +1287,7 @@ int main()
         testCoalescedTransactionsAndReset (session);
         testDuplicateMidiClipPreservesSequence (session);
         testPerformEditExceptionSafety (session);
+        testUndoableCommandHandlerWrapsMutatingCommands (engine);
         testModelManagerSettingsPersistence();
         testPathSanitizerRejectsTraversal();
         testPathSanitizerValidatesDirectory();
@@ -1224,6 +1306,7 @@ int main()
         testCollectAndSaveRollsBackOnPartialCopyFailure (engine);
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
+        testPluginPresetCommandsSupportMasterChain (engine);
         testMoveTrackToFolderRejectsCycles (engine);
         testCommandHandlerRejectsRelativePaths (engine);
         testFolderSoloMutePropagatesThroughNestedFolders (engine);

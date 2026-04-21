@@ -13,6 +13,10 @@ target_sources(WaiveEngine PRIVATE
     src/CommandServer.cpp
     src/CommandHandler.h
     src/CommandHandler.cpp
+    ../gui/src/edit/EditSession.h
+    ../gui/src/edit/EditSession.cpp
+    ../gui/src/edit/UndoableCommandHandler.h
+    ../gui/src/edit/UndoableCommandHandler.cpp
     ../shared/src/ProjectPackager.h
     ../shared/src/ProjectPackager.cpp
     ../shared/src/PathSanitizer.h
@@ -22,6 +26,8 @@ target_sources(WaiveEngine PRIVATE
 )
 
 target_include_directories(WaiveEngine PRIVATE
+    src
+    ../gui/src/edit
     ../shared/src
 )
 

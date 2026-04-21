@@ -13,6 +13,8 @@ target_sources(WaiveCoreTests PRIVATE
     # Reuse app edit/actions implementation under test.
     ../gui/src/edit/EditSession.h
     ../gui/src/edit/EditSession.cpp
+    ../gui/src/edit/UndoableCommandHandler.h
+    ../gui/src/edit/UndoableCommandHandler.cpp
     ../gui/src/ui/ClipEditActions.h
     ../gui/src/ui/ClipEditActions.cpp
     ../gui/src/tools/ModelManager.h

@@ -1858,6 +1858,38 @@ te::AudioTrack* CommandHandler::getAudioTrackById (int trackIndex)
     return dynamic_cast<te::AudioTrack*> (track);
 }
 
+te::PluginList* CommandHandler::getPluginListForParams (const juce::var& params,
+                                                        juce::String& errorMessage,
+                                                        juce::String* targetDescription)
+{
+    const bool useMaster = params.hasProperty ("master") && static_cast<bool> (params["master"]);
+    if (useMaster)
+    {
+        if (targetDescription != nullptr)
+            *targetDescription = "master";
+        return &edit.getMasterPluginList();
+    }
+
+    if (! params.hasProperty ("track_index"))
+    {
+        errorMessage = "Missing required parameter: track_index (or set master=true)";
+        return nullptr;
+    }
+
+    const int trackId = static_cast<int> (params["track_index"]);
+    auto* track = getAudioTrackById (trackId);
+    if (track == nullptr)
+    {
+        errorMessage = "Audio track " + juce::String (trackId) + " not found";
+        return nullptr;
+    }
+
+    if (targetDescription != nullptr)
+        *targetDescription = "track " + juce::String (trackId);
+
+    return &track->pluginList;
+}
+
 te::Clip* CommandHandler::getClipByIndex (int trackIndex, int clipIndex)
 {
     auto* track = getAudioTrackById (trackIndex);
@@ -2017,59 +2049,66 @@ juce::var CommandHandler::handleReorderTrack (const juce::var& params)
 
 juce::var CommandHandler::handleSavePluginPreset (const juce::var& params)
 {
-    auto trackId = (int) params["track_index"];
-    auto pluginIndex = (int) params["plugin_index"];
-    auto presetName = params["preset_name"].toString();
+    const auto pluginIndex = static_cast<int> (params["plugin_index"]);
+    const auto presetName = params["preset_name"].toString();
 
     if (presetName.isEmpty())
         return makeError ("preset_name is required");
 
-    te::AudioTrack* track = getAudioTrackById (trackId);
-    if (track == nullptr)
-        return makeError ("Audio track " + juce::String (trackId) + " not found");
+    juce::String errorMessage;
+    juce::String targetDescription;
+    auto* pluginList = getPluginListForParams (params, errorMessage, &targetDescription);
+    if (pluginList == nullptr)
+        return makeError (errorMessage);
 
-    auto userPlugins = getAddressablePlugins (track->pluginList);
+    auto userPlugins = getAddressablePlugins (*pluginList);
 
     if (pluginIndex < 0 || pluginIndex >= userPlugins.size())
-        return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");
+        return makeError ("Plugin index out of range. " + targetDescription + " has "
+                          + juce::String (userPlugins.size()) + " user plugins.");
 
     auto plugin = userPlugins[pluginIndex];
     if (plugin == nullptr)
         return makeError ("Plugin not found");
 
-    if (!presetManager->savePreset (*plugin, presetName))
+    if (! presetManager->savePreset (*plugin, presetName))
         return makeError ("Failed to save preset");
 
     auto* result = new juce::DynamicObject();
     result->setProperty ("status", "ok");
     result->setProperty ("preset_name", presetName);
+    if (params.hasProperty ("master") && static_cast<bool> (params["master"]))
+        result->setProperty ("master", true);
+    else if (params.hasProperty ("track_index"))
+        result->setProperty ("track_index", static_cast<int> (params["track_index"]));
     return juce::var (result);
 }
 
 juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
 {
-    auto trackId = (int) params["track_index"];
-    auto pluginIndex = (int) params["plugin_index"];
-    auto presetName = params["preset_name"].toString();
+    const auto pluginIndex = static_cast<int> (params["plugin_index"]);
+    const auto presetName = params["preset_name"].toString();
 
     if (presetName.isEmpty())
         return makeError ("preset_name is required");
 
-    te::AudioTrack* track = getAudioTrackById (trackId);
-    if (track == nullptr)
-        return makeError ("Audio track " + juce::String (trackId) + " not found");
+    juce::String errorMessage;
+    juce::String targetDescription;
+    auto* pluginList = getPluginListForParams (params, errorMessage, &targetDescription);
+    if (pluginList == nullptr)
+        return makeError (errorMessage);
 
-    auto userPlugins = getAddressablePlugins (track->pluginList);
+    auto userPlugins = getAddressablePlugins (*pluginList);
 
     if (pluginIndex < 0 || pluginIndex >= userPlugins.size())
-        return makeError ("Plugin index out of range. Track has " + juce::String (userPlugins.size()) + " user plugins.");
+        return makeError ("Plugin index out of range. " + targetDescription + " has "
+                          + juce::String (userPlugins.size()) + " user plugins.");
 
     auto plugin = userPlugins[pluginIndex];
     if (plugin == nullptr)
         return makeError ("Plugin not found");
 
-    edit.getUndoManager().beginNewTransaction ("Load Plugin Preset");
-    if (!presetManager->loadPreset (*plugin, presetName))
+    if (! presetManager->loadPreset (*plugin, presetName))
         return makeError ("Failed to load preset");
 
     edit.markAsChanged();
@@ -2077,6 +2116,10 @@ juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
     auto* result = new juce::DynamicObject();
     result->setProperty ("status", "ok");
     result->setProperty ("preset_name", presetName);
+    if (params.hasProperty ("master") && static_cast<bool> (params["master"]))
+        result->setProperty ("master", true);
+    else if (params.hasProperty ("track_index"))
+        result->setProperty ("track_index", static_cast<int> (params["track_index"]));
     return juce::var (result);
 }
 

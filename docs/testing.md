@@ -53,6 +53,9 @@ Waive has three native C++ regression test executables integrated with CTest.
       - `detect_silence_and_cut_regions`: leading/trailing silence trim apply + undo/redo
       - `align_clips_by_transient`: multi-clip transient alignment apply + undo/redo
       - phase-5 plan artifact generation for built-in tools
+    - Phase 5 preset workflow coverage:
+      - `PluginPresetManager` XML wrapper + stable identifier persistence
+      - command-driven preset save/load on both track and master plugin chains
     - Phase 5B model-backed tools coverage:
       - `ModelManager` lifecycle:
         - explicit storage-directory selection in tests (isolated per run)

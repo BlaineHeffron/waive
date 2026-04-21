@@ -87,6 +87,9 @@ private:
     juce::var handlePackageAsZip (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
+    te::PluginList* getPluginListForParams (const juce::var& params,
+                                            juce::String& errorMessage,
+                                            juce::String* targetDescription = nullptr);
     te::Track* getTrackById (int trackIndex);
     te::AudioTrack* getAudioTrackById (int trackIndex);
     te::Clip* getClipByIndex (int trackIndex, int clipIndex);
