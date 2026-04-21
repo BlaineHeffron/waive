@@ -590,6 +590,17 @@ std::vector<AiToolDefinition> generateCoreDefinitions()
                       makeSchema ("object"),
                       "query" });
 
+    // Session helpers
+    core.push_back ({ "cmd_undo",
+                      "Undo the last edit operation. Returns the description of what was undone.",
+                      makeSchema ("object"),
+                      "session" });
+
+    core.push_back ({ "cmd_redo",
+                      "Redo the last undone operation. Returns the description of what was redone.",
+                      makeSchema ("object"),
+                      "session" });
+
     // The search tool itself
     core.push_back ({ "cmd_search_tools",
                       "Search for available tools and commands by keyword. Returns matching tool schemas that you can then call. "
@@ -659,6 +670,8 @@ juce::String generateSystemPrompt()
            "You have a small set of core tools always available:\n"
            "- cmd_get_tracks: Query all tracks and clips\n"
            "- cmd_get_transport_state: Check playback position, tempo, loop settings\n"
+           "- cmd_undo: Undo the last edit operation\n"
+           "- cmd_redo: Redo the last undone operation\n"
            "- cmd_search_tools: Discover more tools by keyword\n\n"
            "When you need to perform an action (editing clips, mixing, exporting, using AI tools, etc.), "
            "first use cmd_search_tools to find the right tool. For example:\n"

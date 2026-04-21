@@ -14,6 +14,7 @@
 #include "DetectSilenceAndCutRegionsTool.h"
 #include "AlignClipsByTransientTool.h"
 #include "GainStageSelectedTracksTool.h"
+#include "AiToolSchema.h"
 #include "StemSeparationTool.h"
 #include "RenameTracksFromClipsTool.h"
 #include "AutoMixSuggestionsTool.h"
@@ -351,6 +352,23 @@ void testToolSchemaHasRequiredFields()
     // Schema should have "type": "object" and "properties"
     expect (schemaObj->getProperty ("type").toString() == "object", "Schema type should be object");
     expect (schemaObj->hasProperty ("properties"), "Schema should have properties");
+}
+
+void testAiCoreDefinitionsExposeSessionHelpers()
+{
+    auto defs = waive::generateCoreDefinitions();
+
+    auto hasTool = [&] (const juce::String& name)
+    {
+        return std::any_of (defs.begin(), defs.end(),
+                            [&] (const waive::AiToolDefinition& def) { return def.name == name; });
+    };
+
+    expect (hasTool ("cmd_get_tracks"), "Core AI tools should expose cmd_get_tracks");
+    expect (hasTool ("cmd_get_transport_state"), "Core AI tools should expose cmd_get_transport_state");
+    expect (hasTool ("cmd_search_tools"), "Core AI tools should expose cmd_search_tools");
+    expect (hasTool ("cmd_undo"), "Core AI tools should expose cmd_undo");
+    expect (hasTool ("cmd_redo"), "Core AI tools should expose cmd_redo");
 }
 
 void testExternalToolManifestScanRecursesIntoSubdirectories()
@@ -733,6 +751,7 @@ int main()
         runTest ("Tool registry completeness", testToolRegistryCompleteness);
         runTest ("Tool descriptions", testToolDescriptions);
         runTest ("Tool schema fields", testToolSchemaHasRequiredFields);
+        runTest ("AI core definitions expose session helpers", testAiCoreDefinitionsExposeSessionHelpers);
         runTest ("External tool manifest recursion", testExternalToolManifestScanRecursesIntoSubdirectories);
         runTest ("External tool manifest legacy command", testExternalToolManifestSupportsLegacyCommandArray);
         runTest ("External tool runner relative args", testExternalToolRunnerResolvesRelativeArgumentsWithoutChangingCwd);
