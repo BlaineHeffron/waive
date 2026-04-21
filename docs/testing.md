@@ -72,7 +72,7 @@ Waive has three native C++ regression test executables integrated with CTest.
 
 ## Phase Validation Matrix
 
-`WaiveUiTests` currently validates phased plan milestones end-to-end:
+`WaiveUiTests` currently validates phased plan milestones end-to-end through Phase 6:
 
 - Phase 0/1/2 foundations and DAW workflow basics:
   - command routing, timeline edit actions, library import, plugin/routing/input workflow coverage, and session lifecycle persistence
@@ -88,7 +88,7 @@ Waive has three native C++ regression test executables integrated with CTest.
   - Performance regression: ClipTrackIndexMap scaling to 100+ clips, AudioAnalysisCache hit rate and eviction behavior
   - Edit-swap safety checks currently cover selection clearing and component lifecycle through lower-level regressions; the previous end-to-end UI swap regression is not part of the default suite because it is flaky in headless CI
 - Phase 7:
-  - collect/save persistence to the intended project file, media collection + reference rewriting, unused-media cleanup accounting, and zip packaging contents
+  - Covered by `WaiveCoreTests`: collect/save persistence to the intended project file, media collection + reference rewriting, unused-media cleanup accounting, and zip packaging contents
 
 ## Test Categories
 
