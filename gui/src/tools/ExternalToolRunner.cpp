@@ -9,6 +9,19 @@ ExternalToolRunner::ExternalToolRunner()
     toolsDirs.push_back (getToolsDirectory());
 }
 
+juce::String ExternalToolRunner::resolveManifestArgument (const ExternalToolManifest& manifest,
+                                                          const juce::String& argument) const
+{
+    if (argument.isEmpty() || juce::File::isAbsolutePath (argument))
+        return argument;
+
+    auto candidate = manifest.baseDirectory.getChildFile (argument);
+    if (candidate.exists())
+        return candidate.getFullPathName();
+
+    return argument;
+}
+
 juce::File ExternalToolRunner::getToolsDirectory() const
 {
     return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
@@ -73,7 +86,8 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     // Build command line
     juce::StringArray cmdLine;
     cmdLine.add (manifest.executable);
-    cmdLine.addArray (manifest.arguments);
+    for (const auto& argument : manifest.arguments)
+        cmdLine.add (resolveManifestArgument (manifest, argument));
     cmdLine.add ("--input-dir");
     cmdLine.add (inputDir.getFullPathName());
     cmdLine.add ("--output-dir");
@@ -81,16 +95,7 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
 
     // Launch child process
     juce::ChildProcess process;
-
-    // Set working directory by spawning via shell (JUCE ChildProcess doesn't support cwd parameter)
-    // We must use the manifest's base directory as the working directory
-    auto savedCwd = juce::File::getCurrentWorkingDirectory();
-    manifest.baseDirectory.setAsCurrentWorkingDirectory();
-
     bool started = process.start (cmdLine, juce::ChildProcess::wantStdOut | juce::ChildProcess::wantStdErr);
-
-    // Restore original working directory
-    savedCwd.setAsCurrentWorkingDirectory();
 
     if (! started)
     {

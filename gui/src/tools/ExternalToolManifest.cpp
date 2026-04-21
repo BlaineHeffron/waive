@@ -135,7 +135,7 @@ std::vector<ExternalToolManifest> scanToolDirectory (const juce::File& directory
         return manifests;
 
     juce::Array<juce::File> results;
-    directory.findChildFiles (results, juce::File::findFiles, false, "*.waive-tool.json");
+    directory.findChildFiles (results, juce::File::findFiles, true, "*.waive-tool.json");
 
     for (const auto& file : results)
     {

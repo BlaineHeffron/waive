@@ -39,6 +39,9 @@ public:
     const std::vector<juce::File>& getToolsDirectories() const { return toolsDirs; }
 
 private:
+    juce::String resolveManifestArgument (const ExternalToolManifest& manifest,
+                                          const juce::String& argument) const;
+
     std::vector<juce::File> toolsDirs;
 };
 

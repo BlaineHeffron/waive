@@ -7,6 +7,9 @@
 #include "ToolDiff.h"
 #include "Tool.h"
 #include "ToolRegistry.h"
+#include "ExternalToolManifest.h"
+#include "ExternalToolRunner.h"
+#include "JobQueue.h"
 #include "NormalizeSelectedClipsTool.h"
 #include "DetectSilenceAndCutRegionsTool.h"
 #include "AlignClipsByTransientTool.h"
@@ -48,6 +51,22 @@ juce::File getTempDir()
                    .getChildFile ("waive_tool_tests");
     dir.createDirectory();
     return dir;
+}
+
+juce::File getUniqueFixtureDir (const juce::String& name)
+{
+    auto dir = getTempDir().getChildFile (name + "_" + juce::Uuid().toString());
+    dir.createDirectory();
+    return dir;
+}
+
+void writeTextFile (const juce::File& file, const juce::String& text)
+{
+    auto parent = file.getParentDirectory();
+    if (parent != juce::File())
+        parent.createDirectory();
+
+    expect (file.replaceWithText (text), "Expected file write to succeed: " + file.getFullPathName().toStdString());
 }
 
 /** Write a mono 44100 Hz WAV file from float samples. */
@@ -332,6 +351,71 @@ void testToolSchemaHasRequiredFields()
     // Schema should have "type": "object" and "properties"
     expect (schemaObj->getProperty ("type").toString() == "object", "Schema type should be object");
     expect (schemaObj->hasProperty ("properties"), "Schema should have properties");
+}
+
+void testExternalToolManifestScanRecursesIntoSubdirectories()
+{
+    auto fixtureDir = getUniqueFixtureDir ("manifest_scan");
+    auto nestedDir = fixtureDir.getChildFile ("nested").getChildFile ("tool");
+    auto manifestFile = nestedDir.getChildFile ("example.waive-tool.json");
+
+    writeTextFile (manifestFile, R"({
+  "name": "nested_tool",
+  "displayName": "Nested Tool",
+  "executable": "python3",
+  "arguments": ["tool.py"]
+})");
+
+    auto manifests = waive::scanToolDirectory (fixtureDir);
+    expect (manifests.size() == 1, "Expected recursive manifest scan to find nested manifest");
+    expect (manifests.front().name == "nested_tool", "Expected nested manifest name to be parsed");
+}
+
+void testExternalToolRunnerResolvesRelativeArgumentsWithoutChangingCwd()
+{
+    auto fixtureDir = getUniqueFixtureDir ("external_runner");
+    auto scriptFile = fixtureDir.getChildFile ("emit_result.py");
+    auto beforeCwd = juce::File::getCurrentWorkingDirectory().getFullPathName();
+
+    writeTextFile (scriptFile, R"(#!/usr/bin/env python3
+import json
+import os
+import sys
+
+args = sys.argv[1:]
+input_dir = args[args.index("--input-dir") + 1]
+output_dir = args[args.index("--output-dir") + 1]
+
+with open(os.path.join(output_dir, "result.json"), "w", encoding="utf-8") as handle:
+    json.dump({"cwd": os.getcwd(), "input_dir_exists": os.path.isdir(input_dir)}, handle)
+)");
+
+    waive::ExternalToolManifest manifest;
+    manifest.name = "runner_test";
+    manifest.displayName = "Runner Test";
+    manifest.version = "1.0.0";
+    manifest.executable = "python3";
+    manifest.arguments.add ("emit_result.py");
+    manifest.baseDirectory = fixtureDir;
+    manifest.timeoutMs = 10000;
+
+    waive::ExternalToolRunner runner;
+    std::atomic<bool> cancelFlag { false };
+    waive::ProgressReporter reporter (1, cancelFlag,
+                                      [] (int, float, const juce::String&) {});
+
+    auto output = runner.run (manifest, juce::var(), juce::File(), reporter);
+
+    expect (output.success, "Expected external tool runner to execute relative script successfully");
+    expect (juce::File::getCurrentWorkingDirectory().getFullPathName() == beforeCwd,
+            "Expected external tool runner not to mutate process working directory");
+
+    auto* resultObj = output.resultData.getDynamicObject();
+    expect (resultObj != nullptr, "Expected external tool result.json to be parsed");
+    expect ((bool) resultObj->getProperty ("input_dir_exists"),
+            "Expected helper script to receive existing input directory");
+    expect (resultObj->getProperty ("cwd").toString() == beforeCwd,
+            "Expected helper script to inherit the original process working directory");
 }
 
 // ── Peak Gain Helper Test ──────────────────────────────────────────────────
@@ -628,6 +712,8 @@ int main()
         runTest ("Tool registry completeness", testToolRegistryCompleteness);
         runTest ("Tool descriptions", testToolDescriptions);
         runTest ("Tool schema fields", testToolSchemaHasRequiredFields);
+        runTest ("External tool manifest recursion", testExternalToolManifestScanRecursesIntoSubdirectories);
+        runTest ("External tool runner relative args", testExternalToolRunnerResolvesRelativeArgumentsWithoutChangingCwd);
 
         std::cout << "\n=== Tool Logic Tests ===" << std::endl;
         runTest ("Normalization gain calculation", testNormalizationGainCalculation);
