@@ -981,6 +981,53 @@ void testPluginPresetCommandsSupportMasterChain (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testSetParameterAcceptsStablePluginIdentifier (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("set_parameter_identifier");
+    auto backingFile = fixtureDir.getChildFile ("set_parameter_fixture.tracktionedit");
+
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected track for set_parameter identifier test");
+
+    auto pluginState = te::createValueTree (te::IDs::PLUGIN,
+                                            te::IDs::type, te::ReverbPlugin::xmlTypeName,
+                                            "pluginFormatName", te::PluginManager::builtInPluginFormatName,
+                                            "fileOrIdentifier", te::ReverbPlugin::xmlTypeName,
+                                            "manufacturer", "Waive");
+    auto plugin = edit->getPluginCache().createNewPlugin (pluginState);
+    expect (plugin != nullptr, "Expected built-in reverb creation for set_parameter identifier test");
+
+    auto* reverb = dynamic_cast<te::ReverbPlugin*> (plugin.get());
+    expect (reverb != nullptr, "Expected reverb plugin instance for set_parameter identifier test");
+    track->pluginList.insertPlugin (plugin, 0, nullptr);
+
+    auto params = reverb->getAutomatableParameters();
+    expect (! params.isEmpty(), "Expected reverb plugin to expose automatable parameters");
+    auto* firstParam = params.getFirst();
+    expect (firstParam != nullptr, "Expected first automatable parameter");
+
+    const auto stableIdentifier = waive::PluginPresetManager::getPluginIdentifier (*reverb);
+    CommandHandler handler (*edit);
+    auto response = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"set_parameter",
+        "track_id":0,
+        "plugin_id":"%s",
+        "param_id":"%s",
+        "value":0.25
+    })",
+        stableIdentifier.replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8(),
+        firstParam->paramID.replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+
+    expect (response["status"].toString() == "ok",
+            "Expected set_parameter to accept the documented stable plugin identifier");
+    expect (std::abs ((double) firstParam->getCurrentValue() - 0.25) < 0.0001,
+            "Expected set_parameter to update the target parameter value");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testMoveTrackToFolderRejectsCycles (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("folder_cycle");
@@ -1307,6 +1354,7 @@ int main()
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testPluginPresetCommandsSupportMasterChain (engine);
+        testSetParameterAcceptsStablePluginIdentifier (engine);
         testMoveTrackToFolderRejectsCycles (engine);
         testCommandHandlerRejectsRelativePaths (engine);
         testFolderSoloMutePropagatesThroughNestedFolders (engine);

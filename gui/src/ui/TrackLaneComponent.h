@@ -57,6 +57,7 @@ private:
     void refreshAutomationParams();
     void layoutClipComponents();
     void showTrackContextMenu();
+    juce::Rectangle<int> getHeaderBounds() const;
     juce::Rectangle<int> getClipLaneBounds() const;
     juce::Rectangle<int> getAutomationBounds() const;
     te::AutomatableParameter* getSelectedAutomationParameter() const;
@@ -84,6 +85,9 @@ private:
     int lastAutomatableParamCount = -1;
     int draggingAutomationPointIndex = -1;
     bool isHeaderHovered = false;
+    bool headerDragCandidate = false;
+    bool headerDragActive = false;
+    juce::Point<int> headerDragStart;
 
     bool layoutDirty = true;
     double lastScrollOffset = 0.0;

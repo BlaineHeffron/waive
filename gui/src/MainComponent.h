@@ -25,6 +25,11 @@ public:
                    waive::JobQueue& jobQueue, ProjectManager& projectMgr,
                    waive::AiAgent* aiAgent = nullptr,
                    waive::AiSettings* aiSettings = nullptr);
+    MainComponent (UndoableCommandHandler& handler, EditSession& session,
+                   waive::JobQueue& jobQueue, ProjectManager& projectMgr,
+                   waive::ToolRegistry& toolRegistry, waive::ModelManager& modelManager,
+                   waive::AiAgent* aiAgent = nullptr,
+                   waive::AiSettings* aiSettings = nullptr);
     ~MainComponent() override;
 
     void resized() override;
@@ -35,7 +40,7 @@ public:
     LibraryComponent& getLibraryComponentForTesting();
     PluginBrowserComponent& getPluginBrowserForTesting();
     bool invokeCommandForTesting (juce::CommandID commandID);
-    waive::ModelManager* getModelManager() { return modelManager.get(); }
+    waive::ModelManager* getModelManager() { return modelManager; }
 
     // MenuBarModel
     juce::StringArray getMenuBarNames() override;
@@ -75,6 +80,8 @@ public:
     };
 
 private:
+    void initialiseUi (waive::JobQueue& jobQueue, waive::AiAgent* aiAgent, waive::AiSettings* aiSettings);
+
     UndoableCommandHandler& commandHandler;
     EditSession& editSession;
     ProjectManager& projectManager;
@@ -85,8 +92,10 @@ private:
 
     juce::TabbedComponent tabs { juce::TabbedButtonBar::TabsAtTop };
 
-    std::unique_ptr<waive::ModelManager> modelManager;
-    std::unique_ptr<waive::ToolRegistry> toolRegistry;
+    std::unique_ptr<waive::ModelManager> ownedModelManager;
+    std::unique_ptr<waive::ToolRegistry> ownedToolRegistry;
+    waive::ToolRegistry* toolRegistry = nullptr;
+    waive::ModelManager* modelManager = nullptr;
     std::unique_ptr<SessionComponent> sessionComponent;
     std::unique_ptr<LibraryComponent> libraryComponent;
     std::unique_ptr<PluginBrowserComponent> pluginBrowser;

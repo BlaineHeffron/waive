@@ -178,3 +178,9 @@ target_compile_definitions(Waive PRIVATE
 if(WAIVE_PROFILE_TOOLS)
     target_compile_definitions(Waive PRIVATE WAIVE_PROFILE_TOOLS=1)
 endif()
+
+add_custom_command(TARGET Waive POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_SOURCE_DIR}/tools
+            $<TARGET_FILE_DIR:Waive>/../tools
+)

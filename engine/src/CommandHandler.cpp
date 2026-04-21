@@ -33,6 +33,26 @@ juce::Array<te::Plugin*> getAddressablePlugins (te::PluginList& pluginList)
     return plugins;
 }
 
+bool pluginMatchesIdentifier (te::Plugin& plugin, const juce::String& requestedIdentifier)
+{
+    if (requestedIdentifier.isEmpty())
+        return false;
+
+    if (plugin.getName() == requestedIdentifier)
+        return true;
+
+    const auto stableIdentifier = waive::PluginPresetManager::getPluginIdentifier (plugin);
+    if (stableIdentifier == requestedIdentifier)
+        return true;
+
+    const auto fileIdentifier = plugin.state.getProperty ("fileOrIdentifier", {}).toString().trim();
+    if (fileIdentifier == requestedIdentifier)
+        return true;
+
+    const auto typeIdentifier = plugin.state.getProperty (te::IDs::type, {}).toString().trim();
+    return typeIdentifier == requestedIdentifier;
+}
+
 bool wouldCreateFolderCycle (te::Track& trackToMove, te::FolderTrack& destinationFolder)
 {
     if (&trackToMove == &destinationFolder)
@@ -610,17 +630,14 @@ juce::var CommandHandler::handleSetParameter (const juce::var& params)
     if (track == nullptr)
         return makeError ("Track not found: " + juce::String (trackId));
 
-    // Find the plugin on the track
+    // Find the plugin on the track.
     te::Plugin* foundPlugin = nullptr;
-    for (auto* p : track->pluginList)
+    for (auto* p : getAddressablePlugins (track->pluginList))
     {
-        if (auto* ext = dynamic_cast<te::ExternalPlugin*> (p))
+        if (p != nullptr && pluginMatchesIdentifier (*p, pluginId))
         {
-            if (ext->getName() == pluginId)
-            {
-                foundPlugin = ext;
-                break;
-            }
+            foundPlugin = p;
+            break;
         }
     }
 

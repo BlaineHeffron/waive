@@ -52,10 +52,30 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
       editSession (session),
       projectManager (projectMgr)
 {
-    modelManager = std::make_unique<waive::ModelManager>();
-    toolRegistry = std::make_unique<waive::ToolRegistry>();
+    ownedToolRegistry = std::make_unique<waive::ToolRegistry>();
+    ownedModelManager = std::make_unique<waive::ModelManager>();
+    toolRegistry = ownedToolRegistry.get();
+    modelManager = ownedModelManager.get();
+    initialiseUi (jobQueue, aiAgent, aiSettings);
+}
+
+MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& session,
+                              waive::JobQueue& jobQueue, ProjectManager& projectMgr,
+                              waive::ToolRegistry& registry, waive::ModelManager& models,
+                              waive::AiAgent* aiAgent, waive::AiSettings* aiSettings)
+    : commandHandler (handler),
+      editSession (session),
+      projectManager (projectMgr),
+      toolRegistry (&registry),
+      modelManager (&models)
+{
+    initialiseUi (jobQueue, aiAgent, aiSettings);
+}
+
+void MainComponent::initialiseUi (waive::JobQueue& jobQueue, waive::AiAgent* aiAgent, waive::AiSettings* aiSettings)
+{
     sessionComponent = std::make_unique<SessionComponent> (editSession, commandHandler,
-                                                            toolRegistry.get(), modelManager.get(),
+                                                            toolRegistry, modelManager,
                                                             &jobQueue, &projectManager,
                                                             aiAgent, aiSettings);
     libraryComponent = std::make_unique<LibraryComponent> (editSession);

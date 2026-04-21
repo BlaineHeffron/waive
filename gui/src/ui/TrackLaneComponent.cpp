@@ -166,6 +166,8 @@ void TrackLaneComponent::paint (juce::Graphics& g)
     auto headerColour = pal ? pal->surfaceBg : juce::Colour (0xff2a2a2a);
     if (isHeaderHovered)
         headerColour = headerColour.brighter (0.1f);
+    if (headerDragActive)
+        headerColour = headerColour.brighter (0.18f);
     g.setColour (headerColour);
     g.fillRect (headerBounds);
 
@@ -379,12 +381,16 @@ void TrackLaneComponent::pollState()
 
 void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
 {
-    auto headerBounds = getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
+    auto headerBounds = getHeaderBounds();
     if (e.mods.isPopupMenu() && headerBounds.contains (e.getPosition()))
     {
         showTrackContextMenu();
         return;
     }
+
+    headerDragCandidate = ! e.mods.isPopupMenu() && headerBounds.contains (e.getPosition());
+    headerDragActive = false;
+    headerDragStart = e.getPosition();
 
     if (audioTrack == nullptr || ! getAutomationBounds().contains (e.getPosition()))
         return;
@@ -414,6 +420,15 @@ void TrackLaneComponent::mouseDown (const juce::MouseEvent& e)
 
 void TrackLaneComponent::mouseDrag (const juce::MouseEvent& e)
 {
+    if (headerDragCandidate && ! headerDragActive && e.getDistanceFromDragStart() > 6)
+    {
+        headerDragActive = true;
+        repaint();
+    }
+
+    if (headerDragActive)
+        return;
+
     if (audioTrack == nullptr || draggingAutomationPointIndex < 0)
         return;
 
@@ -439,8 +454,46 @@ void TrackLaneComponent::mouseDrag (const juce::MouseEvent& e)
     });
 }
 
-void TrackLaneComponent::mouseUp (const juce::MouseEvent&)
+void TrackLaneComponent::mouseUp (const juce::MouseEvent& e)
 {
+    if (headerDragActive)
+    {
+        auto dropPointInParent = getLocalPoint (getParentComponent(), e.getPosition());
+        auto* targetLane = getParentComponent() != nullptr
+                               ? dynamic_cast<TrackLaneComponent*> (getParentComponent()->getComponentAt (dropPointInParent))
+                               : nullptr;
+
+        if (targetLane != nullptr && targetLane != this)
+        {
+            if (auto* destinationFolder = dynamic_cast<te::FolderTrack*> (&targetLane->getTrack()))
+            {
+                if (! isTrackInsideFolderSubtree (*destinationFolder, track))
+                {
+                    timeline.getEditSession().performEdit ("Move Track To Folder", [this, destinationFolder] (te::Edit& edit)
+                    {
+                        edit.moveTrack (&track, te::TrackInsertPoint (destinationFolder, nullptr));
+                    });
+                }
+            }
+            else if (track.getParentFolderTrack() != nullptr
+                     && targetLane->getTrack().getParentFolderTrack() == nullptr)
+            {
+                auto* destinationTrack = &targetLane->getTrack();
+                timeline.getEditSession().performEdit ("Remove From Folder", [this, destinationTrack] (te::Edit& edit)
+                {
+                    edit.moveTrack (&track, te::TrackInsertPoint (nullptr, destinationTrack));
+                });
+            }
+        }
+
+        headerDragCandidate = false;
+        headerDragActive = false;
+        repaint();
+        return;
+    }
+
+    headerDragCandidate = false;
+
     if (draggingAutomationPointIndex >= 0)
         timeline.getEditSession().endCoalescedTransaction();
 
@@ -449,7 +502,7 @@ void TrackLaneComponent::mouseUp (const juce::MouseEvent&)
 
 void TrackLaneComponent::mouseMove (const juce::MouseEvent& e)
 {
-    auto headerBounds = getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
+    auto headerBounds = getHeaderBounds();
     const bool nowInHeader = headerBounds.contains (e.getPosition());
     if (nowInHeader != isHeaderHovered)
     {
@@ -460,7 +513,7 @@ void TrackLaneComponent::mouseMove (const juce::MouseEvent& e)
 
 void TrackLaneComponent::mouseEnter (const juce::MouseEvent& e)
 {
-    auto headerBounds = getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
+    auto headerBounds = getHeaderBounds();
     isHeaderHovered = headerBounds.contains (e.getPosition());
     repaint();
 }
@@ -472,6 +525,11 @@ void TrackLaneComponent::mouseExit (const juce::MouseEvent&)
         isHeaderHovered = false;
         repaint();
     }
+}
+
+juce::Rectangle<int> TrackLaneComponent::getHeaderBounds() const
+{
+    return getLocalBounds().removeFromLeft (TimelineComponent::trackHeaderWidth);
 }
 
 void TrackLaneComponent::refreshAutomationParams()

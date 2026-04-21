@@ -9,6 +9,7 @@
 #include "JobQueue.h"
 #include "ToolRegistry.h"
 #include "ExternalToolRunner.h"
+#include "ModelManager.h"
 #include "WaiveLookAndFeel.h"
 #include "AiSettings.h"
 #include "AiAgent.h"
@@ -24,6 +25,8 @@ public:
     MainWindow (juce::String name, UndoableCommandHandler& handler,
                 EditSession& session, waive::JobQueue& queue,
                 ProjectManager& projectMgr,
+                waive::ToolRegistry& toolRegistry,
+                waive::ModelManager& modelManager,
                 waive::AiAgent* aiAgent = nullptr,
                 waive::AiSettings* aiSettings = nullptr)
         : DocumentWindow (std::move (name),
@@ -32,7 +35,10 @@ public:
                           juce::DocumentWindow::allButtons)
     {
         setUsingNativeTitleBar (true);
-        setContentOwned (new MainComponent (handler, session, queue, projectMgr, aiAgent, aiSettings), true);
+        setContentOwned (new MainComponent (handler, session, queue, projectMgr,
+                                            toolRegistry, modelManager,
+                                            aiAgent, aiSettings),
+                         true);
         centreWithSize (1200, 800);
         setResizeLimits (1024, 600, 4096, 2160);
         setVisible (true);
@@ -97,6 +103,7 @@ public:
         aiSettings = std::make_unique<waive::AiSettings>();
         aiSettings->loadFromProperties (*appProperties);
 
+        modelManager = std::make_unique<waive::ModelManager>();
         toolRegistry = std::make_unique<waive::ToolRegistry>();
 
         // External tool runner
@@ -122,6 +129,7 @@ public:
 
         mainWindow = std::make_unique<MainWindow> (getWindowTitle(), *undoableHandler,
                                                    *editSession, *jobQueue, *projectManager,
+                                                   *toolRegistry, *modelManager,
                                                    aiAgent.get(), aiSettings.get());
 
         // Wire tool context provider for AI agent
@@ -210,6 +218,7 @@ public:
         aiAgent.reset();
         externalToolRunner.reset();
         toolRegistry.reset();
+        modelManager.reset();
         aiSettings.reset();
         appProperties.reset();
         undoableHandler.reset();
@@ -323,6 +332,7 @@ private:
 
     std::unique_ptr<juce::ApplicationProperties> appProperties;
     std::unique_ptr<waive::AiSettings> aiSettings;
+    std::unique_ptr<waive::ModelManager> modelManager;
     std::unique_ptr<waive::ToolRegistry> toolRegistry;
     std::unique_ptr<waive::ExternalToolRunner> externalToolRunner;
     std::unique_ptr<waive::AiAgent> aiAgent;
