@@ -839,6 +839,114 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("track_command_public_indices");
+    auto backingFile = fixtureDir.getChildFile ("track_command_public_indices.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto folderTrack = edit->insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
+    expect (folderTrack != nullptr, "Expected folder track for public-index command test");
+    folderTrack->setName ("Folder");
+
+    CommandHandler handler (*edit);
+
+    auto tracksResponse = runJsonCommand (handler, R"({ "action":"get_tracks" })");
+    int firstAudioTrackId = -1;
+    if (auto* tracks = tracksResponse.getProperty ("tracks", juce::var()).getArray())
+    {
+        for (const auto& entry : *tracks)
+        {
+            if (! entry.isObject() || static_cast<bool> (entry["is_folder"]))
+                continue;
+
+            firstAudioTrackId = (int) entry["track_id"];
+            break;
+        }
+    }
+    expect (firstAudioTrackId >= 0, "Expected at least one audio track in public track listing");
+
+    auto addTrackResponse = runJsonCommand (handler, R"({ "action":"add_track" })");
+    expect (addTrackResponse["status"].toString() == "ok", "Expected add_track to succeed with folder tracks present");
+    expect ((int) addTrackResponse["track_index"] == 2,
+            "Expected add_track to return the public track index including folders");
+
+    auto duplicateTrackResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"duplicate_track",
+        "track_id":%d
+    })", firstAudioTrackId));
+    expect (duplicateTrackResponse["status"].toString() == "ok", "Expected duplicate_track to succeed");
+    expect ((int) duplicateTrackResponse["new_track_index"] == 3,
+            "Expected duplicate_track to return the public track index including folders");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testReorderTrackUsesPublicIndicesAcrossFolderTracks (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("reorder_track_public_indices");
+    auto backingFile = fixtureDir.getChildFile ("reorder_track_public_indices.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto* firstTrack = te::getAudioTracks (*edit).getFirst();
+    expect (firstTrack != nullptr, "Expected first audio track for reorder test");
+    firstTrack->setName ("Track 1");
+
+    auto folderTrack = edit->insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
+    expect (folderTrack != nullptr, "Expected folder track for reorder test");
+    folderTrack->setName ("Folder");
+
+    auto secondTrackPtr = edit->insertNewAudioTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr);
+    auto* secondTrack = secondTrackPtr.get();
+    expect (secondTrack != nullptr, "Expected second audio track for reorder test");
+    secondTrack->setName ("Track 2");
+
+    CommandHandler handler (*edit);
+    auto beforeTracksResponse = runJsonCommand (handler, R"({ "action":"get_tracks" })");
+    int track2Id = -1;
+    int targetPosition = -1;
+    if (auto* tracks = beforeTracksResponse.getProperty ("tracks", juce::var()).getArray())
+    {
+        for (const auto& entry : *tracks)
+        {
+            if (! entry.isObject())
+                continue;
+
+            auto name = entry["name"].toString();
+            if (name == "Track 2")
+                track2Id = (int) entry["track_id"];
+            else if (name == "Folder")
+                targetPosition = (int) entry["track_id"];
+        }
+    }
+
+    expect (track2Id >= 0, "Expected Track 2 public track id before reorder");
+    expect (targetPosition >= 0, "Expected folder public track id before reorder");
+
+    auto reorderResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"reorder_track",
+        "track_id":%d,
+        "new_position":%d
+    })", track2Id, targetPosition));
+
+    expect (reorderResponse["status"].toString() == "ok",
+            "Expected reorder_track to accept public indices spanning folder tracks");
+
+    auto tracksResponse = runJsonCommand (handler, R"({ "action":"get_tracks" })");
+    expect (tracksResponse["status"].toString() == "ok", "Expected get_tracks after reorder");
+
+    if (auto* tracks = tracksResponse.getProperty ("tracks", juce::var()).getArray())
+    {
+        expect (tracks->size() >= 3, "Expected three public tracks after reorder");
+        expect ((*tracks)[targetPosition]["name"].toString() == "Track 2",
+                "Expected Track 2 to move to the requested public index");
+    }
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testCollectAndSaveCommandReturnsErrorOnPackagingFailure (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("collect_command_failure");
@@ -1460,6 +1568,8 @@ int main()
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testPluginPresetCommandsSupportMasterChain (engine);
         testSetParameterAcceptsStablePluginIdentifier (engine);
+        testTrackCommandsReturnPublicIndicesWithFolderTracks (engine);
+        testReorderTrackUsesPublicIndicesAcrossFolderTracks (engine);
         testMoveTrackToFolderRejectsCycles (engine);
         testCommandHandlerRejectsRelativePaths (engine);
         testFolderSoloMutePropagatesThroughNestedFolders (engine);

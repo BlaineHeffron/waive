@@ -65,6 +65,31 @@ bool wouldCreateFolderCycle (te::Track& trackToMove, te::FolderTrack& destinatio
     return false;
 }
 
+juce::Array<te::Track*> getPublicTracks (te::Edit& edit)
+{
+    juce::Array<te::Track*> tracks;
+
+    for (auto* track : edit.getTrackList())
+        if (dynamic_cast<te::AudioTrack*> (track) != nullptr
+            || dynamic_cast<te::FolderTrack*> (track) != nullptr)
+            tracks.add (track);
+
+    return tracks;
+}
+
+int getPublicTrackIndex (te::Edit& edit, te::Track* target)
+{
+    if (target == nullptr)
+        return -1;
+
+    const auto publicTracks = getPublicTracks (edit);
+    for (int i = 0; i < publicTracks.size(); ++i)
+        if (publicTracks.getUnchecked (i) == target)
+            return i;
+
+    return -1;
+}
+
 bool isWithinAllowedDirectories (const juce::String& originalPath,
                                  const juce::File& candidate,
                                  const juce::Array<juce::File>& allowedDirectories)
@@ -316,24 +341,15 @@ juce::var CommandHandler::handleGetTracks()
 
     // Build index mapping for all tracks (folders + audio)
     juce::HashMap<te::Track*, int> trackIndexMap;
-    int trackId = 0;
-    for (auto* track : edit.getTrackList())
-    {
-        if (dynamic_cast<te::AudioTrack*> (track) || dynamic_cast<te::FolderTrack*> (track))
-        {
-            trackIndexMap.set (track, trackId);
-            ++trackId;
-        }
-    }
+    const auto publicTracks = getPublicTracks (edit);
+    for (int trackId = 0; trackId < publicTracks.size(); ++trackId)
+        trackIndexMap.set (publicTracks.getUnchecked (trackId), trackId);
 
-    trackId = 0;
-    for (auto* track : edit.getTrackList())
+    for (int trackId = 0; trackId < publicTracks.size(); ++trackId)
     {
+        auto* track = publicTracks.getUnchecked (trackId);
         auto* audioTrack = dynamic_cast<te::AudioTrack*> (track);
         auto* folderTrack = dynamic_cast<te::FolderTrack*> (track);
-
-        if (!audioTrack && !folderTrack)
-            continue;
 
         auto* trackObj = new juce::DynamicObject();
         trackObj->setProperty ("name", track->getName());
@@ -394,7 +410,6 @@ juce::var CommandHandler::handleGetTracks()
         }
 
         trackList.add (juce::var (trackObj));
-        ++trackId;
     }
 
     if (auto* obj = result.getDynamicObject())
@@ -407,10 +422,11 @@ juce::var CommandHandler::handleAddTrack()
 {
     auto trackCount = te::getAudioTracks (edit).size();
     edit.ensureNumberOfAudioTracks (trackCount + 1);
+    auto* newTrack = te::getAudioTracks (edit).getLast();
 
     auto result = makeOk();
     if (auto* obj = result.getDynamicObject())
-        obj->setProperty ("track_index", trackCount);
+        obj->setProperty ("track_index", getPublicTrackIndex (edit, newTrack));
     return result;
 }
 
@@ -1248,7 +1264,7 @@ juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
     if (auto* obj = result.getDynamicObject())
     {
         obj->setProperty ("source_track_id", trackId);
-        obj->setProperty ("new_track_index", (int) (trackCount));
+        obj->setProperty ("new_track_index", getPublicTrackIndex (edit, newTrack));
         obj->setProperty ("new_track_name", newTrack->getName());
     }
     return result;
@@ -2059,16 +2075,21 @@ juce::var CommandHandler::handleReorderTrack (const juce::var& params)
     if (! track)
         return makeError ("Track not found: " + juce::String (trackId));
 
-    auto audioTracks = te::getAudioTracks (edit);
-    if (newPosition < 0 || newPosition >= audioTracks.size())
-        return makeError ("new_position out of range (0-" + juce::String (audioTracks.size() - 1) + ")");
+    const auto publicTracks = getPublicTracks (edit);
+    if (newPosition < 0 || newPosition >= publicTracks.size())
+        return makeError ("new_position out of range (0-" + juce::String (publicTracks.size() - 1) + ")");
 
-    auto trackState = track->state;
-    auto parentTree = trackState.getParent();
+    auto* destTrack = publicTracks.getUnchecked (newPosition);
+    if (destTrack != track)
+    {
+        auto* destinationFolder = destTrack->getParentFolderTrack();
+        if (destinationFolder != nullptr)
+            if (auto* folderTrack = dynamic_cast<te::FolderTrack*> (track))
+                if (wouldCreateFolderCycle (*folderTrack, *destinationFolder))
+                    return makeError ("Cannot reorder a folder into its own subtree");
 
-    auto* destTrack = audioTracks[newPosition];
-    auto destIndex = parentTree.indexOf (destTrack->state);
-    parentTree.moveChild (parentTree.indexOf (trackState), destIndex, &edit.getUndoManager());
+        edit.moveTrack (track, te::TrackInsertPoint (destinationFolder, destTrack));
+    }
 
     auto* result = new juce::DynamicObject();
     result->setProperty ("status", "ok");

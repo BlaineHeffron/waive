@@ -5,6 +5,36 @@ namespace te = tracktion;
 
 namespace waive {
 
+namespace
+{
+
+juce::File canonicaliseFile (const juce::File& file)
+{
+    auto canonical = file.getLinkedTarget();
+    return canonical != juce::File() ? canonical : file;
+}
+
+bool isFileInsideDirectory (const juce::File& file, const juce::File& directory)
+{
+    auto canonicalFile = canonicaliseFile (file);
+    auto canonicalDirectory = canonicaliseFile (directory);
+    return canonicalFile == canonicalDirectory || canonicalFile.isAChildOf (canonicalDirectory);
+}
+
+void addDirectoryToZipRecursively (juce::ZipFile::Builder& builder,
+                                   const juce::File& directory,
+                                   const juce::String& zipPrefix)
+{
+    for (const auto& iter : juce::RangedDirectoryIterator (directory, true, "*", juce::File::findFiles))
+    {
+        auto file = iter.getFile();
+        auto relativePath = file.getRelativePathFrom (directory).replaceCharacter ('\\', '/');
+        builder.addFile (file, 9, zipPrefix + "/" + relativePath);
+    }
+}
+
+} // namespace
+
 void ProjectPackager::rollbackCollectedMedia (const std::vector<std::pair<te::AudioClipBase*, juce::File>>& updatedReferences,
                                               const juce::Array<juce::File>& copiedFiles)
 {
@@ -44,7 +74,7 @@ juce::Array<juce::File> ProjectPackager::findExternalMedia (te::Edit& edit, cons
 
     for (const auto& file : referencedFiles)
     {
-        if (!file.isAChildOf (projectDir))
+        if (! isFileInsideDirectory (file, projectDir))
             externalFiles.add (file);
     }
 
@@ -128,11 +158,14 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
         return result;
     }
 
-    auto externalFiles = findExternalMedia (edit, projectDir);
+    auto referencedFiles = getAllReferencedFiles (edit);
     bool copyFailed = false;
 
-    for (const auto& sourceFile : externalFiles)
+    for (const auto& sourceFile : referencedFiles)
     {
+        if (isFileInsideDirectory (sourceFile, audioDir))
+            continue;
+
         auto targetFile = getUniqueTargetFile (audioDir, sourceFile.getFileName());
 
         if (!sourceFile.copyFileTo (targetFile))
@@ -211,7 +244,9 @@ juce::Array<juce::File> ProjectPackager::findUnusedMedia (te::Edit& edit, const 
     if (!audioDir.exists())
         return unusedFiles;
 
-    auto referencedFiles = getAllReferencedFiles (edit);
+    juce::Array<juce::File> referencedFiles;
+    for (const auto& referencedFile : getAllReferencedFiles (edit))
+        referencedFiles.addIfNotAlreadyThere (canonicaliseFile (referencedFile));
 
     juce::Array<juce::File> audioFiles;
     for (const auto& iter : juce::RangedDirectoryIterator (audioDir, false, "*", juce::File::findFiles))
@@ -223,7 +258,7 @@ juce::Array<juce::File> ProjectPackager::findUnusedMedia (te::Edit& edit, const 
 
     for (const auto& file : audioFiles)
     {
-        if (!referencedFiles.contains (file))
+        if (!referencedFiles.contains (canonicaliseFile (file)))
             unusedFiles.add (file);
     }
 
@@ -314,13 +349,7 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
     // Add Audio directory
     auto audioDir = projectDir.getChildFile ("Audio");
     if (audioDir.exists())
-    {
-        for (const auto& iter : juce::RangedDirectoryIterator (audioDir, false, "*", juce::File::findFiles))
-        {
-            auto file = iter.getFile();
-            builder.addFile (file, 9, "Audio/" + file.getFileName());
-        }
-    }
+        addDirectoryToZipRecursively (builder, audioDir, "Audio");
 
     return builder.writeToStream (outputStream, nullptr);
 }
