@@ -27,6 +27,17 @@ LibraryComponent::LibraryComponent (EditSession& session)
     fileTree->setTooltip ("Browse, preview, and drag audio files into the timeline");
     addAndMakeVisible (fileTree.get());
 
+    targetTrackLabel.setText ("Import To:", juce::dontSendNotification);
+    targetTrackLabel.setTitle ("Import Target Label");
+    targetTrackLabel.setDescription ("Label for the library import target track selector");
+    addAndMakeVisible (targetTrackLabel);
+
+    targetTrackCombo.setTitle ("Import Target Track");
+    targetTrackCombo.setDescription ("Choose which track receives library imports");
+    targetTrackCombo.setTooltip ("Choose the track used for double-click import");
+    targetTrackCombo.setWantsKeyboardFocus (true);
+    addAndMakeVisible (targetTrackCombo);
+
     goUpButton.setButtonText ("..");
     goUpButton.onClick = [this] { goUp(); };
     goUpButton.setTitle ("Go Up");
@@ -57,6 +68,7 @@ LibraryComponent::LibraryComponent (EditSession& session)
     addAndMakeVisible (favoritesCombo);
 
     loadFavorites();
+    refreshTargetTrackList();
 }
 
 LibraryComponent::~LibraryComponent()
@@ -78,6 +90,7 @@ void LibraryComponent::paint (juce::Graphics& g)
 
 void LibraryComponent::resized()
 {
+    refreshTargetTrackList();
     auto bounds = getLocalBounds().reduced (waive::Spacing::sm);
 
     auto topRow = bounds.removeFromTop (waive::Spacing::controlHeightDefault);
@@ -88,11 +101,35 @@ void LibraryComponent::resized()
     favoritesCombo.setBounds (topRow);
 
     bounds.removeFromTop (waive::Spacing::xs);
+    auto targetRow = bounds.removeFromTop (waive::Spacing::controlHeightDefault);
+    targetTrackLabel.setBounds (targetRow.removeFromLeft (80));
+    targetRow.removeFromLeft (waive::Spacing::xs);
+    targetTrackCombo.setBounds (targetRow);
+
+    bounds.removeFromTop (waive::Spacing::xs);
     fileTree->setBounds (bounds);
+}
+
+bool LibraryComponent::selectTargetTrackForTesting (int trackIndex)
+{
+    refreshTargetTrackList();
+
+    if (! juce::isPositiveAndBelow (trackIndex, targetTrackCombo.getNumItems()))
+        return false;
+
+    targetTrackCombo.setSelectedItemIndex (trackIndex, juce::dontSendNotification);
+    return true;
+}
+
+int LibraryComponent::getSelectedTargetTrackIndexForTesting() const
+{
+    return targetTrackCombo.getSelectedItemIndex();
 }
 
 void LibraryComponent::fileDoubleClicked (const juce::File& file)
 {
+    refreshTargetTrackList();
+
     if (file.isDirectory())
     {
         setRoot (file);
@@ -107,15 +144,13 @@ void LibraryComponent::fileDoubleClicked (const juce::File& file)
     }
 
     auto& edit = editSession.getEdit();
-    auto tracks = te::getAudioTracks (edit);
-    if (tracks.isEmpty())
+    auto* track = getTargetTrack();
+    if (track == nullptr)
     {
         juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-            "Cannot Load File", "No tracks available. Add a track first.");
+            "Cannot Load File", "No target track is available. Add a track first.");
         return;
     }
-
-    auto* track = tracks.getFirst();
     auto transportPos = edit.getTransport().getPosition().inSeconds();
 
     te::AudioFile audioFile (edit.engine, file);
@@ -207,4 +242,47 @@ void LibraryComponent::saveFavorites()
         settings->setValue ("libraryFavorites", favoritesPaths.joinIntoString ("|"));
         settings->saveIfNeeded();
     }
+}
+
+void LibraryComponent::refreshTargetTrackList()
+{
+    auto selectedTrackName = targetTrackCombo.getText();
+    targetTrackCombo.clear (juce::dontSendNotification);
+
+    auto tracks = te::getAudioTracks (editSession.getEdit());
+    int selectedItemIndex = -1;
+    int itemId = 1;
+
+    for (auto* track : tracks)
+    {
+        if (track == nullptr)
+            continue;
+
+        auto trackName = track->getName().isNotEmpty()
+                           ? track->getName()
+                           : "Track " + juce::String (itemId);
+        targetTrackCombo.addItem (trackName, itemId);
+
+        if (trackName == selectedTrackName)
+            selectedItemIndex = itemId - 1;
+
+        ++itemId;
+    }
+
+    targetTrackCombo.setEnabled (targetTrackCombo.getNumItems() > 0);
+    if (selectedItemIndex >= 0)
+        targetTrackCombo.setSelectedItemIndex (selectedItemIndex, juce::dontSendNotification);
+    else if (targetTrackCombo.getNumItems() > 0)
+        targetTrackCombo.setSelectedItemIndex (0, juce::dontSendNotification);
+}
+
+te::AudioTrack* LibraryComponent::getTargetTrack() const
+{
+    auto selectedIndex = targetTrackCombo.getSelectedItemIndex();
+    auto tracks = te::getAudioTracks (editSession.getEdit());
+
+    if (! juce::isPositiveAndBelow (selectedIndex, tracks.size()))
+        return nullptr;
+
+    return tracks.getUnchecked (selectedIndex);
 }

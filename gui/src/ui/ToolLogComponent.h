@@ -22,7 +22,9 @@ public:
 private:
     void appendLog (const juce::String& text);
     void appendErrorLog (const juce::String& text);
-    void updateActiveJobs();
+    void rebuildActiveJobRows();
+    void updateActiveJobRow (size_t index);
+    void layoutActiveJobRows();
 
     waive::JobQueue& jobQueue;
 
@@ -36,14 +38,19 @@ private:
     };
     std::vector<ActiveJob> activeJobs;
 
+    struct ActiveJobRow
+    {
+        std::unique_ptr<juce::Label> label;
+        std::unique_ptr<juce::ProgressBar> progressBar;
+        std::unique_ptr<juce::TextButton> cancelButton;
+        double progressValue = 0.0;
+    };
+
     // UI
     juce::TextButton demoButton;
     juce::TextButton clearButton;
     juce::Label activeJobsLabel;
-    std::vector<std::unique_ptr<juce::ProgressBar>> progressBars;
-    std::vector<std::unique_ptr<juce::Label>> progressLabels;
-    std::vector<std::unique_ptr<juce::TextButton>> cancelButtons;
-    std::vector<double> progressValues; // ProgressBar needs double&
+    std::vector<ActiveJobRow> activeJobRows;
     juce::Component activeJobsArea;
     juce::TextEditor logEditor;
 };

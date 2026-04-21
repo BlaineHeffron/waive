@@ -9,13 +9,26 @@ ToolLogComponent::ToolLogComponent (waive::JobQueue& queue)
 {
     demoButton.setButtonText ("Run Demo");
     clearButton.setButtonText ("Clear");
+    demoButton.setTitle ("Run Demo Job");
+    demoButton.setDescription ("Launch a sample background job in the tool log");
+    demoButton.setTooltip ("Run a demo background job");
+    demoButton.setWantsKeyboardFocus (true);
+    clearButton.setTitle ("Clear Tool Log");
+    clearButton.setDescription ("Clear the tool activity history");
+    clearButton.setTooltip ("Clear tool log history");
+    clearButton.setWantsKeyboardFocus (true);
 
     activeJobsLabel.setText ("Active Jobs", juce::dontSendNotification);
     activeJobsLabel.setJustificationType (juce::Justification::centredLeft);
+    activeJobsLabel.setTitle ("Active Jobs");
+    activeJobsLabel.setDescription ("Shows jobs that are currently running");
 
     logEditor.setMultiLine (true);
     logEditor.setReadOnly (true);
     logEditor.setReturnKeyStartsNewLine (true);
+    logEditor.setTitle ("Tool Activity Log");
+    logEditor.setDescription ("History of tool and background job activity");
+    logEditor.setTooltip ("Tool activity log");
 
     addAndMakeVisible (demoButton);
     addAndMakeVisible (clearButton);
@@ -69,6 +82,7 @@ void ToolLogComponent::resized()
     // Active jobs area — height depends on number of active jobs
     int activeHeight = juce::jmax (0, (int) activeJobs.size() * waive::Spacing::controlHeightLarge);
     activeJobsArea.setBounds (bounds.removeFromTop (activeHeight));
+    layoutActiveJobRows();
 
     bounds.removeFromTop (waive::Spacing::sm);
     logEditor.setBounds (bounds);
@@ -111,7 +125,13 @@ void ToolLogComponent::jobEvent (const waive::JobEvent& event)
                                     event.progress, event.message });
             appendLog ("[" + timestamp + "] " + event.descriptor.name
                        + " started\n");
+            rebuildActiveJobRows();
+            return;
         }
+
+        for (size_t i = 0; i < activeJobs.size(); ++i)
+            if (activeJobs[i].jobId == event.jobId)
+                updateActiveJobRow (i);
     }
     else if (event.status == waive::JobStatus::Completed
              || event.status == waive::JobStatus::Failed
@@ -132,9 +152,10 @@ void ToolLogComponent::jobEvent (const waive::JobEvent& event)
             appendErrorLog (logEntry);
         else
             appendLog (logEntry);
-    }
 
-    updateActiveJobs();
+        rebuildActiveJobRows();
+        return;
+    }
 }
 
 void ToolLogComponent::appendLog (const juce::String& text)
@@ -155,61 +176,78 @@ void ToolLogComponent::appendErrorLog (const juce::String& text)
     logEditor.moveCaretToEnd();
 }
 
-void ToolLogComponent::updateActiveJobs()
+void ToolLogComponent::rebuildActiveJobRows()
 {
-    // Rebuild active jobs UI
-    progressBars.clear();
-    progressLabels.clear();
-    cancelButtons.clear();
-    progressValues.clear();
+    activeJobRows.clear();
     activeJobsArea.removeAllChildren();
-
-    progressValues.resize (activeJobs.size());
 
     for (size_t i = 0; i < activeJobs.size(); ++i)
     {
         auto& aj = activeJobs[i];
-        progressValues[i] = aj.progress;
+        ActiveJobRow row;
+        row.progressValue = aj.progress;
+        row.label = std::make_unique<juce::Label>();
+        row.progressBar = std::make_unique<juce::ProgressBar> (row.progressValue);
+        row.cancelButton = std::make_unique<juce::TextButton> ("Cancel");
 
-        auto label = std::make_unique<juce::Label>();
-        auto labelText = aj.name;
-        if (aj.message.isNotEmpty())
-            labelText += " - " + aj.message;
-        label->setText (labelText, juce::dontSendNotification);
-        label->setJustificationType (juce::Justification::centredLeft);
+        row.label->setJustificationType (juce::Justification::centredLeft);
+        row.label->setTitle ("Active Job");
+        row.label->setDescription ("Status label for a running background job");
+        row.progressBar->setTooltip ("Current job progress");
+        row.cancelButton->setTitle ("Cancel Job");
+        row.cancelButton->setDescription ("Cancel the selected background job");
+        row.cancelButton->setTooltip ("Cancel this running job");
+        row.cancelButton->setWantsKeyboardFocus (true);
 
-        auto bar = std::make_unique<juce::ProgressBar> (progressValues[i]);
-
-        auto cancel = std::make_unique<juce::TextButton> ("Cancel");
         int jobId = aj.jobId;
-        cancel->onClick = [this, jobId] { jobQueue.cancelJob (jobId); };
+        row.cancelButton->onClick = [this, jobId] { jobQueue.cancelJob (jobId); };
 
-        activeJobsArea.addAndMakeVisible (label.get());
-        activeJobsArea.addAndMakeVisible (bar.get());
-        activeJobsArea.addAndMakeVisible (cancel.get());
+        activeJobsArea.addAndMakeVisible (row.label.get());
+        activeJobsArea.addAndMakeVisible (row.progressBar.get());
+        activeJobsArea.addAndMakeVisible (row.cancelButton.get());
 
-        progressLabels.push_back (std::move (label));
-        progressBars.push_back (std::move (bar));
-        cancelButtons.push_back (std::move (cancel));
+        activeJobRows.push_back (std::move (row));
+        updateActiveJobRow (i);
     }
 
-    // Layout active jobs within the area
+    layoutActiveJobRows();
+    resized();
+}
+
+void ToolLogComponent::updateActiveJobRow (size_t index)
+{
+    if (index >= activeJobs.size() || index >= activeJobRows.size())
+        return;
+
+    auto& activeJob = activeJobs[index];
+    auto& row = activeJobRows[index];
+
+    row.progressValue = activeJob.progress;
+
+    auto labelText = activeJob.name;
+    if (activeJob.message.isNotEmpty())
+        labelText += " - " + activeJob.message;
+
+    row.label->setText (labelText, juce::dontSendNotification);
+}
+
+void ToolLogComponent::layoutActiveJobRows()
+{
     int y = 0;
     int areaWidth = activeJobsArea.getWidth();
     if (areaWidth <= 0)
         areaWidth = getWidth() - waive::Spacing::xl;
 
-    for (size_t i = 0; i < activeJobs.size(); ++i)
+    for (size_t i = 0; i < activeJobRows.size(); ++i)
     {
         auto row = juce::Rectangle<int> (0, y, areaWidth, waive::Spacing::controlHeightDefault);
-        progressLabels[i]->setBounds (row.removeFromLeft (200));
+        activeJobRows[i].label->setBounds (row.removeFromLeft (200));
         row.removeFromLeft (waive::Spacing::sm);
-        cancelButtons[i]->setBounds (row.removeFromRight (70));
+        activeJobRows[i].cancelButton->setBounds (row.removeFromRight (70));
         row.removeFromRight (waive::Spacing::sm);
-        progressBars[i]->setBounds (row);
+        activeJobRows[i].progressBar->setBounds (row);
         y += waive::Spacing::controlHeightLarge;
     }
 
     activeJobsArea.setSize (areaWidth, y);
-    resized();
 }

@@ -622,28 +622,43 @@ void runUiPhase1LibraryAndPhase2PluginRoutingRegression()
     auto& edit = session.getEdit();
     auto* track = getFirstTrack (edit);
     expect (track != nullptr, "Expected track for phase-1/2 regression");
+    edit.ensureNumberOfAudioTracks (2);
+    auto tracks = te::getAudioTracks (edit);
+    auto* secondTrack = tracks.size() > 1 ? tracks.getUnchecked (1) : nullptr;
+    expect (secondTrack != nullptr, "Expected second track for library target regression");
 
     auto fixtureAudio = createPhase4FixtureAudioFile();
     edit.getTransport().setPosition (te::TimePosition::fromSeconds (1.25));
 
     auto& library = mainComponent.getLibraryComponentForTesting();
+    expect (library.selectTargetTrackForTesting (1),
+            "Expected library target track selector to choose track 2");
+    expect (library.getSelectedTargetTrackIndexForTesting() == 1,
+            "Expected library target track selector to retain the selected track");
     const auto clipCountBeforeImport = getClipCount (*track);
+    const auto secondTrackClipCountBeforeImport = getClipCount (*secondTrack);
     library.fileDoubleClicked (fixtureAudio);
 
-    expect (getClipCount (*track) == clipCountBeforeImport + 1,
-            "Expected library double-click import to insert one clip");
-    auto* importedClip = findClipAtStart (*track, 1.25);
+    expect (getClipCount (*track) == clipCountBeforeImport,
+            "Expected library double-click import to leave the first track unchanged");
+    expect (getClipCount (*secondTrack) == secondTrackClipCountBeforeImport + 1,
+            "Expected library double-click import to insert one clip on the selected target track");
+    auto* importedClip = findClipAtStart (*secondTrack, 1.25);
     expect (importedClip != nullptr, "Expected imported clip start at transport position");
 
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
             "Expected undo to revert library import");
     expect (getClipCount (*track) == clipCountBeforeImport,
-            "Expected undo to remove imported clip");
+            "Expected undo to keep the first track unchanged");
+    expect (getClipCount (*secondTrack) == secondTrackClipCountBeforeImport,
+            "Expected undo to remove imported clip from the selected target track");
 
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
             "Expected redo to restore library import");
-    expect (getClipCount (*track) == clipCountBeforeImport + 1,
-            "Expected redo to reinsert imported clip");
+    expect (getClipCount (*track) == clipCountBeforeImport,
+            "Expected redo to keep the first track unchanged");
+    expect (getClipCount (*secondTrack) == secondTrackClipCountBeforeImport + 1,
+            "Expected redo to reinsert imported clip on the selected target track");
 
     auto& pluginBrowser = mainComponent.getPluginBrowserForTesting();
     expect (pluginBrowser.selectTrackForTesting (0),

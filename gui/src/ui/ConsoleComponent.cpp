@@ -18,6 +18,7 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
     requestEditor.setTitle ("Command Request");
     requestEditor.setDescription ("Enter a JSON command to send to the engine");
     requestEditor.setTooltip ("Enter JSON command here");
+    requestEditor.setWantsKeyboardFocus (true);
 
     responseEditor.setMultiLine (true);
     responseEditor.setReadOnly (true);
@@ -32,11 +33,13 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
     sendButton.setButtonText ("Send");
     sendButton.setTitle ("Send Command");
     sendButton.setDescription ("Send the JSON command to the engine");
-    sendButton.setTooltip ("Send command (Enter)");
+    sendButton.setTooltip ("Send command");
+    sendButton.setWantsKeyboardFocus (true);
     clearButton.setButtonText ("Clear Log");
     clearButton.setTitle ("Clear Response Log");
     clearButton.setDescription ("Clear the command response log");
     clearButton.setTooltip ("Clear response");
+    clearButton.setWantsKeyboardFocus (true);
 
     addAndMakeVisible (statusLabel);
     addAndMakeVisible (requestEditor);

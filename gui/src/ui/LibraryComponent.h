@@ -1,11 +1,10 @@
 #pragma once
 
 #include <JuceHeader.h>
-
-class EditSession;
+#include "../edit/EditSession.h"
 
 //==============================================================================
-/** File browser for audio files. Double-click inserts a clip on the first track. */
+/** File browser for audio files. Double-click inserts a clip on the selected target track. */
 class LibraryComponent : public juce::Component,
                          public juce::FileBrowserListener
 {
@@ -15,6 +14,8 @@ public:
 
     void paint (juce::Graphics& g) override;
     void resized() override;
+    bool selectTargetTrackForTesting (int trackIndex);
+    int getSelectedTargetTrackIndexForTesting() const;
 
     // FileBrowserListener
     void selectionChanged() override {}
@@ -28,6 +29,8 @@ private:
     void addCurrentToFavorites();
     void loadFavorites();
     void saveFavorites();
+    void refreshTargetTrackList();
+    tracktion::engine::AudioTrack* getTargetTrack() const;
 
     EditSession& editSession;
 
@@ -36,6 +39,8 @@ private:
     juce::DirectoryContentsList directoryList;
     std::unique_ptr<juce::FileTreeComponent> fileTree;
 
+    juce::Label targetTrackLabel;
+    juce::ComboBox targetTrackCombo;
     juce::ComboBox favoritesCombo;
     juce::TextButton addFavButton;
     juce::TextButton goUpButton;

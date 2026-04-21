@@ -418,22 +418,8 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             editSession.redo();
             return true;
         case cmdNew:
-        {
-            // Warn about unsaved changes in current project
-            if (editSession.hasChangedSinceSaved())
-            {
-                bool shouldDiscard = juce::AlertWindow::showOkCancelBox (
-                    juce::MessageBoxIconType::WarningIcon,
-                    "Unsaved Changes",
-                    "The current project has unsaved changes. Create new project anyway?",
-                    "Discard Changes", "Cancel");
-
-                if (! shouldDiscard)
-                    return true;
-            }
             projectManager.newProject();
             return true;
-        }
         case cmdOpen:
         {
             juce::FileChooser chooser ("Open Project...", juce::File(), "*.tracktionedit");

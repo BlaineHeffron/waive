@@ -41,6 +41,9 @@ TrackLaneComponent::TrackLaneComponent (te::Track& t, TimelineComponent& tl, int
     headerLabel.setText (track.getName(), juce::dontSendNotification);
     headerLabel.setJustificationType (juce::Justification::centredLeft);
     headerLabel.setEditable (false, true, false);
+    headerLabel.setTitle ("Track Name");
+    headerLabel.setDescription ("Rename the current track");
+    headerLabel.setTooltip ("Double-click to rename this track");
     headerLabel.onTextChange = [this]
     {
         timeline.getEditSession().performEdit ("Rename Track", [this] (te::Edit&)
@@ -52,7 +55,10 @@ TrackLaneComponent::TrackLaneComponent (te::Track& t, TimelineComponent& tl, int
 
     automationParamCombo.setTextWhenNothingSelected ("Automation: none");
     automationParamCombo.onChange = [this] { repaint(); };
+    automationParamCombo.setTitle ("Automation Parameter");
+    automationParamCombo.setDescription ("Select which automation parameter to show for this track");
     automationParamCombo.setTooltip ("Select automation parameter to display");
+    automationParamCombo.setWantsKeyboardFocus (true);
     addChildComponent (automationParamCombo);
 
     folderToggleButton.onClick = [this]
@@ -60,6 +66,10 @@ TrackLaneComponent::TrackLaneComponent (te::Track& t, TimelineComponent& tl, int
         if (folderTrack != nullptr)
             timeline.toggleFolderCollapsed (track.itemID);
     };
+    folderToggleButton.setTitle ("Toggle Folder");
+    folderToggleButton.setDescription ("Expand or collapse this folder track");
+    folderToggleButton.setTooltip ("Expand or collapse folder track");
+    folderToggleButton.setWantsKeyboardFocus (true);
     addChildComponent (folderToggleButton);
 
     folderSoloButton.onClick = [this]
@@ -87,6 +97,10 @@ TrackLaneComponent::TrackLaneComponent (te::Track& t, TimelineComponent& tl, int
             applySolo (*folderTrack);
         });
     };
+    folderSoloButton.setTitle ("Folder Solo");
+    folderSoloButton.setDescription ("Solo this folder track and its child tracks");
+    folderSoloButton.setTooltip ("Solo folder track");
+    folderSoloButton.setWantsKeyboardFocus (true);
     addChildComponent (folderSoloButton);
 
     folderMuteButton.onClick = [this]
@@ -114,11 +128,19 @@ TrackLaneComponent::TrackLaneComponent (te::Track& t, TimelineComponent& tl, int
             applyMute (*folderTrack);
         });
     };
+    folderMuteButton.setTitle ("Folder Mute");
+    folderMuteButton.setDescription ("Mute this folder track and its child tracks");
+    folderMuteButton.setTooltip ("Mute folder track");
+    folderMuteButton.setWantsKeyboardFocus (true);
     addChildComponent (folderMuteButton);
 
     folderVolumeSlider.setSliderStyle (juce::Slider::LinearHorizontal);
     folderVolumeSlider.setRange (-60.0, 6.0, 0.1);
     folderVolumeSlider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    folderVolumeSlider.setTitle ("Folder Volume");
+    folderVolumeSlider.setDescription ("Adjust the volume for this folder track");
+    folderVolumeSlider.setTooltip ("Adjust folder track volume");
+    folderVolumeSlider.setWantsKeyboardFocus (true);
     folderVolumeSlider.onValueChange = [this]
     {
         if (folderTrack == nullptr)

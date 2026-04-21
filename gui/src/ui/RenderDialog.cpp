@@ -178,8 +178,12 @@ bool normaliseRenderedFile (const juce::File& targetFile,
 RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handler)
     : editSession (session), commandHandler (handler), progressBar (progressValue)
 {
+    setTitle ("Render Dialog");
+    setDescription ("Configure audio export settings and render the current project");
+
     // Format
     formatLabel.setText ("Format:", juce::dontSendNotification);
+    formatLabel.setTitle ("Format Label");
     addAndMakeVisible (formatLabel);
 
     formatCombo.addItem ("WAV", 1);
@@ -187,10 +191,15 @@ RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handle
     formatCombo.addItem ("OGG Vorbis", 3);
     formatCombo.setSelectedId (1);
     formatCombo.onChange = [this] { updateFileExtension(); updateFormatOptions(); };
+    formatCombo.setTitle ("Render Format");
+    formatCombo.setDescription ("Choose the audio format for the rendered file");
+    formatCombo.setTooltip ("Select output audio format");
+    formatCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (formatCombo);
 
     // Sample rate
     sampleRateLabel.setText ("Sample Rate:", juce::dontSendNotification);
+    sampleRateLabel.setTitle ("Sample Rate Label");
     addAndMakeVisible (sampleRateLabel);
 
     sampleRateCombo.addItem ("44100 Hz", 1);
@@ -208,29 +217,44 @@ RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handle
         sampleRateCombo.setSelectedId (4);
     else
         sampleRateCombo.setSelectedId (2);
+    sampleRateCombo.setTitle ("Sample Rate");
+    sampleRateCombo.setDescription ("Choose the output sample rate");
+    sampleRateCombo.setTooltip ("Select output sample rate");
+    sampleRateCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (sampleRateCombo);
 
     // Bit depth
     bitDepthLabel.setText ("Bit Depth:", juce::dontSendNotification);
+    bitDepthLabel.setTitle ("Bit Depth Label");
     addAndMakeVisible (bitDepthLabel);
 
     bitDepthCombo.addItem ("16-bit", 1);
     bitDepthCombo.addItem ("24-bit", 2);
     bitDepthCombo.addItem ("32-bit float", 3);
     bitDepthCombo.setSelectedId (2); // default 24-bit
+    bitDepthCombo.setTitle ("Bit Depth");
+    bitDepthCombo.setDescription ("Choose the output bit depth");
+    bitDepthCombo.setTooltip ("Select output bit depth");
+    bitDepthCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (bitDepthCombo);
 
     // OGG quality
     oggQualityLabel.setText ("OGG Quality:", juce::dontSendNotification);
+    oggQualityLabel.setTitle ("OGG Quality Label");
     addAndMakeVisible (oggQualityLabel);
 
     oggQualitySlider.setRange (0.0, 1.0, 0.01);
     oggQualitySlider.setValue (0.6);
     oggQualitySlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 20);
+    oggQualitySlider.setTitle ("OGG Quality");
+    oggQualitySlider.setDescription ("Adjust OGG Vorbis encoding quality");
+    oggQualitySlider.setTooltip ("Set OGG quality");
+    oggQualitySlider.setWantsKeyboardFocus (true);
     addAndMakeVisible (oggQualitySlider);
 
     // Range
     rangeLabel.setText ("Range:", juce::dontSendNotification);
+    rangeLabel.setTitle ("Range Label");
     addAndMakeVisible (rangeLabel);
 
     rangeCombo.addItem ("Entire Project", 1);
@@ -245,13 +269,27 @@ RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handle
         endLabel.setVisible (custom);
         endEditor.setVisible (custom);
     };
+    rangeCombo.setTitle ("Render Range");
+    rangeCombo.setDescription ("Choose which part of the project to render");
+    rangeCombo.setTooltip ("Select render range");
+    rangeCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (rangeCombo);
 
     // Custom range editors
     startLabel.setText ("Start:", juce::dontSendNotification);
+    startLabel.setTitle ("Start Time Label");
     startEditor.setText ("0.0");
     endLabel.setText ("End:", juce::dontSendNotification);
+    endLabel.setTitle ("End Time Label");
     endEditor.setText ("10.0");
+    startEditor.setTitle ("Custom Range Start");
+    startEditor.setDescription ("Start time in seconds for a custom render range");
+    startEditor.setTooltip ("Enter render start time in seconds");
+    startEditor.setWantsKeyboardFocus (true);
+    endEditor.setTitle ("Custom Range End");
+    endEditor.setDescription ("End time in seconds for a custom render range");
+    endEditor.setTooltip ("Enter render end time in seconds");
+    endEditor.setWantsKeyboardFocus (true);
     addAndMakeVisible (startLabel);
     addAndMakeVisible (startEditor);
     addAndMakeVisible (endLabel);
@@ -263,40 +301,66 @@ RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handle
 
     // Normalize
     normalizeToggle.setButtonText ("Normalize to -0.1 dBFS");
+    normalizeToggle.setTitle ("Normalize Output");
+    normalizeToggle.setDescription ("Normalize rendered audio to minus 0.1 dBFS");
+    normalizeToggle.setTooltip ("Normalize rendered audio");
+    normalizeToggle.setWantsKeyboardFocus (true);
     addAndMakeVisible (normalizeToggle);
 
     // Mixdown vs stems
     mixdownToggle.setButtonText ("Mixdown (single file)");
     mixdownToggle.setRadioGroupId (1);
     mixdownToggle.setToggleState (true, juce::dontSendNotification);
+    mixdownToggle.setTitle ("Mixdown Mode");
+    mixdownToggle.setDescription ("Render the project as a single mixdown file");
+    mixdownToggle.setTooltip ("Render one output file");
+    mixdownToggle.setWantsKeyboardFocus (true);
     addAndMakeVisible (mixdownToggle);
 
     stemsToggle.setButtonText ("Stems (one file per track)");
     stemsToggle.setRadioGroupId (1);
     stemsToggle.onClick = [this] { updateOutputMode(); };
+    stemsToggle.setTitle ("Stems Mode");
+    stemsToggle.setDescription ("Render one output file per track");
+    stemsToggle.setTooltip ("Render separate stem files");
+    stemsToggle.setWantsKeyboardFocus (true);
     addAndMakeVisible (stemsToggle);
     mixdownToggle.onClick = [this] { updateOutputMode(); };
 
     // Output path
     outputPathLabel.setText ("Output:", juce::dontSendNotification);
+    outputPathLabel.setTitle ("Output Path Label");
     addAndMakeVisible (outputPathLabel);
 
     outputPathEditor.setText (juce::File::getSpecialLocation (juce::File::userDocumentsDirectory)
                                   .getChildFile ("Untitled.wav").getFullPathName());
+    outputPathEditor.setTitle ("Output Path");
+    outputPathEditor.setDescription ("File or directory where rendered audio will be written");
+    outputPathEditor.setTooltip ("Output file or directory");
+    outputPathEditor.setWantsKeyboardFocus (true);
     addAndMakeVisible (outputPathEditor);
 
     browseButton.setButtonText ("Browse...");
     browseButton.onClick = [this] { browseForOutputPath(); };
+    browseButton.setTitle ("Browse Output Path");
+    browseButton.setDescription ("Choose the render output file or directory");
+    browseButton.setTooltip ("Browse for output path");
+    browseButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (browseButton);
 
     // Render button
     renderButton.setButtonText ("Render");
     renderButton.onClick = [this] { performRender(); };
+    renderButton.setTitle ("Render");
+    renderButton.setDescription ("Start rendering the project with the current settings");
+    renderButton.setTooltip ("Start rendering");
+    renderButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (renderButton);
 
     // Progress bar
     addAndMakeVisible (progressBar);
     progressBar.setVisible (false);
+    progressBar.setTooltip ("Render progress");
 
     updateFormatOptions();
     updateOutputMode();

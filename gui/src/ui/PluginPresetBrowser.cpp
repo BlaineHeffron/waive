@@ -19,6 +19,18 @@ PluginPresetBrowser::PluginPresetBrowser (EditSession& session)
 
     saveButton.setButtonText ("Save");
     deleteButton.setButtonText ("×");
+    presetComboBox.setTitle ("Plugin Presets");
+    presetComboBox.setDescription ("Choose a saved preset for the current plugin");
+    presetComboBox.setTooltip ("Select a plugin preset");
+    presetComboBox.setWantsKeyboardFocus (true);
+    saveButton.setTitle ("Save Preset");
+    saveButton.setDescription ("Save the current plugin state as a preset");
+    saveButton.setTooltip ("Save plugin preset");
+    saveButton.setWantsKeyboardFocus (true);
+    deleteButton.setTitle ("Delete Preset");
+    deleteButton.setDescription ("Delete the selected plugin preset");
+    deleteButton.setTooltip ("Delete selected preset");
+    deleteButton.setWantsKeyboardFocus (true);
 
     presetComboBox.onChange = [this] { onPresetSelected(); };
     saveButton.onClick = [this] { onSaveClicked(); };

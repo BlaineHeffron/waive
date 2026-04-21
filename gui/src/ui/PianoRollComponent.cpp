@@ -1222,6 +1222,11 @@ PianoRollComponent::Toolbar::Toolbar (PianoRollComponent& parent)
     snapBox.addItem ("Snap: 1/16", 7);
     snapBox.addItem ("Snap: Triplet", 8);
     snapBox.setSelectedId (3, juce::dontSendNotification);
+    snapLabel.setTitle ("Snap Label");
+    snapBox.setTitle ("Snap");
+    snapBox.setDescription ("Choose the snap resolution for note editing");
+    snapBox.setTooltip ("Select piano roll snap resolution");
+    snapBox.setWantsKeyboardFocus (true);
 
     gridBox.addItem ("Grid: Bar", 1);
     gridBox.addItem ("Grid: Beat", 2);
@@ -1231,7 +1236,27 @@ PianoRollComponent::Toolbar::Toolbar (PianoRollComponent& parent)
     gridBox.addItem ("Grid: 1/16", 6);
     gridBox.addItem ("Grid: Triplet", 7);
     gridBox.setSelectedId (2, juce::dontSendNotification);
+    gridLabel.setTitle ("Grid Label");
+    gridBox.setTitle ("Grid");
+    gridBox.setDescription ("Choose the displayed piano roll grid resolution");
+    gridBox.setTooltip ("Select piano roll grid resolution");
+    gridBox.setWantsKeyboardFocus (true);
+    quantizeButton.setTitle ("Quantize");
+    quantizeButton.setDescription ("Quantize the selected notes to the current grid");
+    quantizeButton.setTooltip ("Quantize selected notes");
+    quantizeButton.setWantsKeyboardFocus (true);
+    quantizeLengthToggle.setTitle ("Quantize Length");
+    quantizeLengthToggle.setDescription ("Also quantize the lengths of selected notes");
     quantizeLengthToggle.setTooltip ("Quantize note lengths too");
+    quantizeLengthToggle.setWantsKeyboardFocus (true);
+    zoomInButton.setTitle ("Zoom In");
+    zoomInButton.setDescription ("Zoom in on the piano roll");
+    zoomInButton.setTooltip ("Zoom in");
+    zoomInButton.setWantsKeyboardFocus (true);
+    zoomOutButton.setTitle ("Zoom Out");
+    zoomOutButton.setDescription ("Zoom out on the piano roll");
+    zoomOutButton.setTooltip ("Zoom out");
+    zoomOutButton.setWantsKeyboardFocus (true);
     quantizeLengthToggle.setToggleState (pianoRoll.quantizeLengthsEnabled, juce::dontSendNotification);
 
     snapBox.onChange = [this]
