@@ -57,6 +57,27 @@ te::AudioTrack* getSelectedAudioTrack (SessionComponent* sessionComponent)
     return nullptr;
 }
 
+te::AudioTrack* getSelectedAudioTrack (SessionComponent* sessionComponent,
+                                       PluginBrowserComponent* pluginBrowser)
+{
+    if (auto* track = getSelectedAudioTrack (sessionComponent))
+        return track;
+
+    if (pluginBrowser != nullptr)
+        return pluginBrowser->getSelectedTrackForTesting();
+
+    return nullptr;
+}
+
+juce::String getShortcutModifierLabel()
+{
+   #if JUCE_MAC
+    return "Cmd";
+   #else
+    return "Ctrl";
+   #endif
+}
+
 }
 
 //==============================================================================
@@ -357,7 +378,7 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
         case cmdDeleteTrack:
             result.setInfo ("Delete Track", "Delete the selected track", "Edit", 0);
             result.addDefaultKeypress (juce::KeyPress::backspaceKey, juce::ModifierKeys::commandModifier);
-            result.setActive (getSelectedAudioTrack (sessionComponent.get()) != nullptr);
+            result.setActive (getSelectedAudioTrack (sessionComponent.get(), pluginBrowser.get()) != nullptr);
             break;
         case cmdToggleToolSidebar:
             result.setInfo ("Toggle Tool Sidebar", "Show or hide the tool sidebar", "View", 0);
@@ -452,7 +473,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             return true;
         case cmdDeleteTrack:
         {
-            auto* selectedTrack = getSelectedAudioTrack (sessionComponent.get());
+            auto* selectedTrack = getSelectedAudioTrack (sessionComponent.get(), pluginBrowser.get());
 
             if (selectedTrack != nullptr)
             {
@@ -709,28 +730,29 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
         case cmdShowShortcuts:
         {
             juce::String shortcutsText;
+            const auto mod = getShortcutModifierLabel();
             shortcutsText << "KEYBOARD SHORTCUTS\n\n";
             shortcutsText << "File:\n";
-            shortcutsText << "  New                 Cmd+N\n";
-            shortcutsText << "  Open                Cmd+O\n";
-            shortcutsText << "  Save                Cmd+S\n";
-            shortcutsText << "  Save As             Cmd+Shift+S\n\n";
+            shortcutsText << "  New                 " << mod << "+N\n";
+            shortcutsText << "  Open                " << mod << "+O\n";
+            shortcutsText << "  Save                " << mod << "+S\n";
+            shortcutsText << "  Save As             " << mod << "+Shift+S\n\n";
             shortcutsText << "Edit:\n";
-            shortcutsText << "  Undo                Cmd+Z\n";
-            shortcutsText << "  Redo                Cmd+Shift+Z\n";
+            shortcutsText << "  Undo                " << mod << "+Z\n";
+            shortcutsText << "  Redo                " << mod << "+Shift+Z\n";
             shortcutsText << "  Delete              Delete\n";
-            shortcutsText << "  Duplicate           Cmd+D\n";
-            shortcutsText << "  Split at Playhead   Cmd+E\n";
-            shortcutsText << "  Delete Track        Cmd+Backspace\n\n";
+            shortcutsText << "  Duplicate           " << mod << "+D\n";
+            shortcutsText << "  Split at Playhead   " << mod << "+E\n";
+            shortcutsText << "  Delete Track        " << mod << "+Backspace\n\n";
             shortcutsText << "Transport:\n";
             shortcutsText << "  Play/Stop           Space\n";
             shortcutsText << "  Record              R\n";
             shortcutsText << "  Go to Start         Home\n\n";
             shortcutsText << "View:\n";
-            shortcutsText << "  Toggle Tool Sidebar Cmd+T\n";
-            shortcutsText << "  AI Chat             Cmd+Shift+C\n\n";
+            shortcutsText << "  Toggle Tool Sidebar " << mod << "+T\n";
+            shortcutsText << "  AI Chat             " << mod << "+Shift+C\n\n";
             shortcutsText << "Help:\n";
-            shortcutsText << "  Keyboard Shortcuts  Cmd+/\n";
+            shortcutsText << "  Keyboard Shortcuts  " << mod << "+/\n";
 
             juce::AlertWindow::showMessageBoxAsync (
                 juce::AlertWindow::InfoIcon,

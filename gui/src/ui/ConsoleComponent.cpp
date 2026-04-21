@@ -11,6 +11,7 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
     statusLabel.setText ("In-process command console", juce::dontSendNotification);
     statusLabel.setTitle ("Console Status");
     statusLabel.setDescription ("Status for the in-process JSON command console");
+    statusLabel.setTooltip ("Shows the result of the most recent command");
 
     requestEditor.setMultiLine (true);
     requestEditor.setReturnKeyStartsNewLine (true);
@@ -53,12 +54,15 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
         auto response = commandHandler.handleCommand (request);
         const auto parsed = juce::JSON::parse (response);
         const bool isError = parsed.isObject() && parsed.hasProperty ("error");
-        appendLog ("> " + request + "\n" + response + "\n\n", isError);
+        const auto prefix = isError ? "ERROR" : "OK";
+        updateStatus (isError ? "Last command failed" : "Last command succeeded", isError);
+        appendLog ("[" + juce::String (prefix) + "]\n> " + request + "\n" + response + "\n\n");
     };
 
     clearButton.onClick = [this]
     {
         responseEditor.clear();
+        updateStatus ("Console log cleared", false);
     };
 }
 
@@ -82,26 +86,24 @@ void ConsoleComponent::resized()
     responseEditor.setBounds (bounds);
 }
 
-void ConsoleComponent::appendLog (const juce::String& text, bool isError)
+void ConsoleComponent::appendLog (const juce::String& text)
 {
     // Clear placeholder on first real response
     if (! hasAppendedResponse)
     {
         responseEditor.clear();
-        if (auto* pal = waive::getWaivePalette (*this))
-            responseEditor.setColour (juce::TextEditor::textColourId, pal->textPrimary);
         hasAppendedResponse = true;
-    }
-
-    if (auto* pal = waive::getWaivePalette (*this))
-    {
-        if (isError)
-            responseEditor.setColour (juce::TextEditor::textColourId, pal->danger);
-        else
-            responseEditor.setColour (juce::TextEditor::textColourId, pal->textPrimary);
     }
 
     responseEditor.moveCaretToEnd();
     responseEditor.insertTextAtCaret (text);
     responseEditor.moveCaretToEnd();
+}
+
+void ConsoleComponent::updateStatus (const juce::String& text, bool isError)
+{
+    statusLabel.setText (text, juce::dontSendNotification);
+
+    if (auto* pal = waive::getWaivePalette (*this))
+        statusLabel.setColour (juce::Label::textColourId, isError ? pal->danger : pal->textPrimary);
 }

@@ -14,7 +14,8 @@ public:
     void resized() override;
 
 private:
-    void appendLog (const juce::String& text, bool isError);
+    void appendLog (const juce::String& text);
+    void updateStatus (const juce::String& text, bool isError);
 
     UndoableCommandHandler& commandHandler;
     bool hasAppendedResponse = false;

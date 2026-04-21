@@ -79,7 +79,7 @@ The Tool Sidebar (`ToolSidebarComponent`) is a collapsible right panel inside `S
 - **Tool selector**: ComboBox populated from `ToolRegistry`
 - **Schema-driven parameter UI**: `SchemaFormComponent` reads each tool's `inputSchema` and generates appropriate controls (sliders for numbers with min/max, toggles for booleans, combo boxes for enums, text editors as fallback)
 - **Plan/Apply/Reject workflow**: Tools produce a preview diff before applying. Users can review, reject, or apply changes — all undoable.
-- **Toggle**: Cmd+T or View menu toggles sidebar visibility. Default width is 280px with a resizer bar.
+- **Toggle**: Ctrl/Cmd+T or View menu toggles sidebar visibility. Default width is 280px with a resizer bar.
 
 ### Auto-Save Architecture
 

@@ -427,6 +427,11 @@ bool PluginBrowserComponent::selectTrackForTesting (int trackIndex)
     return trackCombo.getSelectedId() == targetItemId;
 }
 
+te::AudioTrack* PluginBrowserComponent::getSelectedTrackForTesting() const
+{
+    return getSelectedTrack();
+}
+
 bool PluginBrowserComponent::insertBuiltInPluginForTesting (const juce::String& pluginType)
 {
     const auto type = pluginType.trim();

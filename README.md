@@ -105,25 +105,25 @@ python3 -m pytest tools/tests/ -v
 | Command | Shortcut |
 |---------|----------|
 | **File** | |
-| New | `Cmd+N` |
-| Open | `Cmd+O` |
-| Save | `Cmd+S` |
-| Save As | `Cmd+Shift+S` |
+| New | `Ctrl/Cmd+N` |
+| Open | `Ctrl/Cmd+O` |
+| Save | `Ctrl/Cmd+S` |
+| Save As | `Ctrl/Cmd+Shift+S` |
 | **Edit** | |
-| Undo | `Cmd+Z` |
-| Redo | `Cmd+Shift+Z` |
+| Undo | `Ctrl/Cmd+Z` |
+| Redo | `Ctrl/Cmd+Shift+Z` |
 | Delete | `Delete` |
-| Duplicate | `Cmd+D` |
-| Split at Playhead | `Cmd+E` |
-| Delete Track | `Cmd+Backspace` |
+| Duplicate | `Ctrl/Cmd+D` |
+| Split at Playhead | `Ctrl/Cmd+E` |
+| Delete Track | `Ctrl/Cmd+Backspace` |
 | **Transport** | |
 | Play/Stop | `Space` |
 | Record | `R` |
 | Go to Start | `Home` |
 | **View** | |
-| Toggle Tool Sidebar | `Cmd+T` |
-| AI Chat | `Cmd+Shift+C` |
-| Keyboard Shortcuts | `Cmd+/` |
+| Toggle Tool Sidebar | `Ctrl/Cmd+T` |
+| AI Chat | `Ctrl/Cmd+Shift+C` |
+| Keyboard Shortcuts | `Ctrl/Cmd+/` |
 
 ## Architecture
 
