@@ -22,24 +22,39 @@ AutoSaveManager::~AutoSaveManager()
 
 void AutoSaveManager::timerCallback()
 {
+    writeAutoSaveSnapshot();
+}
+
+void AutoSaveManager::triggerAutoSaveForTesting()
+{
+    writeAutoSaveSnapshot();
+}
+
+void AutoSaveManager::writeAutoSaveSnapshot()
+{
     if (! editSession.hasChangedSinceSaved())
+        return;
+
+    auto currentFile = projectManager.getCurrentFile();
+    if (currentFile == juce::File())
+        return;
+
+    auto projectDir = currentFile.getParentDirectory();
+    if (projectDir == juce::File() || ! projectDir.exists())
         return;
 
     auto autoSaveFile = getAutoSaveFile();
     if (autoSaveFile == juce::File())
         return;
 
-    // Save current edit state
+    // Persist a snapshot of the live edit state, not just the last explicit save on disk.
     editSession.flushState();
 
-    // Copy the saved project file to the current recovery snapshot path.
-    auto currentFile = projectManager.getCurrentFile();
-    if (currentFile.existsAsFile())
+    auto xml = editSession.getEdit().state.createXml();
+    if (xml == nullptr || ! xml->writeTo (autoSaveFile, {}))
     {
-        if (! currentFile.copyFileTo (autoSaveFile))
-        {
-            juce::Logger::writeToLog ("AutoSaveManager: Failed to copy file to " + autoSaveFile.getFullPathName());
-        }
+        juce::Logger::writeToLog ("AutoSaveManager: Failed to save auto-save snapshot to "
+                                  + autoSaveFile.getFullPathName());
     }
 }
 

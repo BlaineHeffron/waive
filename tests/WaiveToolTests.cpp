@@ -55,11 +55,13 @@ juce::File writeTestWav (const juce::String& name, const float* samples, int num
                          double sampleRate = 44100.0)
 {
     auto file = getTempDir().getChildFile (name);
+    std::unique_ptr<juce::OutputStream> stream (new juce::FileOutputStream (file));
+    auto options = juce::AudioFormatWriterOptions()
+                       .withSampleRate (sampleRate)
+                       .withNumChannels (1)
+                       .withBitsPerSample (16);
 
-    if (auto writer = std::unique_ptr<juce::AudioFormatWriter> (
-            juce::WavAudioFormat().createWriterFor (
-                new juce::FileOutputStream (file),
-                sampleRate, 1, 16, {}, 0)))
+    if (auto writer = juce::WavAudioFormat().createWriterFor (stream, options))
     {
         juce::AudioBuffer<float> buffer (1, numSamples);
         buffer.copyFrom (0, 0, samples, numSamples);

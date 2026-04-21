@@ -16,9 +16,21 @@ public:
 
     void resized() override;
 
+    int getSelectedFormatForTesting() const;
+    void selectFormatForTesting (int formatId);
+    int getSelectedRangeForTesting() const;
+    void selectRangeForTesting (int rangeId);
+    bool isBitDepthVisibleForTesting() const;
+    bool isOggQualityVisibleForTesting() const;
+    bool isCustomRangeVisibleForTesting() const;
+    void setStemsModeForTesting (bool shouldRenderStems);
+    juce::String getOutputPathForTesting() const;
+    juce::String getOutputLabelTextForTesting() const;
+
 private:
     void updateFileExtension();
     void updateFormatOptions();
+    void updateOutputMode();
     void browseForOutputPath();
     void performRender();
     void resetControls();

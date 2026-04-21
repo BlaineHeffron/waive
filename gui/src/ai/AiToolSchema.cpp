@@ -390,6 +390,14 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                       makeSchema ("object"),
                       "export" });
 
+    // package_as_zip
+    defs.push_back ({ "cmd_package_as_zip",
+                      "Collect project media and create a portable zip archive at the given output path.",
+                      makeSchema ("object",
+                                  { { "file_path", prop ("string", "Absolute output path for the zip archive") } },
+                                  { "file_path" }),
+                      "export" });
+
     // bounce_track
     defs.push_back ({ "cmd_bounce_track",
                       "Render a track to a single audio file, replacing all clips with the bounced result.",

@@ -84,6 +84,7 @@ private:
     juce::var handleRemoveFromFolder (const juce::var& params);
     juce::var handleCollectAndSave();
     juce::var handleRemoveUnusedMedia();
+    juce::var handlePackageAsZip (const juce::var& params);
 
     // ── Helpers ─────────────────────────────────────────────────────────
     te::Track* getTrackById (int trackIndex);

@@ -5,6 +5,18 @@ namespace te = tracktion;
 
 namespace waive {
 
+void ProjectPackager::rollbackCollectedMedia (const std::vector<std::pair<te::AudioClipBase*, juce::File>>& updatedReferences,
+                                              const juce::Array<juce::File>& copiedFiles)
+{
+    for (const auto& [clip, originalFile] : updatedReferences)
+        if (clip != nullptr)
+            clip->getSourceFileReference().setToDirectFileReference (originalFile, true);
+
+    for (const auto& copiedFile : copiedFiles)
+        if (copiedFile.existsAsFile())
+            (void) copiedFile.deleteFile();
+}
+
 juce::Array<juce::File> ProjectPackager::getAllReferencedFiles (te::Edit& edit)
 {
     juce::Array<juce::File> files;
@@ -72,12 +84,14 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
                                                                 const juce::File& projectFile)
 {
     CollectResult result;
-    struct UpdatedReference
+    std::vector<std::pair<te::AudioClipBase*, juce::File>> updatedReferences;
+    juce::Array<juce::File> copiedFiles;
+
+    if (! projectDir.exists() || ! projectDir.isDirectory())
     {
-        te::AudioClipBase* clip = nullptr;
-        juce::File originalFile;
-    };
-    std::vector<UpdatedReference> updatedReferences;
+        result.errors.add ("Project directory does not exist: " + projectDir.getFullPathName());
+        return result;
+    }
 
     // Check if projectDir is writable
     auto testFile = projectDir.getChildFile (".waive_write_test");
@@ -148,20 +162,22 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
                     if (clipSourceFile == sourceFile)
                     {
                         // Update the source file reference to point to the new location
-                        updatedReferences.push_back ({ audioClip, clipSourceFile });
+                        updatedReferences.emplace_back (audioClip, clipSourceFile);
                         audioClip->getSourceFileReference().setToDirectFileReference (targetFile, true);
                     }
                 }
             }
         }
+
+        copiedFiles.add (targetFile);
     }
 
     edit.flushState();
     if (! te::EditFileOperations (edit).saveAs (saveTarget, true))
     {
-        for (const auto& ref : updatedReferences)
-            if (ref.clip != nullptr)
-                ref.clip->getSourceFileReference().setToDirectFileReference (ref.originalFile, true);
+        rollbackCollectedMedia (updatedReferences, copiedFiles);
+        result.filesCopied = 0;
+        result.bytesCopied = 0;
         result.errors.add ("Failed to save edit with updated paths");
     }
 
@@ -205,6 +221,13 @@ juce::Array<juce::File> ProjectPackager::findUnusedMedia (te::Edit& edit, const 
 ProjectPackager::RemoveResult ProjectPackager::removeUnusedMedia (te::Edit& edit, const juce::File& projectDir)
 {
     RemoveResult result;
+
+    if (! projectDir.exists() || ! projectDir.isDirectory())
+    {
+        result.errors.add ("Project directory does not exist: " + projectDir.getFullPathName());
+        return result;
+    }
+
     auto unusedFiles = findUnusedMedia (edit, projectDir);
 
     if (unusedFiles.isEmpty())

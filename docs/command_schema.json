@@ -62,24 +62,25 @@
         "move_track_to_folder",
         "remove_from_folder",
         "collect_and_save",
-        "remove_unused_media"
+        "remove_unused_media",
+        "package_as_zip"
       ],
       "description": "The command action to perform."
     },
     "track_id": {
       "type": "integer",
       "minimum": 0,
-      "description": "Zero-based track index in the full edit track list."
+      "description": "Zero-based public track index from get_tracks (audio and folder tracks only)."
     },
     "track_index": {
       "type": "integer",
       "minimum": 0,
-      "description": "Zero-based track index used by preset/folder helpers."
+      "description": "Zero-based public track index from get_tracks (audio and folder tracks only)."
     },
     "folder_index": {
       "type": "integer",
       "minimum": 0,
-      "description": "Zero-based folder track index."
+      "description": "Zero-based public track index of a folder track from get_tracks."
     },
     "clip_index": {
       "type": "integer",
@@ -116,7 +117,7 @@
     },
     "new_name": {
       "type": "string",
-      "description": "New clip or track name."
+      "description": "Legacy alias for name."
     },
     "preset_name": {
       "type": "string",
@@ -143,6 +144,16 @@
       "minimum": 0,
       "description": "Transport position in seconds."
     },
+    "new_start": {
+      "type": "number",
+      "minimum": 0,
+      "description": "New clip start time in seconds."
+    },
+    "new_end": {
+      "type": "number",
+      "minimum": 0,
+      "description": "New clip end time in seconds."
+    },
     "start_time": {
       "type": "number",
       "minimum": 0,
@@ -166,6 +177,10 @@
     "value_db": {
       "type": "number",
       "description": "Decibel value."
+    },
+    "bpm": {
+      "type": "number",
+      "description": "Tempo in beats per minute."
     },
     "gain_db": {
       "type": "number",
@@ -204,6 +219,10 @@
     "enabled": {
       "type": "boolean",
       "description": "Boolean enable/disable flag."
+    },
+    "armed": {
+      "type": "boolean",
+      "description": "Whether a track should be armed for recording."
     },
     "bypassed": {
       "type": "boolean",
@@ -268,11 +287,11 @@
     },
     {
       "if": { "properties": { "action": { "const": "arm_track" } } },
-      "then": { "required": ["action", "track_id", "enabled"] }
+      "then": { "required": ["action", "track_id", "armed"] }
     },
     {
       "if": { "properties": { "action": { "const": "split_clip" } } },
-      "then": { "required": ["action", "track_id", "clip_index", "time"] }
+      "then": { "required": ["action", "track_id", "clip_index", "position"] }
     },
     {
       "if": { "properties": { "action": { "const": "delete_clip" } } },
@@ -280,7 +299,7 @@
     },
     {
       "if": { "properties": { "action": { "const": "move_clip" } } },
-      "then": { "required": ["action", "track_id", "clip_index", "delta_seconds"] }
+      "then": { "required": ["action", "track_id", "clip_index", "new_start"] }
     },
     {
       "if": { "properties": { "action": { "const": "duplicate_clip" } } },
@@ -296,11 +315,11 @@
     },
     {
       "if": { "properties": { "action": { "const": "rename_clip" } } },
-      "then": { "required": ["action", "track_id", "clip_index", "new_name"] }
+      "then": { "required": ["action", "track_id", "clip_index", "name"] }
     },
     {
       "if": { "properties": { "action": { "const": "rename_track" } } },
-      "then": { "required": ["action", "track_id", "new_name"] }
+      "then": { "required": ["action", "track_id", "name"] }
     },
     {
       "if": { "properties": { "action": { "const": "solo_track" } } },
@@ -316,7 +335,7 @@
     },
     {
       "if": { "properties": { "action": { "const": "set_tempo" } } },
-      "then": { "required": ["action", "value"] }
+      "then": { "required": ["action", "bpm"] }
     },
     {
       "if": { "properties": { "action": { "const": "set_loop_region" } } },
@@ -401,6 +420,10 @@
     {
       "if": { "properties": { "action": { "const": "remove_from_folder" } } },
       "then": { "required": ["action", "track_index"] }
+    },
+    {
+      "if": { "properties": { "action": { "const": "package_as_zip" } } },
+      "then": { "required": ["action", "file_path"] }
     }
   ]
 }

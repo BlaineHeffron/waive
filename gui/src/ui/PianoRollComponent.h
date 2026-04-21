@@ -36,8 +36,17 @@ public:
     void previewMidiNote (int pitch);
     void syncVelocityLaneToViewport();
     void focusEditor();
+    bool handleKeyPressForTesting (const juce::KeyPress& key);
+    void selectNotesByPitchForTesting (int pitch, bool addToSelection);
+    void quantizeSelectedNotesForTesting();
+    int getNoteGridWidthForTesting() const;
+    double getPixelsPerBeatForTesting() const;
+    int getKeyboardRowHeightForTesting() const;
+    void zoomInForTesting();
+    void zoomOutForTesting();
 
     SnapSettings snapSettings;
+    bool quantizeLengthsEnabled = false;
 
 private:
     //==============================================================================
@@ -83,6 +92,7 @@ private:
         int pitchToY (int pitch) const;
         int yToPitch (int y) const;
         double snapBeat (double beat) const;
+        double getBeatsPerBarForClip() const;
         double getPixelsPerBeat() const { return pianoRoll.pixelsPerBeat; }
         std::string pitchToNoteName (int pitch) const;
 
@@ -173,6 +183,7 @@ private:
         juce::TextButton& getZoomInButton() { return zoomInButton; }
         juce::TextButton& getZoomOutButton() { return zoomOutButton; }
         juce::TextButton& getQuantizeButton() { return quantizeButton; }
+        juce::ToggleButton& getQuantizeLengthToggle() { return quantizeLengthToggle; }
 
         static constexpr int height = 32;
 
@@ -184,6 +195,7 @@ private:
         juce::Label gridLabel { {}, "Grid:" };
         juce::ComboBox gridBox;
         juce::TextButton quantizeButton { "Quantize" };
+        juce::ToggleButton quantizeLengthToggle { "Len" };
         juce::TextButton zoomInButton { "+" };
         juce::TextButton zoomOutButton { "-" };
     };
@@ -200,6 +212,9 @@ private:
 
     double pixelsPerBeat = 60.0;
     int previewMidiChannel = 1;
+
+    void refreshGridLayout();
+    int calculateContentWidth() const;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (PianoRollComponent)
 };

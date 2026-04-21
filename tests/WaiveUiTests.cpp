@@ -8,6 +8,8 @@
 #include "ToolSidebarComponent.h"
 #include "LibraryComponent.h"
 #include "PluginBrowserComponent.h"
+#include "RenderDialog.h"
+#include "PianoRollComponent.h"
 #include "EditSession.h"
 #include "ProjectManager.h"
 #include "AutoSaveManager.h"
@@ -1837,20 +1839,15 @@ void runPhase5PerformanceOptimizationTests()
         formatManager.registerBasicFormats();
         juce::WavAudioFormat wavFormat;
 
-        std::unique_ptr<juce::FileOutputStream> fileStream (audioFile.createOutputStream());
-        juce::StringPairArray metadataValues;
-        std::unique_ptr<juce::AudioFormatWriter> writer (wavFormat.createWriterFor (
-            fileStream.get(),
-            44100.0,
-            1,
-            16,
-            metadataValues,
-            0));
+        std::unique_ptr<juce::OutputStream> fileStream (audioFile.createOutputStream());
+        auto writerOptions = juce::AudioFormatWriterOptions()
+                                 .withSampleRate (44100.0)
+                                 .withNumChannels (1)
+                                 .withBitsPerSample (16);
+        auto writer = wavFormat.createWriterFor (fileStream, writerOptions);
 
         if (writer != nullptr)
         {
-            fileStream.release();
-
             juce::AudioBuffer<float> buffer (1, 4410);
             buffer.clear();
 
@@ -2128,7 +2125,7 @@ void testTrackColorDeterminism()
     auto trackLaneComponents = timeline.getTrackLaneComponentsForTesting();
     expect (trackLaneComponents.size() >= 3, "Expected at least 3 track lane components");
 
-    for (int i = 0; i < 3; ++i)
+    for (size_t i = 0; i < 3; ++i)
     {
         firstRunColors.push_back (trackLaneComponents[i]->getTrackColorForTesting());
     }
@@ -2159,11 +2156,11 @@ void testTrackColorDeterminism()
     trackLaneComponents = timeline.getTrackLaneComponentsForTesting();
     expect (trackLaneComponents.size() >= 3, "Expected at least 3 track lane components after recreation");
 
-    for (int i = 0; i < 3; ++i)
+    for (size_t i = 0; i < 3; ++i)
     {
         auto secondRunColor = trackLaneComponents[i]->getTrackColorForTesting();
         expect (secondRunColor == firstRunColors[i],
-                ("Expected deterministic color assignment: track " + juce::String(i) + " color mismatch").toStdString());
+                ("Expected deterministic color assignment: track " + juce::String ((int) i) + " color mismatch").toStdString());
     }
 
     std::cout << "testTrackColorDeterminism: PASS" << std::endl;
@@ -2257,6 +2254,137 @@ void runPhase5TimelineMixerPolishTests()
     std::cout << "runPhase5TimelineMixerPolishTests: PASS" << std::endl;
 }
 
+void runRenderDialogRegression()
+{
+    std::cout << "runRenderDialogRegression..." << std::endl;
+
+    te::Engine engine ("WaiveRenderDialogTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+
+    RenderDialog renderDialog (session, undoableHandler);
+    renderDialog.setBounds (0, 0, 600, 520);
+    renderDialog.resized();
+
+    expect (renderDialog.getSelectedFormatForTesting() == 1,
+            "Expected render dialog to default to WAV");
+    expect (renderDialog.isBitDepthVisibleForTesting(),
+            "Expected bit depth controls visible for WAV");
+    expect (! renderDialog.isOggQualityVisibleForTesting(),
+            "Expected OGG quality hidden for WAV");
+    expect (renderDialog.getOutputPathForTesting().endsWithIgnoreCase (".wav"),
+            "Expected default output path to use .wav extension");
+
+    renderDialog.selectFormatForTesting (3);
+    expect (! renderDialog.isBitDepthVisibleForTesting(),
+            "Expected bit depth controls hidden for OGG");
+    expect (renderDialog.isOggQualityVisibleForTesting(),
+            "Expected OGG quality shown for OGG");
+    expect (renderDialog.getOutputPathForTesting().endsWithIgnoreCase (".ogg"),
+            "Expected output path to update to .ogg");
+
+    renderDialog.selectFormatForTesting (2);
+    expect (renderDialog.isBitDepthVisibleForTesting(),
+            "Expected bit depth controls visible for FLAC");
+    expect (! renderDialog.isOggQualityVisibleForTesting(),
+            "Expected OGG quality hidden for FLAC");
+    expect (renderDialog.getOutputPathForTesting().endsWithIgnoreCase (".flac"),
+            "Expected output path to update to .flac");
+
+    renderDialog.selectRangeForTesting (3);
+    expect (renderDialog.isCustomRangeVisibleForTesting(),
+            "Expected custom range editors visible for custom range");
+    renderDialog.selectRangeForTesting (1);
+    expect (! renderDialog.isCustomRangeVisibleForTesting(),
+            "Expected custom range editors hidden for entire project range");
+
+    renderDialog.setStemsModeForTesting (true);
+    expect (renderDialog.getOutputLabelTextForTesting() == "Output Dir:",
+            "Expected stems mode to switch the output control to a directory");
+    expect (! renderDialog.getOutputPathForTesting().containsIgnoreCase (".wav"),
+            "Expected stems mode output path to stop presenting a file extension");
+
+    renderDialog.setStemsModeForTesting (false);
+    expect (renderDialog.getOutputLabelTextForTesting() == "Output:",
+            "Expected mixdown mode to restore file output labeling");
+    expect (renderDialog.getOutputPathForTesting().endsWithIgnoreCase (".flac"),
+            "Expected mixdown mode to restore a format-aware file path");
+
+    std::cout << "runRenderDialogRegression: PASS" << std::endl;
+}
+
+void runPianoRollRegression()
+{
+    std::cout << "runPianoRollRegression..." << std::endl;
+
+    te::Engine engine ("WaivePianoRollTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    auto& edit = session.getEdit();
+    auto* track = getFirstTrack (edit);
+    expect (track != nullptr, "Expected first track for piano roll regression");
+
+    auto clip = track->insertMIDIClip (
+        "piano_roll_regression",
+        te::TimeRange (te::TimePosition::fromSeconds (0.0),
+                       te::TimePosition::fromSeconds (20.0)),
+        nullptr);
+    expect (clip != nullptr, "Expected MIDI clip for piano roll regression");
+
+    auto& midiList = clip->getSequence();
+    midiList.addNote (60, te::BeatPosition::fromBeats (1.37), te::BeatDuration::fromBeats (0.9), 100, 0, &edit.getUndoManager());
+    midiList.addNote (64, te::BeatPosition::fromBeats (18.0), te::BeatDuration::fromBeats (12.0), 90, 0, &edit.getUndoManager());
+
+    PianoRollComponent pianoRoll (*clip, session);
+    pianoRoll.setBounds (0, 0, 900, 500);
+    pianoRoll.resized();
+    pianoRoll.focusEditor();
+
+    const auto initialWidth = pianoRoll.getNoteGridWidthForTesting();
+    expect (initialWidth >= (int) std::ceil ((30.0 + 1.0) * pianoRoll.getPixelsPerBeatForTesting()),
+            "Expected piano roll content width to cover long note range");
+
+    pianoRoll.zoomInForTesting();
+    const auto zoomedWidth = pianoRoll.getNoteGridWidthForTesting();
+    expect (zoomedWidth > initialWidth,
+            "Expected piano roll content width to grow when zooming in");
+
+    pianoRoll.selectNotesByPitchForTesting (60, false);
+    pianoRoll.quantizeSelectedNotesForTesting();
+    expect (std::abs (midiList.getNotes()[0]->getStartBeat().inBeats() - 1.0) < 0.001,
+            "Expected quantize to snap selected note to beat grid");
+
+    auto& transport = edit.getTransport();
+    transport.setPosition (edit.tempoSequence.toTime (te::BeatPosition::fromBeats (4.0)));
+    expect (pianoRoll.handleKeyPressForTesting (juce::KeyPress ('c', juce::ModifierKeys::commandModifier, 0)),
+            "Expected copy shortcut to be handled");
+    expect (pianoRoll.handleKeyPressForTesting (juce::KeyPress ('v', juce::ModifierKeys::commandModifier, 0)),
+            "Expected paste shortcut to be handled");
+
+    expect (midiList.getNotes().size() == 3,
+            "Expected paste to create a new note");
+
+    bool foundPastedNote = false;
+    for (auto* note : midiList.getNotes())
+    {
+        if (note->getNoteNumber() == 60
+            && std::abs (note->getStartBeat().inBeats() - 4.0) < 0.001)
+        {
+            foundPastedNote = true;
+            break;
+        }
+    }
+
+    expect (foundPastedNote,
+            "Expected pasted note to align with current playhead beat");
+
+    std::cout << "runPianoRollRegression: PASS" << std::endl;
+}
+
 void testGridLineStruct()
 {
     // Test that GridLine struct correctly stores x and isMinor without bit-packing issues
@@ -2295,7 +2423,27 @@ void runPluginIndexCommandConsistencyRegression()
     CommandHandler commandHandler (session.getEdit());
     auto* track = getFirstTrack (session.getEdit());
     expect (track != nullptr, "Expected first track for plugin-index consistency test");
-    const int trackId = track->getIndexInEditTrackList();
+
+    auto tracksResult = runJsonCommand (commandHandler, R"({"action":"get_tracks"})");
+    expect (commandSucceeded (tracksResult), "Expected get_tracks to succeed for plugin-index consistency test");
+
+    int trackId = -1;
+    if (auto* tracks = tracksResult["tracks"].getArray())
+    {
+        for (const auto& entry : *tracks)
+        {
+            if (! entry.isObject())
+                continue;
+
+            if ((int) entry["index"] == track->getIndexInEditTrackList())
+            {
+                trackId = (int) entry["track_id"];
+                break;
+            }
+        }
+    }
+
+    expect (trackId >= 0, "Expected public track_id for plugin-index consistency test");
 
     juce::ValueTree reverbState (te::IDs::PLUGIN);
     reverbState.setProperty (te::IDs::type, te::ReverbPlugin::xmlTypeName, nullptr);
@@ -2376,6 +2524,8 @@ int main()
     RUN_TEST_SAFELY(testTooltipKeyboardShortcuts);
     RUN_TEST_SAFELY(testTrackColorDeterminism);
     RUN_TEST_SAFELY(runPhase5TimelineMixerPolishTests);
+    RUN_TEST_SAFELY(runRenderDialogRegression);
+    RUN_TEST_SAFELY(runPianoRollRegression);
     RUN_TEST_SAFELY(runPluginIndexCommandConsistencyRegression);
     RUN_TEST_SAFELY(testGridLineStruct);
 

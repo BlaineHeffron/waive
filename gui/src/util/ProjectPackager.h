@@ -1,8 +1,10 @@
 #pragma once
 
 #include <juce_core/juce_core.h>
+#include <utility>
+#include <vector>
 
-namespace tracktion { inline namespace engine { class Edit; }}
+namespace tracktion { inline namespace engine { class Edit; class AudioClipBase; }}
 
 namespace waive {
 
@@ -41,6 +43,8 @@ public:
     static bool packageAsZip (const juce::File& projectFile, const juce::File& outputZip);
 
 private:
+    static void rollbackCollectedMedia (const std::vector<std::pair<tracktion::engine::AudioClipBase*, juce::File>>& updatedReferences,
+                                        const juce::Array<juce::File>& copiedFiles);
     static juce::Array<juce::File> getAllReferencedFiles (tracktion::engine::Edit& edit);
     static juce::File getUniqueTargetFile (const juce::File& targetDir, const juce::String& baseName);
     static bool isAudioFile (const juce::File& file);

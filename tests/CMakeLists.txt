@@ -21,10 +21,14 @@ target_sources(WaiveCoreTests PRIVATE
     ../gui/src/tools/AudioAnalysisCache.cpp
     ../gui/src/tools/AudioAnalysis.h
     ../gui/src/tools/AudioAnalysis.cpp
+    ../gui/src/tools/PluginPresetManager.h
+    ../gui/src/tools/PluginPresetManager.cpp
     ../gui/src/util/PathSanitizer.h
     ../gui/src/util/PathSanitizer.cpp
     ../gui/src/util/ProjectPackager.h
     ../gui/src/util/ProjectPackager.cpp
+    ../engine/src/CommandHandler.h
+    ../engine/src/CommandHandler.cpp
 )
 
 target_compile_features(WaiveCoreTests PRIVATE cxx_std_20)
@@ -32,6 +36,7 @@ juce_generate_juce_header(WaiveCoreTests)
 find_package(CURL REQUIRED)
 
 target_include_directories(WaiveCoreTests PRIVATE
+    ../engine/src
     ../gui/src/edit
     ../gui/src/ui
     ../gui/src/tools

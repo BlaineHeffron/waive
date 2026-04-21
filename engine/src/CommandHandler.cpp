@@ -45,10 +45,11 @@ bool wouldCreateFolderCycle (te::Track& trackToMove, te::FolderTrack& destinatio
     return false;
 }
 
-bool isWithinAllowedDirectories (const juce::File& candidate,
+bool isWithinAllowedDirectories (const juce::String& originalPath,
+                                 const juce::File& candidate,
                                  const juce::Array<juce::File>& allowedDirectories)
 {
-    if (! juce::File::isAbsolutePath (candidate.getFullPathName()))
+    if (! juce::File::isAbsolutePath (originalPath))
         return false;
 
     auto canonicalCandidate = candidate.getLinkedTarget();
@@ -63,17 +64,18 @@ bool isWithinAllowedDirectories (const juce::File& candidate,
     return false;
 }
 
-bool isOutputPathAllowed (const juce::File& outputPath,
+bool isOutputPathAllowed (const juce::String& originalPath,
+                          const juce::File& outputPath,
                           const juce::Array<juce::File>& allowedDirectories)
 {
-    if (! juce::File::isAbsolutePath (outputPath.getFullPathName()))
+    if (! juce::File::isAbsolutePath (originalPath))
         return false;
 
     auto parentDir = outputPath.getParentDirectory();
     if (parentDir == juce::File())
         return false;
 
-    return isWithinAllowedDirectories (parentDir, allowedDirectories);
+    return isWithinAllowedDirectories (parentDir.getFullPathName(), parentDir, allowedDirectories);
 }
 
 void applyFolderSoloToSubtree (te::FolderTrack& folderTrack, bool solo)
@@ -106,6 +108,54 @@ void applyFolderMuteToSubtree (te::FolderTrack& folderTrack, bool mute)
         if (auto* childFolder = dynamic_cast<te::FolderTrack*> (child))
             applyFolderMuteToSubtree (*childFolder, mute);
     }
+}
+
+bool tryGetDoubleProperty (const juce::var& params,
+                           std::initializer_list<const char*> propertyNames,
+                           double& valueOut)
+{
+    for (auto* propertyName : propertyNames)
+    {
+        if (params.hasProperty (propertyName))
+        {
+            valueOut = static_cast<double> (params[propertyName]);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool tryGetBoolProperty (const juce::var& params,
+                         std::initializer_list<const char*> propertyNames,
+                         bool& valueOut)
+{
+    for (auto* propertyName : propertyNames)
+    {
+        if (params.hasProperty (propertyName))
+        {
+            valueOut = static_cast<bool> (params[propertyName]);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+bool tryGetStringProperty (const juce::var& params,
+                           std::initializer_list<const char*> propertyNames,
+                           juce::String& valueOut)
+{
+    for (auto* propertyName : propertyNames)
+    {
+        if (params.hasProperty (propertyName))
+        {
+            valueOut = params[propertyName].toString();
+            return true;
+        }
+    }
+
+    return false;
 }
 }
 
@@ -398,7 +448,7 @@ juce::var CommandHandler::handleInsertAudioClip (const juce::var& params)
         return makeError ("File not found: " + filePath);
 
     // Validate file path is within allowed directories
-    if (! isWithinAllowedDirectories (file, allowedMediaDirectories))
+    if (! isWithinAllowedDirectories (filePath, file, allowedMediaDirectories))
         return makeError ("File path is outside allowed directories: " + filePath);
 
     te::AudioFile audioFile (edit.engine, file);
@@ -457,7 +507,7 @@ juce::var CommandHandler::handleInsertMidiClip (const juce::var& params)
         return makeError ("File not found: " + filePath);
 
     // Validate file path is within allowed directories
-    if (! isWithinAllowedDirectories (file, allowedMediaDirectories))
+    if (! isWithinAllowedDirectories (filePath, file, allowedMediaDirectories))
         return makeError ("File path is outside allowed directories: " + filePath);
 
     // Load MIDI file
@@ -647,11 +697,11 @@ juce::var CommandHandler::handleListPlugins()
 
 juce::var CommandHandler::handleArmTrack (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("armed"))
+    bool armed = false;
+    if (! params.hasProperty ("track_id") || ! tryGetBoolProperty (params, { "armed", "enabled" }, armed))
         return makeError ("Missing required parameters: track_id, armed");
 
     int trackId = params["track_id"];
-    bool armed = params["armed"];
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -777,12 +827,13 @@ juce::var CommandHandler::handleRecordFromMic()
 
 juce::var CommandHandler::handleSplitClip (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index") || ! params.hasProperty ("position"))
+    double position = 0.0;
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index")
+        || ! tryGetDoubleProperty (params, { "position", "time" }, position))
         return makeError ("Missing required parameters: track_id, clip_index, position");
 
     int trackId = params["track_id"];
     int clipIdx = params["clip_index"];
-    double position = params["position"];
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -835,16 +886,22 @@ juce::var CommandHandler::handleDeleteClip (const juce::var& params)
 
 juce::var CommandHandler::handleMoveClip (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index") || ! params.hasProperty ("new_start"))
-        return makeError ("Missing required parameters: track_id, clip_index, new_start");
-
     int trackId = params["track_id"];
     int clipIdx = params["clip_index"];
-    double newStart = params["new_start"];
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
         return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
+
+    double newStart = 0.0;
+    if (! tryGetDoubleProperty (params, { "new_start" }, newStart))
+    {
+        double deltaSeconds = 0.0;
+        if (! tryGetDoubleProperty (params, { "delta_seconds" }, deltaSeconds))
+            return makeError ("Missing required parameters: track_id, clip_index, new_start");
+
+        newStart = clip->getPosition().getStart().inSeconds() + deltaSeconds;
+    }
 
     if (newStart < 0.0)
         return makeError ("new_start must be >= 0");
@@ -978,12 +1035,13 @@ juce::var CommandHandler::handleSetClipGain (const juce::var& params)
 
 juce::var CommandHandler::handleRenameClip (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index") || ! params.hasProperty ("name"))
+    juce::String newName;
+    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index")
+        || ! tryGetStringProperty (params, { "name", "new_name" }, newName))
         return makeError ("Missing required parameters: track_id, clip_index, name");
 
     int trackId = params["track_id"];
     int clipIdx = params["clip_index"];
-    auto newName = params["name"].toString();
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1003,11 +1061,11 @@ juce::var CommandHandler::handleRenameClip (const juce::var& params)
 
 juce::var CommandHandler::handleRenameTrack (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("name"))
+    juce::String newName;
+    if (! params.hasProperty ("track_id") || ! tryGetStringProperty (params, { "name", "new_name" }, newName))
         return makeError ("Missing required parameters: track_id, name");
 
     int trackId = params["track_id"];
-    auto newName = params["name"].toString();
 
     auto* track = getTrackById (trackId);
     if (track == nullptr)
@@ -1214,10 +1272,10 @@ juce::var CommandHandler::handleGetTransportState()
 
 juce::var CommandHandler::handleSetTempo (const juce::var& params)
 {
-    if (! params.hasProperty ("bpm"))
+    double bpm = 0.0;
+    if (! tryGetDoubleProperty (params, { "bpm", "value" }, bpm))
         return makeError ("Missing required parameter: bpm");
 
-    double bpm = params["bpm"];
     if (bpm < 20.0 || bpm > 999.0)
         return makeError ("BPM must be between 20 and 999");
 
@@ -1274,7 +1332,7 @@ juce::var CommandHandler::handleExportMixdown (const juce::var& params)
     juce::File outputFile (filePath);
 
     // Validate output path
-    if (! isOutputPathAllowed (outputFile, allowedMediaDirectories))
+    if (! isOutputPathAllowed (filePath, outputFile, allowedMediaDirectories))
         return makeError ("Output path is outside allowed directories: " + filePath);
 
     // Ensure parent directory exists
@@ -1326,7 +1384,7 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
     juce::File outputDir (outputDirPath);
 
     // Validate path (with symlink resolution)
-    if (! isWithinAllowedDirectories (outputDir, allowedMediaDirectories))
+    if (! isWithinAllowedDirectories (outputDirPath, outputDir, allowedMediaDirectories))
         return makeError ("Output directory is outside allowed directories");
 
     outputDir.createDirectory();
@@ -1336,6 +1394,7 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
 
     auto audioTracks = te::getAudioTracks (edit);
     juce::Array<juce::var> exportedFiles;
+    juce::StringArray errors;
 
     for (int i = 0; i < audioTracks.size(); ++i)
     {
@@ -1370,14 +1429,27 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
             fileInfo->setProperty ("file_path", stemFile.getFullPathName());
             exportedFiles.add (juce::var (fileInfo));
         }
+        else
+        {
+            errors.add ("Failed to render stem for track: " + track->getName());
+        }
     }
 
-    auto result = makeOk();
+    auto result = errors.isEmpty()
+                    ? makeOk()
+                    : makeError ("Export stems failed: " + errors.joinIntoString ("; "));
     if (auto* obj = result.getDynamicObject())
     {
         obj->setProperty ("output_dir", outputDir.getFullPathName());
         obj->setProperty ("stems", exportedFiles);
         obj->setProperty ("count", exportedFiles.size());
+        if (! errors.isEmpty())
+        {
+            juce::Array<juce::var> errorArray;
+            for (const auto& error : errors)
+                errorArray.add (error);
+            obj->setProperty ("errors", errorArray);
+        }
     }
     return result;
 }
@@ -1761,9 +1833,22 @@ juce::var CommandHandler::handleSetClipFade (const juce::var& params)
 
 te::Track* CommandHandler::getTrackById (int trackIndex)
 {
-    auto& allTracks = edit.getTrackList();
-    if (trackIndex >= 0 && trackIndex < allTracks.size())
-        return allTracks[trackIndex];
+    if (trackIndex < 0)
+        return nullptr;
+
+    int publicTrackIndex = 0;
+    for (auto* track : edit.getTrackList())
+    {
+        if (dynamic_cast<te::AudioTrack*> (track) == nullptr
+            && dynamic_cast<te::FolderTrack*> (track) == nullptr)
+            continue;
+
+        if (publicTrackIndex == trackIndex)
+            return track;
+
+        ++publicTrackIndex;
+    }
+
     return nullptr;
 }
 
@@ -2178,7 +2263,7 @@ juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
     auto outputPath = params["file_path"].toString();
     juce::File outputZip (outputPath);
 
-    if (! isOutputPathAllowed (outputZip, allowedMediaDirectories))
+    if (! isOutputPathAllowed (outputPath, outputZip, allowedMediaDirectories))
         return makeError ("Output path is outside allowed directories: " + outputPath);
 
     auto projectDir = projectFile.getParentDirectory();

@@ -238,7 +238,9 @@ RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handle
 
     stemsToggle.setButtonText ("Stems (one file per track)");
     stemsToggle.setRadioGroupId (1);
+    stemsToggle.onClick = [this] { updateOutputMode(); };
     addAndMakeVisible (stemsToggle);
+    mixdownToggle.onClick = [this] { updateOutputMode(); };
 
     // Output path
     outputPathLabel.setText ("Output:", juce::dontSendNotification);
@@ -262,6 +264,7 @@ RenderDialog::RenderDialog (EditSession& session, UndoableCommandHandler& handle
     progressBar.setVisible (false);
 
     updateFormatOptions();
+    updateOutputMode();
     setSize (600, 520);
 }
 
@@ -269,6 +272,57 @@ RenderDialog::~RenderDialog()
 {
     if (renderThread.joinable())
         renderThread.join();
+}
+
+int RenderDialog::getSelectedFormatForTesting() const
+{
+    return formatCombo.getSelectedId();
+}
+
+void RenderDialog::selectFormatForTesting (int formatId)
+{
+    formatCombo.setSelectedId (formatId, juce::sendNotificationSync);
+}
+
+int RenderDialog::getSelectedRangeForTesting() const
+{
+    return rangeCombo.getSelectedId();
+}
+
+void RenderDialog::selectRangeForTesting (int rangeId)
+{
+    rangeCombo.setSelectedId (rangeId, juce::sendNotificationSync);
+}
+
+bool RenderDialog::isBitDepthVisibleForTesting() const
+{
+    return bitDepthCombo.isVisible();
+}
+
+bool RenderDialog::isOggQualityVisibleForTesting() const
+{
+    return oggQualitySlider.isVisible();
+}
+
+bool RenderDialog::isCustomRangeVisibleForTesting() const
+{
+    return startEditor.isVisible() && endEditor.isVisible();
+}
+
+void RenderDialog::setStemsModeForTesting (bool shouldRenderStems)
+{
+    if (shouldRenderStems != stemsToggle.getToggleState())
+        (shouldRenderStems ? stemsToggle : mixdownToggle).triggerClick();
+}
+
+juce::String RenderDialog::getOutputPathForTesting() const
+{
+    return outputPathEditor.getText();
+}
+
+juce::String RenderDialog::getOutputLabelTextForTesting() const
+{
+    return outputPathLabel.getText();
 }
 
 void RenderDialog::resized()
@@ -349,6 +403,9 @@ void RenderDialog::resized()
 
 void RenderDialog::updateFileExtension()
 {
+    if (stemsToggle.getToggleState())
+        return;
+
     auto path = outputPathEditor.getText();
     auto file = juce::File (path);
     auto baseName = file.getFileNameWithoutExtension();
@@ -377,8 +434,56 @@ void RenderDialog::updateFormatOptions()
     oggQualitySlider.setVisible (isOgg);
 }
 
+void RenderDialog::updateOutputMode()
+{
+    const bool stemsMode = stemsToggle.getToggleState();
+    outputPathLabel.setText (stemsMode ? "Output Dir:" : "Output:", juce::dontSendNotification);
+
+    auto currentPath = outputPathEditor.getText().trim();
+    auto currentFile = currentPath.isNotEmpty() ? juce::File (currentPath) : juce::File();
+
+    if (stemsMode)
+    {
+        auto outputDir = currentFile;
+        if (outputDir == juce::File() || (! outputDir.isDirectory() && outputDir.getFileExtension().isNotEmpty()))
+            outputDir = currentFile.getParentDirectory();
+
+        if (outputDir == juce::File())
+            outputDir = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+
+        outputPathEditor.setText (outputDir.getFullPathName(), juce::dontSendNotification);
+        return;
+    }
+
+    auto parentDir = currentFile;
+    if (! parentDir.isDirectory())
+        parentDir = currentFile.getParentDirectory();
+
+    if (parentDir == juce::File())
+        parentDir = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+
+    auto fileName = currentFile.getFileName();
+    if (fileName.isEmpty() || currentFile.getFileExtension().isEmpty())
+        fileName = "Untitled.wav";
+
+    outputPathEditor.setText (parentDir.getChildFile (fileName).getFullPathName(), juce::dontSendNotification);
+    updateFileExtension();
+}
+
 void RenderDialog::browseForOutputPath()
 {
+    if (stemsToggle.getToggleState())
+    {
+        auto startDir = juce::File (outputPathEditor.getText());
+        if (startDir == juce::File() || ! startDir.exists())
+            startDir = juce::File::getSpecialLocation (juce::File::userDocumentsDirectory);
+
+        juce::FileChooser chooser ("Choose Stem Output Directory...", startDir);
+        if (chooser.browseForDirectory())
+            outputPathEditor.setText (chooser.getResult().getFullPathName());
+        return;
+    }
+
     juce::String wildcards;
     switch (formatCombo.getSelectedId())
     {
@@ -400,12 +505,16 @@ void RenderDialog::performRender()
     if (rendering)
         return;
 
-    auto outputFile = juce::File (outputPathEditor.getText());
-    if (outputFile.getParentDirectory() == juce::File() || !outputFile.getParentDirectory().exists())
+    const bool doStems = stemsToggle.getToggleState();
+    auto outputTarget = juce::File (outputPathEditor.getText());
+    auto outputDirectory = doStems ? outputTarget : outputTarget.getParentDirectory();
+
+    if (outputDirectory == juce::File() || ! outputDirectory.exists())
     {
         juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
                                                  "Invalid Path",
-                                                 "Output directory does not exist.");
+                                                 doStems ? "Output directory does not exist."
+                                                         : "Output file directory does not exist.");
         return;
     }
 
@@ -501,7 +610,6 @@ void RenderDialog::performRender()
         tracksMask.setBit (tracks[i]->getIndexInEditTrackList());
 
     // Mixdown vs stems
-    bool doStems = stemsToggle.getToggleState();
     bool normalize = normalizeToggle.getToggleState();
     double normalizeLevel = -0.1; // -0.1 dBFS
 
@@ -509,7 +617,7 @@ void RenderDialog::performRender()
         renderThread.join();
 
     RenderData data { formatId, sampleRate, bitDepth, oggQuality, range, tracksMask,
-                      doStems, outputFile, normalize, normalizeLevel,
+                      doStems, outputTarget, normalize, normalizeLevel,
                       edit.state.createCopy(),
                       te::EditFileOperations (edit).getEditFile(),
                       &edit.engine };
@@ -553,8 +661,17 @@ void RenderDialog::performRender()
         {
             // Render stems
             auto tracksToRender = te::getAudioTracks (editRef);
-            auto outputDir = data.outputFile.getParentDirectory();
+            auto outputDir = data.outputFile;
             auto ext = data.outputFile.getFileExtension();
+            if (ext.isEmpty())
+            {
+                switch (data.formatId)
+                {
+                    case 2: ext = ".flac"; break;
+                    case 3: ext = ".ogg"; break;
+                    default: ext = ".wav"; break;
+                }
+            }
 
             success = true;
             for (int i = 0; i < tracksToRender.size(); ++i)
@@ -627,7 +744,10 @@ void RenderDialog::performRender()
         }
 
         const auto finalFile = renderedFiles.isEmpty() ? data.outputFile : renderedFiles.getFirst();
-        juce::MessageManager::callAsync ([safeThis, success, finalFile]
+        const auto renderedCount = renderedFiles.size();
+        const auto outputDir = data.doStems ? data.outputFile.getFullPathName()
+                                            : finalFile.getParentDirectory().getFullPathName();
+        juce::MessageManager::callAsync ([safeThis, success, finalFile, renderedCount, outputDir]
         {
             if (safeThis == nullptr)
                 return;
@@ -637,14 +757,24 @@ void RenderDialog::performRender()
 
             if (success)
             {
-                auto size = finalFile.getSize();
-                auto sizeStr = size < 1024 * 1024
-                               ? juce::String (size / 1024) + " KB"
-                               : juce::String (size / (1024 * 1024)) + " MB";
+                juce::String message;
+                if (renderedCount > 1)
+                {
+                    message = "Rendered " + juce::String (renderedCount)
+                              + " stem files to:\n" + outputDir;
+                }
+                else
+                {
+                    auto size = finalFile.getSize();
+                    auto sizeStr = size < 1024 * 1024
+                                   ? juce::String (size / 1024) + " KB"
+                                   : juce::String (size / (1024 * 1024)) + " MB";
+                    message = "File: " + finalFile.getFullPathName() + "\nSize: " + sizeStr;
+                }
 
                 juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::InfoIcon,
                                                          "Render Complete",
-                                                         "File: " + finalFile.getFullPathName() + "\nSize: " + sizeStr);
+                                                         message);
             }
             else
             {

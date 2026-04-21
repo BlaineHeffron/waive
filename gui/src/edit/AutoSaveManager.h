@@ -25,9 +25,13 @@ public:
     /** Returns the auto-save file path for a project file. */
     static juce::File getAutoSaveFileForProject (const juce::File& projectFile);
 
+    /** Deterministic test hook for writing the current auto-save snapshot immediately. */
+    void triggerAutoSaveForTesting();
+
 private:
     void timerCallback() override;
     juce::File getAutoSaveFile() const;
+    void writeAutoSaveSnapshot();
 
     EditSession& editSession;
     ProjectManager& projectManager;

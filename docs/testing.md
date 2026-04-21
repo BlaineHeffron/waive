@@ -90,7 +90,7 @@ Waive has three native C++ regression test executables integrated with CTest.
 ## Test Categories
 
 - **Security Regression Tests**: Path sanitization rejects `../`, `..\\`, null bytes, control chars. ModelManager rejects path traversal in modelID and version params.
-- **Accessibility Tests**: Label verification (setTitle/setDescription present on all interactive components), keyboard navigation (Tab order, arrow keys in lists).
+- **Accessibility Coverage**: UI code is expected to set accessibility labels/descriptions and implement keyboard interaction where appropriate. The current automated suite exercises some keyboard handlers, but it does not yet include dedicated label-verification or tab-order regression tests.
 - **Performance Boundary Tests**: Cache limits (AudioAnalysisCache LRU eviction at max capacity), timer counts (consolidated timers per container), large-project scaling (100+ clips, 24+ tracks).
 
 ## Running Tests

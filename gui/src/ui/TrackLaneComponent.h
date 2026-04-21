@@ -46,6 +46,14 @@ public:
     juce::Colour getTrackColorForTesting() const;
 
 private:
+    enum ContextMenuItemId
+    {
+        menuRenameTrack = 1,
+        menuDeleteTrack = 5,
+        menuMoveToFolderBase = 100,
+        menuRemoveFromFolder = 200
+    };
+
     void refreshAutomationParams();
     void layoutClipComponents();
     void showTrackContextMenu();

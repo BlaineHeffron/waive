@@ -5,7 +5,7 @@ Generated on 2026-02-07 after completing v5 (20 phases: AI tools, audio processi
 ## Current State
 - All C++ tests pass (WaiveCoreTests, WaiveUiTests, WaiveToolTests)
 - All Python tests pass (48 passed, 4 skipped)
-- Build clean, no warnings
+- Build succeeds cleanly; some third-party/toolchain warnings may still appear
 - 48 commands, 7 C++ tools, 10 Python tools, AI chat with Anthropic/OpenAI/Gemini
 
 ## Phase Order (8 phases)

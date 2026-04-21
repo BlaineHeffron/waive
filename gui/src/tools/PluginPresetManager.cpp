@@ -19,6 +19,45 @@ namespace waive {
 
 PluginPresetManager::PluginPresetManager() = default;
 
+namespace
+{
+juce::String buildStablePluginIdentifier (tracktion::engine::Plugin& plugin)
+{
+    juce::StringArray parts;
+
+    auto format = plugin.state.getProperty ("pluginFormatName", {}).toString().trim();
+    auto fileIdentifier = plugin.state.getProperty ("fileOrIdentifier", {}).toString().trim();
+    auto type = plugin.state.getProperty (tracktion::engine::IDs::type, {}).toString().trim();
+    auto name = plugin.getName().trim();
+    auto manufacturer = plugin.state.getProperty ("manufacturer", {}).toString().trim();
+
+    if (format.isNotEmpty())
+        parts.add (format);
+    else
+        parts.add (plugin.getPluginType());
+
+    if (fileIdentifier.isNotEmpty())
+        parts.add (fileIdentifier);
+    else if (type.isNotEmpty())
+        parts.add (type);
+    else if (name.isNotEmpty())
+        parts.add (name);
+
+    if (manufacturer.isNotEmpty())
+        parts.add (manufacturer);
+
+    auto identifier = parts.joinIntoString ("_");
+    auto sanitized = PathSanitizer::sanitizePathComponent (identifier);
+
+    if (sanitized.isNotEmpty())
+        return sanitized;
+
+    identifier = identifier.replaceCharacters ("/\\:*?\"<>|. ", "____________");
+    sanitized = PathSanitizer::sanitizePathComponent (identifier);
+    return sanitized.isNotEmpty() ? sanitized : "Unknown";
+}
+}
+
 juce::File PluginPresetManager::getPresetsDirectory() const
 {
     auto homeDir = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
@@ -27,41 +66,7 @@ juce::File PluginPresetManager::getPresetsDirectory() const
 
 juce::String PluginPresetManager::getPluginIdentifier (tracktion::engine::Plugin& plugin)
 {
-    juce::StringArray parts;
-    parts.add (plugin.getPluginType());
-    parts.add (plugin.getName());
-
-    if (plugin.state.isValid())
-    {
-        auto pluginTag = plugin.state.getType().toString();
-        if (pluginTag.isNotEmpty())
-            parts.add (pluginTag);
-
-        auto fileOrIdentifier = plugin.state.getProperty ("file", {}).toString();
-        if (fileOrIdentifier.isEmpty())
-            fileOrIdentifier = plugin.state.getProperty ("identifier", {}).toString();
-        if (fileOrIdentifier.isNotEmpty())
-            parts.add (fileOrIdentifier);
-
-        auto manufacturer = plugin.state.getProperty ("manufacturer", {}).toString();
-        if (manufacturer.isNotEmpty())
-            parts.add (manufacturer);
-    }
-
-    juce::String identifier = parts.joinIntoString ("_");
-
-    auto sanitized = PathSanitizer::sanitizePathComponent (identifier);
-
-    if (sanitized.isEmpty())
-    {
-        identifier = identifier.replaceCharacters ("/\\:*?\"<>|.", "__________");
-        sanitized = PathSanitizer::sanitizePathComponent (identifier);
-
-        if (sanitized.isEmpty())
-            return "Unknown";
-    }
-
-    return sanitized;
+    return buildStablePluginIdentifier (plugin);
 }
 
 juce::File PluginPresetManager::getPresetFile (const juce::String& pluginIdentifier,
@@ -118,7 +123,9 @@ bool PluginPresetManager::savePreset (tracktion::engine::Plugin& plugin, const j
     presetTree.setProperty ("name", presetName, nullptr);
     presetTree.setProperty ("plugin", pluginId, nullptr);
     presetTree.setProperty ("timestamp", juce::Time::getCurrentTime().toISO8601 (true), nullptr);
-    presetTree.appendChild (pluginState, nullptr);
+    juce::ValueTree pluginStateWrapper ("PluginState");
+    pluginStateWrapper.appendChild (pluginState, nullptr);
+    presetTree.appendChild (pluginStateWrapper, nullptr);
 
     // Convert to XML
     auto xml = presetTree.createXml();
@@ -163,11 +170,17 @@ bool PluginPresetManager::loadPreset (tracktion::engine::Plugin& plugin, const j
         return false;
     }
 
-    // Extract plugin state (first child)
+    // Extract plugin state from the documented PluginState wrapper.
     if (presetTree.getNumChildren() == 0)
         return false;
 
-    auto pluginState = presetTree.getChild (0);
+    auto pluginStateWrapper = presetTree.getChild (0);
+    if (! pluginStateWrapper.isValid()
+        || pluginStateWrapper.getType() != juce::Identifier ("PluginState")
+        || pluginStateWrapper.getNumChildren() == 0)
+        return false;
+
+    auto pluginState = pluginStateWrapper.getChild (0);
 
     // Restore plugin state
     plugin.restorePluginStateFromValueTree (pluginState);

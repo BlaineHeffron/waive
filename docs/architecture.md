@@ -88,7 +88,7 @@ The `AutoSaveManager` (if present) provides periodic automatic project saving to
 - **Save interval**: Default 5 minutes. Configurable via the `autoSaveIntervalSeconds` user setting.
 - **Dirty state detection**: Monitors `Edit::hasChanged()` flag before triggering saves.
 - **Auto-save file naming**: Saves to `.waive-autosave-{projectName}.tracktionedit` in the project directory.
-- **Recovery flow**: When opening a project, if the auto-save file is newer than the project file, prompt the user to recover unsaved changes.
+- **Recovery flow**: The auto-save file is written from a snapshot of the live edit state. When opening a project, if the auto-save file is newer than the project file, prompt the user to recover unsaved changes.
 - **Cleanup**: Auto-save files are deleted on successful explicit save or clean exit.
 
 ### Clip Fade Handles
