@@ -23,6 +23,9 @@ public:
         previous transaction had the same action name. */
     juce::String handleCommandCoalesced (const juce::String& jsonString);
 
+    /** Refresh the underlying CommandHandler allowlist used for path validation. */
+    void setAllowedMediaDirectories (const juce::Array<juce::File>& directories);
+
     /** Get access to the EditSession (for undo/redo handling in AiAgent). */
     EditSession& getEditSession() { return editSession; }
 

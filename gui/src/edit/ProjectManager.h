@@ -28,6 +28,7 @@ public:
                                      const juce::File& originalProjectFile);
     bool save();
     bool saveAs();
+    bool confirmSaveIfDirty();
 
     bool isDirty() const;
     juce::File getCurrentFile() const   { return currentFile; }
@@ -42,7 +43,6 @@ public:
 
 private:
     void checkDirtyState();
-    bool confirmSaveIfDirty();
     bool openProjectInternal (const juce::File& fileToLoad,
                               const juce::File& resultingProjectFile,
                               bool markChangedAfterLoad);

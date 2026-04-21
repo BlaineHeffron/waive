@@ -32,6 +32,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
                                     waive::ModelManager* modelMgr,
                                     waive::JobQueue* jq,
                                     ProjectManager* projectMgr,
+                                    std::function<void()> onModelStorageChanged,
                                     waive::AiAgent* aiAgent,
                                     waive::AiSettings* aiSettings)
     : editSession (session), commandHandler (handler)
@@ -354,7 +355,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     if (toolReg != nullptr && modelMgr != nullptr && jq != nullptr && projectMgr != nullptr)
     {
         toolSidebar = std::make_unique<ToolSidebarComponent> (*toolReg, editSession, *projectMgr,
-                                                               *this, *modelMgr, *jq);
+                                                               *this, *modelMgr, *jq,
+                                                               std::move (onModelStorageChanged));
         addAndMakeVisible (toolSidebar.get());
 
         sidebarResizer = std::make_unique<juce::StretchableLayoutResizerBar> (&horizontalLayout, 1, true);
@@ -821,34 +823,11 @@ void SessionComponent::record()
     if (transport.isRecording())
         return;
 
-    requestMicrophoneAccess ([this] (bool granted)
+    auto safeThis = juce::Component::SafePointer<SessionComponent> (this);
+    requestMicrophoneAccess ([safeThis] (bool granted)
     {
-        if (! granted)
-        {
-            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
-                                            "Microphone Access Required",
-                                            getMicAccessHelpText());
-            return;
-        }
-
-        juce::String micError;
-        if (! ensureMicInputReady (micError))
-        {
-            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
-                                            "Microphone Not Ready",
-                                            micError);
-            return;
-        }
-
-        auto& localTransport = editSession.getEdit().getTransport();
-        localTransport.record (false, true);
-
-        if (! localTransport.isRecording())
-        {
-            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
-                                            "Recording Did Not Start",
-                                            "Recording could not start. Arm a track input or use Mic Rec.");
-        }
+        if (safeThis != nullptr)
+            safeThis->continueRecordAfterMicPermission (granted);
     });
 }
 
@@ -871,6 +850,12 @@ void SessionComponent::stopRecording()
 
 void SessionComponent::requestMicrophoneAccess (std::function<void (bool)> callback)
 {
+    if (microphoneAccessRequesterForTesting)
+    {
+        microphoneAccessRequesterForTesting (std::move (callback));
+        return;
+    }
+
     auto permission = juce::RuntimePermissions::recordAudio;
     if (! juce::RuntimePermissions::isRequired (permission))
     {
@@ -902,6 +887,36 @@ void SessionComponent::requestMicrophoneAccess (std::function<void (bool)> callb
         safeThis->micPermissionRequestInFlight = false;
         callback (granted);
     });
+}
+
+void SessionComponent::continueRecordAfterMicPermission (bool granted)
+{
+    if (! granted)
+    {
+        waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                        "Microphone Access Required",
+                                        getMicAccessHelpText());
+        return;
+    }
+
+    juce::String micError;
+    if (! ensureMicInputReady (micError))
+    {
+        waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                        "Microphone Not Ready",
+                                        micError);
+        return;
+    }
+
+    auto& localTransport = editSession.getEdit().getTransport();
+    localTransport.record (false, true);
+
+    if (! localTransport.isRecording())
+    {
+        waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                        "Recording Did Not Start",
+                                        "Recording could not start. Arm a track input or use Mic Rec.");
+    }
 }
 
 bool SessionComponent::ensureMicInputReady (juce::String& errorMessage)
@@ -1003,86 +1018,91 @@ void SessionComponent::recordFromMic()
     if (transport.isRecording())
         return;
 
-    requestMicrophoneAccess ([this] (bool granted)
+    auto safeThis = juce::Component::SafePointer<SessionComponent> (this);
+    requestMicrophoneAccess ([safeThis] (bool granted)
     {
-        if (! granted)
-        {
-            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
-                                            "Microphone Access Required",
-                                            getMicAccessHelpText());
-            return;
-        }
-
-        juce::String micError;
-        if (! ensureMicInputReady (micError))
-        {
-            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
-                                            "Microphone Not Ready",
-                                            micError);
-            return;
-        }
-
-        auto& edit = editSession.getEdit();
-
-        // Find first empty track or create new one
-        te::AudioTrack* targetTrack = nullptr;
-        for (auto* t : te::getAudioTracks (edit))
-        {
-            if (t->getClips().isEmpty())
-            {
-                targetTrack = t;
-                break;
-            }
-        }
-
-        if (targetTrack == nullptr)
-        {
-            auto trackCount = te::getAudioTracks (edit).size();
-            edit.ensureNumberOfAudioTracks (trackCount + 1);
-            targetTrack = te::getAudioTracks (edit).getLast();
-        }
-
-        if (targetTrack == nullptr)
-            return;
-
-        auto* waveIn = getSelectedMicInputDevice();
-        if (waveIn == nullptr)
-        {
-            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
-                                            "No Input Devices",
-                                            "No microphone input device is selected.");
-            return;
-        }
-
-        // Assign and arm the input device, then start recording
-        editSession.performEdit ("Record from Mic", [&edit, targetTrack, waveIn] (te::Edit&)
-        {
-            edit.getTransport().ensureContextAllocated();
-            (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*waveIn);
-
-            if (auto* epc = edit.getCurrentPlaybackContext())
-            {
-                if (auto* idi = epc->getInputFor (waveIn))
-                {
-                    if (!idi->setTarget (targetTrack->itemID, false, &edit.getUndoManager()))
-                    {
-                        DBG ("Failed to assign input device to track");
-                    }
-                    idi->setRecordingEnabled (targetTrack->itemID, true);
-                }
-            }
-
-            // Start recording after arming is complete
-            edit.getTransport().record (false, true);
-        });
-
-        if (! edit.getTransport().isRecording())
-        {
-            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
-                                            "Recording Did Not Start",
-                                            "Could not start microphone recording. Check input and audio device settings.");
-        }
+        if (safeThis != nullptr)
+            safeThis->continueRecordFromMicAfterPermission (granted);
     });
+}
+
+void SessionComponent::continueRecordFromMicAfterPermission (bool granted)
+{
+    if (! granted)
+    {
+        waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                        "Microphone Access Required",
+                                        getMicAccessHelpText());
+        return;
+    }
+
+    juce::String micError;
+    if (! ensureMicInputReady (micError))
+    {
+        waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                        "Microphone Not Ready",
+                                        micError);
+        return;
+    }
+
+    auto& edit = editSession.getEdit();
+
+    te::AudioTrack* targetTrack = nullptr;
+    for (auto* t : te::getAudioTracks (edit))
+    {
+        if (t->getClips().isEmpty())
+        {
+            targetTrack = t;
+            break;
+        }
+    }
+
+    if (targetTrack == nullptr)
+    {
+        auto trackCount = te::getAudioTracks (edit).size();
+        edit.ensureNumberOfAudioTracks (trackCount + 1);
+        targetTrack = te::getAudioTracks (edit).getLast();
+    }
+
+    if (targetTrack == nullptr)
+        return;
+
+    auto* waveIn = getSelectedMicInputDevice();
+    if (waveIn == nullptr)
+    {
+        waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                        "No Input Devices",
+                                        "No microphone input device is selected.");
+        return;
+    }
+
+    editSession.performEdit ("Record from Mic", [&edit, targetTrack, waveIn] (te::Edit&)
+    {
+        edit.getTransport().ensureContextAllocated();
+        (void) edit.getEditInputDevices().getInstanceStateForInputDevice (*waveIn);
+
+        if (auto* epc = edit.getCurrentPlaybackContext())
+        {
+            if (auto* idi = epc->getInputFor (waveIn))
+            {
+                if (! idi->setTarget (targetTrack->itemID, false, &edit.getUndoManager()))
+                {
+                    DBG ("Failed to assign input device to track");
+                }
+
+                idi->setRecordingEnabled (targetTrack->itemID, true);
+            }
+        }
+
+        edit.getTransport().record (false, true);
+    });
+
+    if (! edit.getTransport().isRecording())
+    {
+        waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                        "Recording Did Not Start",
+                                        "Could not start microphone recording. Check input and audio device settings.");
+    }
 }
 
 void SessionComponent::timerCallback()
@@ -1431,6 +1451,16 @@ int SessionComponent::getKeyboardFocusOrderForTesting (const juce::String& contr
     if (controlName == "mixer") return mixer != nullptr ? mixer->getExplicitFocusOrder() : 0;
     if (controlName == "tool_sidebar") return toolSidebar != nullptr ? toolSidebar->getExplicitFocusOrder() : 0;
     return 0;
+}
+
+void SessionComponent::setMicrophoneAccessRequesterForTesting (std::function<void (std::function<void (bool)>)> requester)
+{
+    microphoneAccessRequesterForTesting = std::move (requester);
+}
+
+void SessionComponent::clearMicrophoneAccessRequesterForTesting()
+{
+    microphoneAccessRequesterForTesting = nullptr;
 }
 
 void SessionComponent::applyToolPreviewDiff (const juce::Array<waive::ToolDiffEntry>& changes)

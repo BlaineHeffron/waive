@@ -13,6 +13,9 @@ public:
     AutoSaveManager (EditSession& session, ProjectManager& projectMgr, int intervalSeconds = 300);
     ~AutoSaveManager() override;
 
+    /** Marks shutdown as intentional so any stale recovery file can be cleaned up. */
+    void markCleanShutdown();
+
     /** Check if an auto-save file exists for the given project. */
     static juce::File checkForAutoSave (const juce::File& projectFile);
 
@@ -36,4 +39,5 @@ private:
     EditSession& editSession;
     ProjectManager& projectManager;
     juce::ApplicationProperties appProperties;
+    bool deleteAutoSaveOnShutdown = false;
 };

@@ -29,6 +29,7 @@ public:
                       waive::ModelManager* modelMgr = nullptr,
                       waive::JobQueue* jobQueue = nullptr,
                       ProjectManager* projectMgr = nullptr,
+                      std::function<void()> onModelStorageChanged = {},
                       waive::AiAgent* aiAgent = nullptr,
                       waive::AiSettings* aiSettings = nullptr);
     ~SessionComponent() override;
@@ -65,6 +66,8 @@ public:
     juce::String getTransportTooltipForTesting (const juce::String& controlName);
     juce::String getSelectionStatusTextForTesting() const;
     int getKeyboardFocusOrderForTesting (const juce::String& controlName) const;
+    void setMicrophoneAccessRequesterForTesting (std::function<void (std::function<void (bool)>)> requester);
+    void clearMicrophoneAccessRequesterForTesting();
 
     void applyToolPreviewDiff (const juce::Array<waive::ToolDiffEntry>& changes);
     void clearToolPreview();
@@ -85,6 +88,8 @@ private:
     void refreshMicInputDevices();
     te::WaveInputDevice* getSelectedMicInputDevice() const;
     void requestMicrophoneAccess (std::function<void (bool)> callback);
+    void continueRecordAfterMicPermission (bool granted);
+    void continueRecordFromMicAfterPermission (bool granted);
     bool ensureMicInputReady (juce::String& errorMessage);
     juce::String getMicAccessHelpText() const;
     void closePianoRollInternal (bool relayout);
@@ -172,4 +177,5 @@ private:
     int lastSnapResolution = -1;
     int micInputRefreshTicks = 0;
     bool micPermissionRequestInFlight = false;
+    std::function<void (std::function<void (bool)>)> microphoneAccessRequesterForTesting;
 };

@@ -39,6 +39,12 @@ void UndoableCommandHandler::setCommandHandler (CommandHandler& handler)
     commandHandler = &handler;
 }
 
+void UndoableCommandHandler::setAllowedMediaDirectories (const juce::Array<juce::File>& directories)
+{
+    if (commandHandler != nullptr)
+        commandHandler->setAllowedMediaDirectories (directories);
+}
+
 juce::String UndoableCommandHandler::handleCommand (const juce::String& jsonString)
 {
     return handleInternal (jsonString, false);

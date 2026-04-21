@@ -83,6 +83,15 @@ bool commandSucceeded (const juce::var& response)
     return response.isObject() && response["status"].toString() == "ok";
 }
 
+bool containsFile (const juce::Array<juce::File>& files, const juce::File& target)
+{
+    for (const auto& file : files)
+        if (file == target)
+            return true;
+
+    return false;
+}
+
 te::Clip* findClipAtStart (te::AudioTrack& track, double startSeconds)
 {
     for (auto* clip : track.getClips())
@@ -555,6 +564,167 @@ void runAutoSaveSnapshotRegression()
             "Expected autosave file to remain available until an explicit save clears it");
 
     (void) projectFile.deleteFile();
+}
+
+void runAutoSaveShutdownCleanupRegression()
+{
+    te::Engine engine ("WaiveUiAutoSaveShutdownTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto projectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (projectFile), "Expected autosave-shutdown fixture project to open");
+
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
+    (void) autoSaveFile.deleteFile();
+
+    expect (session.performEdit ("Autosave Shutdown Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "autosave_shutdown_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (74, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected autosave-shutdown mutation to succeed");
+
+    {
+        AutoSaveManager autoSaveManager (session, projectManager, 1);
+        autoSaveManager.triggerAutoSaveForTesting();
+        expect (autoSaveFile.existsAsFile(), "Expected autosave file before shutdown cleanup check");
+    }
+
+    expect (autoSaveFile.existsAsFile(),
+            "Expected autosave file to survive teardown until shutdown is explicitly marked clean");
+
+    {
+        AutoSaveManager autoSaveManager (session, projectManager, 1);
+        autoSaveManager.markCleanShutdown();
+    }
+
+    expect (! autoSaveFile.existsAsFile(),
+            "Expected clean shutdown marker to delete the autosave file");
+
+    (void) projectFile.deleteFile();
+}
+
+void runModelStorageAllowlistRefreshRegression()
+{
+    te::Engine engine ("WaiveUiModelStorageAllowlistTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (session);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+    session.getEdit().ensureNumberOfAudioTracks (1);
+
+    MainComponent mainComponent (undoableHandler, session, jobQueue, projectManager);
+    mainComponent.setBounds (0, 0, 1400, 900);
+    mainComponent.resized();
+
+    auto& toolsComponent = mainComponent.getToolSidebarForTesting();
+    auto originalAllowedDirs = commandHandler.getAllowedMediaDirectories();
+
+    auto modelStorage = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                            .getChildFile ("waive_model_storage_allowlist_" + juce::Uuid().toString());
+    (void) modelStorage.deleteRecursively();
+    modelStorage.createDirectory();
+
+    expect (! containsFile (originalAllowedDirs, modelStorage),
+            "Expected test model storage path to be absent before refresh");
+
+    auto sourceAudio = createPhase5FixtureAudioFile (
+        "waive_ui_model_storage_allowlist_",
+        0.25,
+        [] (int index, double sampleRate) -> float
+        {
+            return 0.2f * std::sin (2.0 * juce::MathConstants<double>::pi * 330.0 * (double) index / sampleRate);
+        });
+    auto stagedAudio = modelStorage.getChildFile ("allowlisted_after_refresh.wav");
+    expect (sourceAudio.copyFileTo (stagedAudio), "Expected staged audio fixture inside candidate model storage");
+    expect (stagedAudio.existsAsFile(), "Expected staged audio fixture to exist");
+
+    auto escapedPath = stagedAudio.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"");
+    auto rejectedResponse = runJsonCommand (commandHandler, juce::String::formatted (R"({
+        "action":"insert_audio_clip",
+        "track_id":0,
+        "start_time":0.0,
+        "file_path":"%s"
+    })", escapedPath.toRawUTF8()));
+    expect (! commandSucceeded (rejectedResponse),
+            "Expected insert_audio_clip to reject files outside the current allowlist");
+    expect (rejectedResponse["message"].toString().contains ("outside allowed directories"),
+            "Expected rejection to come from allowlist validation");
+
+    auto setStorageResult = toolsComponent.setModelStorageDirectoryForTesting (modelStorage);
+    expect (setStorageResult.wasOk(), "Expected model storage update to succeed");
+    expect (containsFile (commandHandler.getAllowedMediaDirectories(), modelStorage),
+            "Expected command handler allowlist to refresh after model storage changes");
+
+    auto acceptedResponse = runJsonCommand (commandHandler, juce::String::formatted (R"({
+        "action":"insert_audio_clip",
+        "track_id":0,
+        "start_time":0.0,
+        "file_path":"%s"
+    })", escapedPath.toRawUTF8()));
+    expect (commandSucceeded (acceptedResponse),
+            "Expected insert_audio_clip to succeed once model storage is allowlisted");
+
+    (void) modelStorage.deleteRecursively();
+}
+
+void runUiMicPermissionAsyncLifetimeRegression()
+{
+    auto exerciseDestroyedPermissionCallback = [] (const std::function<void (SessionComponent&)>& invoke)
+    {
+        te::Engine engine ("WaiveUiMicPermissionLifetimeTests");
+        engine.getPluginManager().initialise();
+
+        EditSession session (engine);
+        CommandHandler commandHandler (session.getEdit());
+        UndoableCommandHandler undoableHandler (commandHandler, session);
+
+        std::function<void (bool)> pendingCallback;
+
+        {
+            auto sessionComponent = std::make_unique<SessionComponent> (session, undoableHandler);
+            sessionComponent->setBounds (0, 0, 1400, 900);
+            sessionComponent->resized();
+
+            sessionComponent->setMicrophoneAccessRequesterForTesting ([&pendingCallback] (std::function<void (bool)> callback)
+            {
+                pendingCallback = std::move (callback);
+            });
+
+            invoke (*sessionComponent);
+            expect ((bool) pendingCallback, "Expected pending microphone permission callback");
+
+            sessionComponent.reset();
+        }
+
+        pendingCallback (false);
+    };
+
+    exerciseDestroyedPermissionCallback ([] (SessionComponent& sessionComponent)
+    {
+        sessionComponent.record();
+    });
+
+    exerciseDestroyedPermissionCallback ([] (SessionComponent& sessionComponent)
+    {
+        sessionComponent.recordFromMic();
+    });
 }
 
 void runUiAsyncTeardownRegression()
@@ -1397,6 +1567,8 @@ void runUiPhase5ModelBackedToolsRegression()
 
     auto setStorageResult = toolsComponent.setModelStorageDirectoryForTesting (modelStorage);
     expect (setStorageResult.wasOk(), "Expected model storage configuration to succeed");
+    expect (containsFile (commandHandler.getAllowedMediaDirectories(), modelStorage),
+            "Expected command handler allowlist to refresh after model storage changes");
 
     auto setLowQuotaResult = toolsComponent.setModelQuotaForTesting (96 * 1024);
     expect (setLowQuotaResult.wasOk(), "Expected low model quota setup to succeed");
@@ -2652,6 +2824,8 @@ int main()
     RUN_TEST_SAFELY(runUiCommandRoutingRegression);
     RUN_TEST_SAFELY(runUiProjectLifecycleRegression);
     RUN_TEST_SAFELY(runAutoSaveSnapshotRegression);
+    RUN_TEST_SAFELY(runAutoSaveShutdownCleanupRegression);
+    RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);
     RUN_TEST_SAFELY(runUiPhase3TransportAndWorkflowTests);
@@ -2676,6 +2850,8 @@ int main()
         RUN_TEST_SAFELY(runPluginIndexCommandConsistencyRegression);
         RUN_TEST_SAFELY(testGridLineStruct);
     }
+
+    RUN_TEST_SAFELY(runUiMicPermissionAsyncLifetimeRegression);
 
     juce::LookAndFeel::setDefaultLookAndFeel (nullptr);
 

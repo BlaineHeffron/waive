@@ -10,7 +10,7 @@
 - **10 Python tools** for audio analysis and processing
 - **Multi-provider AI chat** integrated into the workflow
 - Full undo/redo support with command coalescing
-- Real-time audio preview and playback
+- Real-time playback and transport control
 - Plugin management and VST/AU support
 
 ## Screenshot
@@ -95,6 +95,9 @@ ctest --test-dir build --output-on-failure
 ```bash
 # Install Python dependencies
 pip install -r tools/tests/requirements.txt
+for req in tools/*/requirements.txt; do
+  [ -f "$req" ] && pip install -r "$req"
+done
 
 # Run audio tool tests
 python3 -m pytest tools/tests/ -v

@@ -47,6 +47,22 @@ juce::Array<juce::File> makeAllowedMediaDirectories (ProjectManager* projectMana
 
     return directories;
 }
+
+class MainComponent;
+
+MainComponent* getMainComponentFromWindow (juce::DocumentWindow* window)
+{
+    if (window == nullptr)
+        return nullptr;
+
+    return dynamic_cast<MainComponent*> (window->getContentComponent());
+}
+
+void quitCurrentWaiveApplication()
+{
+    if (auto* app = juce::JUCEApplication::getInstance())
+        app->quit();
+}
 }
 
 //==============================================================================
@@ -90,6 +106,18 @@ public:
     const juce::String getApplicationName() override    { return "Waive"; }
     const juce::String getApplicationVersion() override { return "0.1.0"; }
     bool moreThanOneInstanceAllowed() override          { return false; }
+
+    void systemRequestedQuit() override
+    {
+        if (projectManager != nullptr && ! projectManager->confirmSaveIfDirty())
+            return;
+
+        if (mainWindow != nullptr)
+            if (auto* mainComponent = dynamic_cast<MainComponent*> (mainWindow->getContentComponent()))
+                mainComponent->markCleanShutdown();
+
+        quit();
+    }
 
     void initialise (const juce::String& commandLine) override
     {
@@ -212,29 +240,34 @@ public:
         // Screenshot mode: defer capture then exit
         if (screenshotMode)
         {
-            juce::Timer::callAfterDelay (1500, [this]()
+            auto safeWindow = juce::Component::SafePointer<MainWindow> (mainWindow.get());
+            auto outputDir = screenshotOutputDir;
+
+            juce::Timer::callAfterDelay (1500, [safeWindow, outputDir]()
             {
-                if (mainWindow == nullptr) return;
+                auto* mainComponent = getMainComponentFromWindow (safeWindow.getComponent());
+                if (mainComponent == nullptr)
+                    return;
 
-                auto* mc = dynamic_cast<MainComponent*> (mainWindow->getContentComponent());
-                if (mc == nullptr) return;
+                if (auto* app = dynamic_cast<WaiveApplication*> (juce::JUCEApplication::getInstance()))
+                    app->seedDemoContent();
 
-                // Seed demo content so screenshots aren't empty
-                seedDemoContent();
-
-                // Give demo content a moment to render
-                juce::Timer::callAfterDelay (500, [this, mc]()
+                juce::Component::SafePointer<MainComponent> safeMainComponent (mainComponent);
+                juce::Timer::callAfterDelay (500, [safeMainComponent, outputDir]()
                 {
+                    if (safeMainComponent == nullptr)
+                        return;
+
                     waive::ScreenshotCapture::Options opts;
-                    opts.outputDir = screenshotOutputDir;
+                    opts.outputDir = outputDir;
                     opts.maxWidth = 1400;
                     opts.jpegQuality = 0.70f;
 
-                    int captured = waive::ScreenshotCapture::captureAll (*mc, opts);
+                    int captured = waive::ScreenshotCapture::captureAll (*safeMainComponent, opts);
                     DBG ("Screenshot mode: captured " + juce::String (captured) + " images to "
-                         + screenshotOutputDir.getFullPathName());
+                         + outputDir.getFullPathName());
 
-                    quit();
+                    quitCurrentWaiveApplication();
                 });
             });
         }

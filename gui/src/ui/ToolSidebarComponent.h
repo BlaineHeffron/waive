@@ -25,7 +25,8 @@ public:
                           ProjectManager& projectMgr,
                           SessionComponent& sessionComp,
                           waive::ModelManager& modelMgr,
-                          waive::JobQueue& queue);
+                          waive::JobQueue& queue,
+                          std::function<void()> onModelStorageChanged = {});
     ~ToolSidebarComponent() override;
 
     void paint (juce::Graphics& g) override;
@@ -81,6 +82,7 @@ private:
     juce::File resolveProjectCacheDirectory() const;
     juce::String getToolModelRequirement (const juce::String& toolName) const;
     void clearPendingPlanState (const juce::String& statusText = {});
+    void notifyModelStorageChanged();
 
     waive::ToolRegistry& toolRegistry;
     EditSession& editSession;
@@ -97,6 +99,7 @@ private:
     bool planRunning = false;
     juce::String lastPlanError;
     mutable std::map<juce::String, juce::String> toolToRequiredModel;
+    std::function<void()> onModelStorageChanged;
 
     std::unique_ptr<ModelManagerSection> modelManagerSection;
     juce::Label toolLabel { {}, "Tool" };

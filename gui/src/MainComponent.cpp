@@ -25,6 +25,21 @@
 
 namespace
 {
+juce::Array<juce::File> makeAllowedMediaDirectories (ProjectManager& projectManager,
+                                                     const waive::ModelManager* modelManager)
+{
+    juce::Array<juce::File> directories;
+    directories.addIfNotAlreadyThere (juce::File::getSpecialLocation (juce::File::userHomeDirectory));
+
+    auto projectFile = projectManager.getCurrentFile();
+    if (projectFile != juce::File())
+        directories.addIfNotAlreadyThere (projectFile.getParentDirectory());
+
+    if (modelManager != nullptr)
+        directories.addIfNotAlreadyThere (modelManager->getStorageDirectory());
+
+    return directories;
+}
 
 bool isHeadlessUiEnvironment()
 {
@@ -111,9 +126,15 @@ MainComponent::MainComponent (UndoableCommandHandler& handler, EditSession& sess
 
 void MainComponent::initialiseUi (waive::JobQueue& jobQueue, waive::AiAgent* aiAgent, waive::AiSettings* aiSettings)
 {
+    auto refreshAllowedMediaDirectories = [this]
+    {
+        commandHandler.setAllowedMediaDirectories (makeAllowedMediaDirectories (projectManager, modelManager));
+    };
+
     sessionComponent = std::make_unique<SessionComponent> (editSession, commandHandler,
                                                             toolRegistry, modelManager,
                                                             &jobQueue, &projectManager,
+                                                            refreshAllowedMediaDirectories,
                                                             aiAgent, aiSettings);
     libraryComponent = std::make_unique<LibraryComponent> (editSession);
     pluginBrowser = std::make_unique<PluginBrowserComponent> (editSession, commandHandler);
@@ -137,6 +158,7 @@ void MainComponent::initialiseUi (waive::JobQueue& jobQueue, waive::AiAgent* aiA
 
     addAndMakeVisible (tabs);
     tooltipWindow = std::make_unique<juce::TooltipWindow> (this, 500);
+    refreshAllowedMediaDirectories();
 
     // Allow key commands
     addKeyListener (commandManager.getKeyMappings());
@@ -177,6 +199,12 @@ bool MainComponent::invokeCommandForTesting (juce::CommandID commandID)
     juce::ApplicationCommandTarget::InvocationInfo info (commandID);
     info.invocationMethod = juce::ApplicationCommandTarget::InvocationInfo::direct;
     return perform (info);
+}
+
+void MainComponent::markCleanShutdown()
+{
+    if (autoSaveManager != nullptr)
+        autoSaveManager->markCleanShutdown();
 }
 
 void MainComponent::resized()

@@ -122,9 +122,9 @@ Components access palette colours via `getWaivePalette(component)` with fallback
 
 ## CI/CD
 
-GitHub Actions workflow (`.github/workflows/ci.yml`) runs on every push and PR:
+GitHub Actions workflow (`.github/workflows/ci.yml`) runs on pushes to `main`, version tags, and pull requests targeting `main`:
 - **build-and-test** job: Ubuntu 22.04, installs system deps, cmake build, `xvfb-run ctest`
-- **python-tests** job: Ubuntu 22.04, installs Python and runs `pytest tools/tests/`
+- **python-tests** job: Ubuntu 22.04, installs Python, shared test dependencies, each tool's own `requirements.txt`, and runs `pytest tools/tests/`
 - Build caching via `actions/cache` on the `build/` directory
 - Concurrency group with cancel-in-progress for rapid pushes
 

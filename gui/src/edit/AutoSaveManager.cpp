@@ -17,7 +17,14 @@ AutoSaveManager::AutoSaveManager (EditSession& session, ProjectManager& projectM
 AutoSaveManager::~AutoSaveManager()
 {
     stopTimer();
-    deleteAutoSave (projectManager.getCurrentFile());
+
+    if (deleteAutoSaveOnShutdown)
+        deleteAutoSave (projectManager.getCurrentFile());
+}
+
+void AutoSaveManager::markCleanShutdown()
+{
+    deleteAutoSaveOnShutdown = true;
 }
 
 void AutoSaveManager::timerCallback()

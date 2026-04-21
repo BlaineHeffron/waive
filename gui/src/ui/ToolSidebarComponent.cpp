@@ -283,6 +283,7 @@ private:
                 {
                     juce::File newDir (dirPath);
                     safeThis->modelManager.setStorageDirectory (newDir);
+                    safeThis->sidebarParent.notifyModelStorageChanged();
                 }
 
                 if (quotaMB > 0)
@@ -319,13 +320,15 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
                                             ProjectManager& projectMgr,
                                             SessionComponent& sessionComp,
                                             waive::ModelManager& modelMgr,
-                                            waive::JobQueue& queue)
+                                            waive::JobQueue& queue,
+                                            std::function<void()> onModelStorageChanged_)
     : toolRegistry (registry),
       editSession (session),
       projectManager (projectMgr),
       sessionComponent (sessionComp),
       modelManager (modelMgr),
-      jobQueue (queue)
+      jobQueue (queue),
+      onModelStorageChanged (std::move (onModelStorageChanged_))
 {
     toolLabel.setJustificationType (juce::Justification::centredLeft);
     previewLabel.setJustificationType (juce::Justification::centredLeft);
@@ -399,6 +402,12 @@ ToolSidebarComponent::~ToolSidebarComponent()
 {
     cancelRunningPlanAndWait (2000);
     jobQueue.removeListener (this);
+}
+
+void ToolSidebarComponent::notifyModelStorageChanged()
+{
+    if (onModelStorageChanged)
+        onModelStorageChanged();
 }
 
 void ToolSidebarComponent::paint (juce::Graphics& g)
@@ -880,6 +889,7 @@ juce::File ToolSidebarComponent::getLastPlanArtifactForTesting() const
 juce::Result ToolSidebarComponent::setModelStorageDirectoryForTesting (const juce::File& directory)
 {
     modelManager.setStorageDirectory (directory);
+    notifyModelStorageChanged();
     return juce::Result::ok();
 }
 
