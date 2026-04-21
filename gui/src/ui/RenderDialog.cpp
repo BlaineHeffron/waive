@@ -526,6 +526,8 @@ void RenderDialog::performRender()
     bitDepthCombo.setEnabled (false);
     oggQualitySlider.setEnabled (false);
     rangeCombo.setEnabled (false);
+    startEditor.setEnabled (false);
+    endEditor.setEnabled (false);
     normalizeToggle.setEnabled (false);
     mixdownToggle.setEnabled (false);
     stemsToggle.setEnabled (false);
@@ -799,6 +801,8 @@ void RenderDialog::resetControls()
     bitDepthCombo.setEnabled (true);
     oggQualitySlider.setEnabled (true);
     rangeCombo.setEnabled (true);
+    startEditor.setEnabled (true);
+    endEditor.setEnabled (true);
     normalizeToggle.setEnabled (true);
     mixdownToggle.setEnabled (true);
     stemsToggle.setEnabled (true);

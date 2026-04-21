@@ -3,6 +3,7 @@
 #include "WaiveLookAndFeel.h"
 #include "WaiveSpacing.h"
 #include "WaiveFonts.h"
+#include <algorithm>
 #include <cmath>
 
 namespace
@@ -210,26 +211,30 @@ void PianoRollComponent::NoteGridComponent::paint (juce::Graphics& g)
     }
 
     // Ghost preview when dragging
-    if (dragMode == DragMode::MoveNotes && ! selectedNotes.empty())
+    if (dragMode == DragMode::MoveNotes && ! dragSelectionSnapshot.empty() && dragReferenceNote != nullptr)
     {
         auto mousePos = getMouseXYRelative();
         double targetBeat = snapBeat (xToBeat (mousePos.x) - noteDragOffset.x);
         int targetPitch = juce::jlimit (0, 127, yToPitch (mousePos.y) - (int) noteDragOffset.y);
 
-        te::MidiNote* firstNote = *selectedNotes.begin();
-        double deltaBeat = targetBeat - firstNote->getStartBeat().inBeats();
-        int deltaPitch = targetPitch - firstNote->getNoteNumber();
+        const auto referenceIt = std::find_if (dragSelectionSnapshot.begin(), dragSelectionSnapshot.end(),
+                                               [this] (const auto& state) { return state.note == dragReferenceNote; });
+        if (referenceIt == dragSelectionSnapshot.end())
+            return;
+
+        double deltaBeat = targetBeat - referenceIt->startBeat;
+        int deltaPitch = targetPitch - referenceIt->pitch;
 
         juce::Colour ghostColour = (pal ? pal->primary : juce::Colour (0xff4477aa)).withAlpha (0.5f);
-        for (auto* note : selectedNotes)
+        for (const auto& draggedNote : dragSelectionSnapshot)
         {
-            double ghostStart = std::max (0.0, note->getStartBeat().inBeats() + deltaBeat);
-            int ghostPitch = juce::jlimit (0, 127, note->getNoteNumber() + deltaPitch);
+            double ghostStart = std::max (0.0, draggedNote.startBeat + deltaBeat);
+            int ghostPitch = juce::jlimit (0, 127, draggedNote.pitch + deltaPitch);
 
             juce::Rectangle<float> ghostRect (
                 (float) beatToX (ghostStart),
                 (float) pitchToY (ghostPitch),
-                (float) (note->getLengthBeats().inBeats() * pianoRoll.pixelsPerBeat),
+                (float) (draggedNote.lengthBeats * pianoRoll.pixelsPerBeat),
                 (float) rowHeight
             );
 
@@ -352,6 +357,19 @@ void PianoRollComponent::NoteGridComponent::mouseDown (const juce::MouseEvent& e
 
         // Setup for move
         dragMode = DragMode::MoveNotes;
+        dragReferenceNote = clickedNote;
+        dragSelectionSnapshot.clear();
+        dragSelectionSnapshot.reserve (selectedNotes.size());
+        for (auto* note : selectedNotes)
+        {
+            dragSelectionSnapshot.push_back ({
+                note,
+                note->getStartBeat().inBeats(),
+                note->getLengthBeats().inBeats(),
+                note->getNoteNumber()
+            });
+        }
+
         double clickBeat = xToBeat (e.x);
         int clickPitch = yToPitch (e.y);
         noteDragOffset.x = clickBeat - clickedNote->getStartBeat().inBeats();
@@ -384,13 +402,21 @@ void PianoRollComponent::NoteGridComponent::mouseDrag (const juce::MouseEvent& e
             if (e.getDistanceFromDragStart() < 4)
                 break;
 
-            dragMode = DragMode::SelectLasso;
-            lassoRect = juce::Rectangle<int>::leftTopRightBottom (
-                std::min (dragStart.x, e.x),
-                std::min (dragStart.y, e.y),
-                std::max (dragStart.x, e.x),
-                std::max (dragStart.y, e.y)
-            );
+            const auto delta = e.getPosition() - dragStart;
+            if (std::abs (delta.x) >= std::abs (delta.y))
+            {
+                dragMode = DragMode::CreateNote;
+            }
+            else
+            {
+                dragMode = DragMode::SelectLasso;
+                lassoRect = juce::Rectangle<int>::leftTopRightBottom (
+                    std::min (dragStart.x, e.x),
+                    std::min (dragStart.y, e.y),
+                    std::max (dragStart.x, e.x),
+                    std::max (dragStart.y, e.y)
+                );
+            }
             repaint();
             break;
         }
@@ -409,27 +435,34 @@ void PianoRollComponent::NoteGridComponent::mouseDrag (const juce::MouseEvent& e
 
         case DragMode::MoveNotes:
         {
-            if (selectedNotes.empty())
+            if (dragSelectionSnapshot.empty() || dragReferenceNote == nullptr)
                 break;
 
             double targetBeat = snapBeat (xToBeat (e.x) - noteDragOffset.x);
             int targetPitch = juce::jlimit (0, 127, yToPitch (e.y) - (int) noteDragOffset.y);
 
-            // Find first selected note to calculate delta
-            te::MidiNote* firstNote = *selectedNotes.begin();
-            double deltaBeat = targetBeat - firstNote->getStartBeat().inBeats();
-            int deltaPitch = targetPitch - firstNote->getNoteNumber();
+            const auto referenceIt = std::find_if (dragSelectionSnapshot.begin(), dragSelectionSnapshot.end(),
+                                                   [this] (const auto& state) { return state.note == dragReferenceNote; });
+            if (referenceIt == dragSelectionSnapshot.end())
+                break;
+
+            double deltaBeat = targetBeat - referenceIt->startBeat;
+            int deltaPitch = targetPitch - referenceIt->pitch;
 
             editSession.performEdit ("Move Notes", true, [this, deltaBeat, deltaPitch] (te::Edit& edit)
             {
-                for (auto* note : selectedNotes)
+                for (const auto& draggedNote : dragSelectionSnapshot)
                 {
-                    double newStart = std::max (0.0, note->getStartBeat().inBeats() + deltaBeat);
-                    int newPitch = juce::jlimit (0, 127, note->getNoteNumber() + deltaPitch);
+                    if (draggedNote.note == nullptr)
+                        continue;
 
-                    note->setStartAndLength (te::BeatPosition::fromBeats (newStart),
-                                            note->getLengthBeats(), &edit.getUndoManager());
-                    note->setNoteNumber (newPitch, &edit.getUndoManager());
+                    double newStart = std::max (0.0, draggedNote.startBeat + deltaBeat);
+                    int newPitch = juce::jlimit (0, 127, draggedNote.pitch + deltaPitch);
+
+                    draggedNote.note->setStartAndLength (te::BeatPosition::fromBeats (newStart),
+                                                         te::BeatDuration::fromBeats (draggedNote.lengthBeats),
+                                                         &edit.getUndoManager());
+                    draggedNote.note->setNoteNumber (newPitch, &edit.getUndoManager());
                 }
             });
 
@@ -511,6 +544,8 @@ void PianoRollComponent::NoteGridComponent::mouseUp (const juce::MouseEvent& e)
     }
 
     dragMode = DragMode::None;
+    dragReferenceNote = nullptr;
+    dragSelectionSnapshot.clear();
     editSession.endCoalescedTransaction();
     repaint();
 }

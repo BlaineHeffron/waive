@@ -830,10 +830,14 @@ void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine
                 "Expected plugin identifier to include the stable file/type identifier");
 
         waive::PluginPresetManager presetManager;
+        auto customPresetDir = fixtureDir.getChildFile ("custom_presets");
+        presetManager.setPresetsDirectory (customPresetDir);
+        expect (presetManager.getPresetsDirectory() == customPresetDir,
+                "Expected preset manager to return the configured presets directory");
         expect (presetManager.savePreset (*plugin, "Room A"),
                 "Expected preset save to succeed");
 
-        auto presetFile = homeDir.getChildFile (".config/Waive/presets")
+        auto presetFile = customPresetDir
                                  .getChildFile (pluginIdentifier)
                                  .getChildFile ("Room A.xml");
         expect (presetFile.existsAsFile(), "Expected preset file to be created");

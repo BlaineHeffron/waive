@@ -60,8 +60,16 @@ juce::String buildStablePluginIdentifier (tracktion::engine::Plugin& plugin)
 
 juce::File PluginPresetManager::getPresetsDirectory() const
 {
+    if (presetsDirectoryOverride != juce::File())
+        return presetsDirectoryOverride;
+
     auto homeDir = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
     return homeDir.getChildFile (".config/Waive/presets");
+}
+
+void PluginPresetManager::setPresetsDirectory (const juce::File& directory)
+{
+    presetsDirectoryOverride = directory;
 }
 
 juce::String PluginPresetManager::getPluginIdentifier (tracktion::engine::Plugin& plugin)

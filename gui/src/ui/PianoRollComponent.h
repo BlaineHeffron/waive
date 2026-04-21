@@ -111,6 +111,14 @@ private:
             int velocity;
         };
 
+        struct DraggedNoteState
+        {
+            te::MidiNote* note = nullptr;
+            double startBeat = 0.0;
+            double lengthBeats = 0.0;
+            int pitch = 0;
+        };
+
         enum class DragMode { None, PendingEmptyAction, CreateNote, SelectLasso, MoveNotes, ResizeNote };
 
         te::MidiClip& midiClip;
@@ -133,6 +141,8 @@ private:
         juce::Point<double> noteDragOffset;
         te::MidiNote* hoveredNote = nullptr;
         juce::Point<double> ghostDragOffset;
+        te::MidiNote* dragReferenceNote = nullptr;
+        std::vector<DraggedNoteState> dragSelectionSnapshot;
 
         static constexpr int resizeEdgeWidth = 8;
     };

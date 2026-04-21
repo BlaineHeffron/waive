@@ -23,12 +23,17 @@ public:
     // Delete a preset
     bool deletePreset (const juce::String& pluginIdentifier, const juce::String& presetName);
 
+    // Get or override the base presets directory.
+    juce::File getPresetsDirectory() const;
+    void setPresetsDirectory (const juce::File& directory);
+
     // Get the plugin identifier string used for folder names
     static juce::String getPluginIdentifier (tracktion::engine::Plugin& plugin);
 
 private:
-    juce::File getPresetsDirectory() const;
     juce::File getPresetFile (const juce::String& pluginIdentifier, const juce::String& presetName) const;
+
+    juce::File presetsDirectoryOverride;
 };
 
 } // namespace waive
