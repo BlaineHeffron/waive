@@ -16,15 +16,17 @@ LibraryComponent::LibraryComponent (EditSession& session)
 {
     scanThread.startThread (juce::Thread::Priority::background);
 
-    auto homeDir = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
-    directoryList.setDirectory (homeDir, true, true);
+    auto defaultLibraryDir = juce::File::getSpecialLocation (juce::File::userMusicDirectory);
+    if (! defaultLibraryDir.isDirectory())
+        defaultLibraryDir = juce::File::getSpecialLocation (juce::File::userHomeDirectory);
+    directoryList.setDirectory (defaultLibraryDir, true, true);
 
     fileTree = std::make_unique<juce::FileTreeComponent> (directoryList);
     fileTree->addListener (this);
     fileTree->setDragAndDropDescription ("LibraryFile");
     fileTree->setTitle ("File Browser");
     fileTree->setDescription ("Browse and drag audio files");
-    fileTree->setTooltip ("Browse, preview, and drag audio files into the timeline");
+    fileTree->setTooltip ("Browse and drag audio files into the timeline");
     addAndMakeVisible (fileTree.get());
 
     targetTrackLabel.setText ("Import To:", juce::dontSendNotification);

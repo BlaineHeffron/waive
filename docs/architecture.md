@@ -108,7 +108,7 @@ Track color assignment (`TrackLaneComponent`) provides deterministic, visually d
 
 - **Deterministic assignment**: Track color is derived from track index modulo palette size. Same track order always produces same colors.
 - **Palette**: `WaiveColours::makeDarkPalette()` provides a set of high-contrast, perceptually distinct colors for track lanes.
-- **Collision avoidance**: Color assignment skips palette indices that are too similar to the background or other semantic colors (playhead, waveform, selection).
+- **Current behavior**: Assignment is a direct modulo lookup into the fixed palette. There is not yet an additional collision-avoidance pass against other semantic colours.
 
 ## Theme System
 

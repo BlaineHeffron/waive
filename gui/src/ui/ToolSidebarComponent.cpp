@@ -143,10 +143,19 @@ public:
         for (auto& entry : modelEntries)
         {
             auto row = bounds.removeFromTop (waive::Spacing::controlHeightMedium);
-            entry->nameLabel.setBounds (row.removeFromLeft (120));
-            entry->statusLabel.setBounds (row.removeFromLeft (100));
+
+            const int rowWidth = row.getWidth();
+            const int pinButtonWidth = 56;
+            const int minStatusWidth = 96;
+            const int minNameWidth = 96;
+            const int flexibleWidth = juce::jmax (0, rowWidth - pinButtonWidth - 2 * waive::Spacing::xs);
+            const int statusWidth = juce::jlimit (minStatusWidth, 140, flexibleWidth / 3);
+            const int nameWidth = juce::jmax (minNameWidth, flexibleWidth - statusWidth);
+
+            entry->nameLabel.setBounds (row.removeFromLeft (nameWidth));
+            entry->statusLabel.setBounds (row.removeFromLeft (statusWidth));
             row.removeFromLeft (waive::Spacing::xs);
-            entry->pinButton.setBounds (row.removeFromLeft (50));
+            entry->pinButton.setBounds (row.removeFromLeft (pinButtonWidth));
             row.removeFromLeft (waive::Spacing::xs);
             entry->installButton.setBounds (row);
         }

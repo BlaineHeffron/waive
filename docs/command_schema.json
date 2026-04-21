@@ -228,6 +228,10 @@
       "type": "boolean",
       "description": "Whether a track should be armed for recording."
     },
+    "input_device": {
+      "type": "string",
+      "description": "Optional input device name to assign before arming a track."
+    },
     "bypassed": {
       "type": "boolean",
       "description": "Whether a plugin should be bypassed."
