@@ -17,6 +17,7 @@
 #include "ProjectManager.h"
 #include "AiAgent.h"
 #include "AiSettings.h"
+#include "UiMessageHelpers.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -824,18 +825,18 @@ void SessionComponent::record()
     {
         if (! granted)
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Microphone Access Required",
-                                                     getMicAccessHelpText());
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Microphone Access Required",
+                                            getMicAccessHelpText());
             return;
         }
 
         juce::String micError;
         if (! ensureMicInputReady (micError))
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Microphone Not Ready",
-                                                     micError);
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Microphone Not Ready",
+                                            micError);
             return;
         }
 
@@ -844,9 +845,9 @@ void SessionComponent::record()
 
         if (! localTransport.isRecording())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Recording Did Not Start",
-                                                     "Recording could not start. Arm a track input or use Mic Rec.");
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Recording Did Not Start",
+                                            "Recording could not start. Arm a track input or use Mic Rec.");
         }
     });
 }
@@ -1006,18 +1007,18 @@ void SessionComponent::recordFromMic()
     {
         if (! granted)
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Microphone Access Required",
-                                                     getMicAccessHelpText());
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Microphone Access Required",
+                                            getMicAccessHelpText());
             return;
         }
 
         juce::String micError;
         if (! ensureMicInputReady (micError))
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Microphone Not Ready",
-                                                     micError);
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Microphone Not Ready",
+                                            micError);
             return;
         }
 
@@ -1047,9 +1048,9 @@ void SessionComponent::recordFromMic()
         auto* waveIn = getSelectedMicInputDevice();
         if (waveIn == nullptr)
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "No Input Devices",
-                                                     "No microphone input device is selected.");
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "No Input Devices",
+                                            "No microphone input device is selected.");
             return;
         }
 
@@ -1077,9 +1078,9 @@ void SessionComponent::recordFromMic()
 
         if (! edit.getTransport().isRecording())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Recording Did Not Start",
-                                                     "Could not start microphone recording. Check input and audio device settings.");
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Recording Did Not Start",
+                                            "Could not start microphone recording. Check input and audio device settings.");
         }
     });
 }

@@ -43,7 +43,7 @@ private:
         std::unique_ptr<juce::Label> label;
         std::unique_ptr<juce::ProgressBar> progressBar;
         std::unique_ptr<juce::TextButton> cancelButton;
-        double progressValue = 0.0;
+        std::unique_ptr<double> progressValue;
     };
 
     // UI

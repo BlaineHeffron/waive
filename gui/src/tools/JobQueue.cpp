@@ -113,6 +113,37 @@ void JobQueue::cancelJob (int jobId)
         it->second->cancelFlag.store (true);
 }
 
+bool JobQueue::waitForJobToFinish (int jobId, int timeoutMs)
+{
+    constexpr int sleepMs = 10;
+    int waitedMs = 0;
+
+    while (waitedMs < timeoutMs)
+    {
+        std::shared_ptr<JobInfo> info;
+
+        {
+            std::lock_guard<std::mutex> lock (jobsMutex);
+            auto it = jobs.find (jobId);
+            if (it == jobs.end())
+                return true;
+
+            info = it->second;
+        }
+
+        const auto status = static_cast<JobStatus> (info->status.load());
+        if (status == JobStatus::Completed
+            || status == JobStatus::Failed
+            || status == JobStatus::Cancelled)
+            return true;
+
+        juce::Thread::sleep (sleepMs);
+        waitedMs += sleepMs;
+    }
+
+    return false;
+}
+
 void JobQueue::cancelAll()
 {
     std::lock_guard<std::mutex> lock (jobsMutex);

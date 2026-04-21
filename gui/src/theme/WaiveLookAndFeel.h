@@ -51,6 +51,15 @@ public:
     void drawToggleButton (juce::Graphics&, juce::ToggleButton&,
                            bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
 
+    juce::AlertWindow* createAlertWindow (const juce::String& title,
+                                          const juce::String& message,
+                                          const juce::String& button1,
+                                          const juce::String& button2,
+                                          const juce::String& button3,
+                                          juce::MessageBoxIconType iconType,
+                                          int numButtons,
+                                          juce::Component* associatedComponent) override;
+
 private:
     void applyPalette();
 

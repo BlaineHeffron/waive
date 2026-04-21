@@ -67,6 +67,7 @@ public:
                 CompletionCallback onComplete = nullptr);
 
     void cancelJob (int jobId);
+    bool waitForJobToFinish (int jobId, int timeoutMs = 5000);
     void cancelAll();
 
     //==============================================================================

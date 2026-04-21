@@ -7,6 +7,7 @@
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
 #include "WaiveSpacing.h"
+#include "UiMessageHelpers.h"
 
 #include <cmath>
 
@@ -181,8 +182,8 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
         auto file = fileTree->getSelectedFile();
         if (! file.existsAsFile())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-                "Cannot Drop File", "The selected file does not exist.");
+            waive::showMessageBoxAsyncSafe (juce::MessageBoxIconType::WarningIcon,
+                                            "Cannot Drop File", "The selected file does not exist.");
             return;
         }
 
@@ -195,8 +196,8 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
 
         if (tracks.isEmpty())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-                "Cannot Drop File", "No tracks available. Add a track first.");
+            waive::showMessageBoxAsyncSafe (juce::MessageBoxIconType::WarningIcon,
+                                            "Cannot Drop File", "No tracks available. Add a track first.");
             return;
         }
 
@@ -208,8 +209,8 @@ void TimelineComponent::itemDropped (const juce::DragAndDropTarget::SourceDetail
 
         if (duration <= 0.0)
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-                "Cannot Drop File", "The file format is not supported or could not be read.");
+            waive::showMessageBoxAsyncSafe (juce::MessageBoxIconType::WarningIcon,
+                                            "Cannot Drop File", "The file format is not supported or could not be read.");
             return;
         }
 

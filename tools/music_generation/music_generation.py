@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
-"""
-Music Generation Tool
-Generates audio from text prompts using MusicGen or fallback synthesis.
-"""
+"""Music generation tool with optional MusicGen backend and deterministic fallback."""
 
-import argparse
 import json
 import os
 import sys
 import struct
+import io
+import contextlib
 from pathlib import Path
 
 try:
@@ -23,29 +21,22 @@ try:
 except ImportError:
     SCIPY_AVAILABLE = False
 
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
+from tool_io import emit_result, load_request
+
+_audiocraft_stderr = io.StringIO()
 try:
-    from audiocraft.models import MusicGen
-    import torch
-    import soundfile as sf
+    with contextlib.redirect_stderr(_audiocraft_stderr):
+        from audiocraft.models import MusicGen
+        import torch
+        import soundfile as sf
     AUDIOCRAFT_AVAILABLE = True
-except ImportError:
+except Exception as exc:
     AUDIOCRAFT_AVAILABLE = False
-
-
-def write_result(output_dir, success, message, mode=None, duration=None):
-    """Write result.json to output directory."""
-    result = {
-        "success": success,
-        "message": message
-    }
-    if mode:
-        result["mode"] = mode
-    if duration is not None:
-        result["duration"] = duration
-
-    result_path = os.path.join(output_dir, "result.json")
-    with open(result_path, 'w') as f:
-        json.dump(result, f, indent=2)
+    AUDIOCRAFT_IMPORT_ERROR = str(exc)
+else:
+    AUDIOCRAFT_IMPORT_ERROR = ""
 
 
 def write_wav_numpy(filename, rate, data):
@@ -263,40 +254,29 @@ def generate_with_numpy(prompt, duration_seconds, output_wav):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Music Generation Tool")
-    parser.add_argument("--input-dir", required=True, help="Input directory")
-    parser.add_argument("--output-dir", required=True, help="Output directory")
-    args = parser.parse_args()
-
-    input_dir = args.input_dir
-    output_dir = args.output_dir
+    params, _, output_dir = load_request()
 
     # Ensure output directory exists
     os.makedirs(output_dir, exist_ok=True)
 
     try:
-        # Read params.json
-        params_path = os.path.join(input_dir, "params.json")
-        with open(params_path, 'r') as f:
-            params = json.load(f)
-
         prompt = params.get("prompt")
         if not prompt:
-            write_result(output_dir, False, "Missing required parameter: prompt")
-            return 1
+            emit_result(output_dir, {"status": "error", "message": "Missing required parameter: prompt"})
+            return 0
 
         duration_seconds = params.get("duration_seconds", 8)
         temperature = params.get("temperature", 1.0)
 
         # Validate duration
         if duration_seconds < 1 or duration_seconds > 30:
-            write_result(output_dir, False, "duration_seconds must be between 1 and 30")
-            return 1
+            emit_result(output_dir, {"status": "error", "message": "duration_seconds must be between 1 and 30"})
+            return 0
 
         # Validate temperature
         if temperature < 0.1 or temperature > 2.0:
-            write_result(output_dir, False, "temperature must be between 0.1 and 2.0")
-            return 1
+            emit_result(output_dir, {"status": "error", "message": "temperature must be between 0.1 and 2.0"})
+            return 0
 
         # Output path
         output_wav = os.path.join(output_dir, "output.wav")
@@ -311,16 +291,28 @@ def main():
             mode = "fallback"
             message = f"Successfully generated {actual_duration:.1f}s of music using numpy synthesis (fallback mode)"
         else:
-            write_result(output_dir, False, "Neither audiocraft nor numpy available")
-            return 1
+            detail = f"Neither audiocraft nor numpy available ({AUDIOCRAFT_IMPORT_ERROR})".strip()
+            emit_result(output_dir, {"status": "error", "message": detail})
+            return 0
 
-        # Write success result
-        write_result(output_dir, True, message, mode, actual_duration)
+        emit_result(
+            output_dir,
+            {
+                "status": "ok",
+                "results": {
+                    "mode": mode,
+                    "duration": actual_duration,
+                    "message": message,
+                    "backend_available": AUDIOCRAFT_AVAILABLE,
+                },
+                "output_files": [output_wav],
+            },
+        )
         return 0
 
     except Exception as e:
-        write_result(output_dir, False, f"Error: {str(e)}")
-        return 1
+        emit_result(output_dir, {"status": "error", "message": f"Error: {str(e)}"})
+        return 0
 
 
 if __name__ == "__main__":

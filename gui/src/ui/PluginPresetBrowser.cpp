@@ -2,6 +2,7 @@
 #include "../edit/EditSession.h"
 #include "../theme/WaiveLookAndFeel.h"
 #include "PluginPresetManager.h"
+#include "../util/UiMessageHelpers.h"
 #include <tracktion_engine/tracktion_engine.h>
 #include <stdexcept>
 
@@ -88,7 +89,7 @@ void PluginPresetBrowser::onPresetSelected()
 
     if (! ok)
     {
-        juce::NativeMessageBox::showMessageBoxAsync (
+        waive::showNativeMessageBoxAsyncSafe (
             juce::MessageBoxIconType::WarningIcon,
             "Load Failed",
             "Failed to load preset \"" + selectedText + "\". The file may be corrupted or deleted.");
@@ -127,7 +128,7 @@ void PluginPresetBrowser::onSaveClicked()
         }
         else
         {
-            juce::NativeMessageBox::showMessageBoxAsync (
+            waive::showNativeMessageBoxAsyncSafe (
                 juce::MessageBoxIconType::WarningIcon,
                 "Save Failed",
                 "Failed to save preset \"" + presetName + "\". Check disk space and permissions.");

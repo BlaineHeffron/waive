@@ -185,9 +185,9 @@ void ToolLogComponent::rebuildActiveJobRows()
     {
         auto& aj = activeJobs[i];
         ActiveJobRow row;
-        row.progressValue = aj.progress;
+        row.progressValue = std::make_unique<double> (aj.progress);
         row.label = std::make_unique<juce::Label>();
-        row.progressBar = std::make_unique<juce::ProgressBar> (row.progressValue);
+        row.progressBar = std::make_unique<juce::ProgressBar> (*row.progressValue);
         row.cancelButton = std::make_unique<juce::TextButton> ("Cancel");
 
         row.label->setJustificationType (juce::Justification::centredLeft);
@@ -222,7 +222,8 @@ void ToolLogComponent::updateActiveJobRow (size_t index)
     auto& activeJob = activeJobs[index];
     auto& row = activeJobRows[index];
 
-    row.progressValue = activeJob.progress;
+    if (row.progressValue != nullptr)
+        *row.progressValue = activeJob.progress;
 
     auto labelText = activeJob.name;
     if (activeJob.message.isNotEmpty())

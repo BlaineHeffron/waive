@@ -12,6 +12,7 @@
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
 #include "WaiveSpacing.h"
+#include "UiMessageHelpers.h"
 
 namespace
 {
@@ -192,9 +193,9 @@ private:
         auto result = modelManager.installModel (modelID);
         if (result.failed())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Install Failed",
-                                                     result.getErrorMessage());
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Install Failed",
+                                            result.getErrorMessage());
         }
         refreshModelList();
         sidebarParent.updateButtonStates();
@@ -205,9 +206,9 @@ private:
         auto result = modelManager.uninstallModel (modelID);
         if (result.failed())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Uninstall Failed",
-                                                     result.getErrorMessage());
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Uninstall Failed",
+                                            result.getErrorMessage());
         }
         refreshModelList();
         sidebarParent.updateButtonStates();
@@ -225,9 +226,9 @@ private:
         auto result = modelManager.pinModelVersion (modelID, installedVersion);
         if (result.failed())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Pin Failed",
-                                                     result.getErrorMessage());
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Pin Failed",
+                                            result.getErrorMessage());
         }
         refreshModelList();
     }
@@ -237,9 +238,9 @@ private:
         auto result = modelManager.unpinModelVersion (modelID);
         if (result.failed())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                     "Unpin Failed",
-                                                     result.getErrorMessage());
+            waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                            "Unpin Failed",
+                                            result.getErrorMessage());
         }
         refreshModelList();
     }
@@ -289,9 +290,9 @@ private:
                     auto quotaResult = safeThis->modelManager.setQuotaBytes (quotaMB * 1024 * 1024);
                     if (quotaResult.failed())
                     {
-                        juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                                 "Quota Update Failed",
-                                                                 quotaResult.getErrorMessage());
+                        waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                                        "Quota Update Failed",
+                                                        quotaResult.getErrorMessage());
                     }
                 }
 
@@ -396,7 +397,7 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
 
 ToolSidebarComponent::~ToolSidebarComponent()
 {
-    cancelRunningPlan();
+    cancelRunningPlanAndWait (2000);
     jobQueue.removeListener (this);
 }
 
@@ -630,6 +631,16 @@ void ToolSidebarComponent::cancelRunningPlan()
         return;
 
     jobQueue.cancelJob (activePlanJobID);
+}
+
+void ToolSidebarComponent::cancelRunningPlanAndWait (int timeoutMs)
+{
+    if (! planRunning || activePlanJobID <= 0)
+        return;
+
+    const auto jobId = activePlanJobID;
+    jobQueue.cancelJob (jobId);
+    (void) jobQueue.waitForJobToFinish (jobId, timeoutMs);
 }
 
 juce::String ToolSidebarComponent::getSelectedToolName() const

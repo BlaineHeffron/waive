@@ -19,6 +19,7 @@
 #include "AiSettings.h"
 #include "WaiveSpacing.h"
 #include "ProjectPackager.h"
+#include "UiMessageHelpers.h"
 
 #include <cstdlib>
 
@@ -144,6 +145,9 @@ void MainComponent::initialiseUi (waive::JobQueue& jobQueue, waive::AiAgent* aiA
 
 MainComponent::~MainComponent()
 {
+    if (auto* modalManager = juce::ModalComponentManager::getInstanceWithoutCreating())
+        modalManager->cancelAllModalComponents();
+
     tabs.clearTabs();
     menuBar.setModel (nullptr);
 }
@@ -589,7 +593,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             auto currentFile = projectManager.getCurrentFile();
             if (currentFile == juce::File())
             {
-                juce::AlertWindow::showMessageBoxAsync (
+                waive::showMessageBoxAsyncSafe (
                     juce::AlertWindow::WarningIcon,
                     "No Project",
                     "Please save the project first before collecting media.");
@@ -616,7 +620,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                 message << "\n\nErrors:\n" << result.errors.joinIntoString ("\n");
             }
 
-            juce::AlertWindow::showMessageBoxAsync (
+            waive::showMessageBoxAsyncSafe (
                 result.errors.isEmpty() ? juce::AlertWindow::InfoIcon : juce::AlertWindow::WarningIcon,
                 "Collect and Save",
                 message);
@@ -627,7 +631,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             auto currentFile = projectManager.getCurrentFile();
             if (currentFile == juce::File())
             {
-                juce::AlertWindow::showMessageBoxAsync (
+                waive::showMessageBoxAsyncSafe (
                     juce::AlertWindow::WarningIcon,
                     "No Project",
                     "Please save the project first.");
@@ -640,7 +644,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
 
             if (unusedFiles.isEmpty())
             {
-                juce::AlertWindow::showMessageBoxAsync (
+                waive::showMessageBoxAsyncSafe (
                     juce::AlertWindow::InfoIcon,
                     "Remove Unused Media",
                     "No unused media files found.");
@@ -669,7 +673,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                 else
                     resultMessage << "\nSome files could not be moved:\n"
                                   << removeResult.errors.joinIntoString ("\n");
-                juce::AlertWindow::showMessageBoxAsync (
+                waive::showMessageBoxAsyncSafe (
                     removeResult.errors.isEmpty() ? juce::AlertWindow::InfoIcon : juce::AlertWindow::WarningIcon,
                     "Remove Unused Media",
                     resultMessage);
@@ -681,7 +685,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             auto currentFile = projectManager.getCurrentFile();
             if (currentFile == juce::File())
             {
-                juce::AlertWindow::showMessageBoxAsync (
+                waive::showMessageBoxAsyncSafe (
                     juce::AlertWindow::WarningIcon,
                     "No Project",
                     "Please save the project first before packaging.");
@@ -720,7 +724,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                         message << "\n\nCollect errors:\n" << collectResult.errors.joinIntoString ("\n");
                 }
 
-                juce::AlertWindow::showMessageBoxAsync (
+                waive::showMessageBoxAsyncSafe (
                     success ? juce::AlertWindow::InfoIcon : juce::AlertWindow::WarningIcon,
                     "Package as Zip",
                     message);
@@ -754,7 +758,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             shortcutsText << "Help:\n";
             shortcutsText << "  Keyboard Shortcuts  " << mod << "+/\n";
 
-            juce::AlertWindow::showMessageBoxAsync (
+            waive::showMessageBoxAsyncSafe (
                 juce::AlertWindow::InfoIcon,
                 "Keyboard Shortcuts",
                 shortcutsText);

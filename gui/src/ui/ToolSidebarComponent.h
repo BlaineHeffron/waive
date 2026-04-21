@@ -72,6 +72,7 @@ private:
     void applyPlan();
     void rejectPlan();
     void cancelRunningPlan();
+    void cancelRunningPlanAndWait (int timeoutMs);
 
     juce::String getSelectedToolName() const;
     void updateButtonStates();

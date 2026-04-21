@@ -3,6 +3,7 @@
 #include "WaiveLookAndFeel.h"
 #include "WaiveFonts.h"
 #include "WaiveSpacing.h"
+#include "UiMessageHelpers.h"
 
 #include <tracktion_engine/tracktion_engine.h>
 
@@ -140,8 +141,8 @@ void LibraryComponent::fileDoubleClicked (const juce::File& file)
 
     if (! file.existsAsFile())
     {
-        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-            "Cannot Load File", "The selected file could not be loaded.");
+        waive::showMessageBoxAsyncSafe (juce::MessageBoxIconType::WarningIcon,
+                                        "Cannot Load File", "The selected file could not be loaded.");
         return;
     }
 
@@ -149,8 +150,8 @@ void LibraryComponent::fileDoubleClicked (const juce::File& file)
     auto* track = getTargetTrack();
     if (track == nullptr)
     {
-        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-            "Cannot Load File", "No target track is available. Add a track first.");
+        waive::showMessageBoxAsyncSafe (juce::MessageBoxIconType::WarningIcon,
+                                        "Cannot Load File", "No target track is available. Add a track first.");
         return;
     }
     auto transportPos = edit.getTransport().getPosition().inSeconds();
@@ -160,8 +161,8 @@ void LibraryComponent::fileDoubleClicked (const juce::File& file)
 
     if (duration <= 0.0)
     {
-        juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-            "Cannot Load File", "The selected file format is not supported or could not be read.");
+        waive::showMessageBoxAsyncSafe (juce::MessageBoxIconType::WarningIcon,
+                                        "Cannot Load File", "The selected file format is not supported or could not be read.");
         return;
     }
 

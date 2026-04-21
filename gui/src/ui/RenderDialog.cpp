@@ -4,6 +4,7 @@
 #include "PathSanitizer.h"
 #include "WaiveSpacing.h"
 #include "WaiveLookAndFeel.h"
+#include "UiMessageHelpers.h"
 #include <tracktion_engine/tracktion_engine.h>
 #include <cmath>
 #include <cstdlib>
@@ -14,36 +15,12 @@ namespace te = tracktion;
 namespace
 {
 
-bool isHeadlessUiEnvironment()
-{
-#if JUCE_LINUX || JUCE_BSD
-    const auto hasDisplayEnv = [] (const char* name)
-    {
-        if (const auto* value = std::getenv (name))
-            return *value != '\0';
-
-        return false;
-    };
-
-    return ! hasDisplayEnv ("DISPLAY") && ! hasDisplayEnv ("WAYLAND_DISPLAY");
-#else
-    return false;
-#endif
-}
-
 void showRenderValidationError (juce::Component* parent, const juce::String& title, const juce::String& message)
 {
-    if (isHeadlessUiEnvironment())
-    {
-        juce::Logger::writeToLog ("RenderDialog validation failed: " + title + " - " + message);
-        return;
-    }
-
-    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-                                            title,
-                                            message,
-                                            "OK",
-                                            parent);
+    waive::showMessageBoxAsyncSafe (juce::MessageBoxIconType::WarningIcon,
+                                    title,
+                                    message,
+                                    parent);
 }
 
 std::unique_ptr<te::Edit> createSnapshotEditForRender (te::Engine& engine,
@@ -761,9 +738,9 @@ void RenderDialog::performRender()
 
                 safeThis->progressValue = 0.0;
                 safeThis->progressBar.setVisible (false);
-                juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                         "Render Failed",
-                                                         "Failed to create a render snapshot.");
+                waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                                "Render Failed",
+                                                "Failed to create a render snapshot.");
                 safeThis->resetControls();
             });
             return;
@@ -900,15 +877,15 @@ void RenderDialog::performRender()
                     message = "File: " + finalFile.getFullPathName() + "\nSize: " + sizeStr;
                 }
 
-                juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::InfoIcon,
-                                                         "Render Complete",
-                                                         message);
+                waive::showMessageBoxAsyncSafe (juce::AlertWindow::InfoIcon,
+                                                "Render Complete",
+                                                message);
             }
             else
             {
-                juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                         "Render Failed",
-                                                         "Failed to render audio.");
+                waive::showMessageBoxAsyncSafe (juce::AlertWindow::WarningIcon,
+                                                "Render Failed",
+                                                "Failed to render audio.");
             }
 
             safeThis->resetControls();

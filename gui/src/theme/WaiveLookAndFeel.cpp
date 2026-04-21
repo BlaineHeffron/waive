@@ -350,6 +350,29 @@ void WaiveLookAndFeel::drawTextEditorOutline (juce::Graphics& g, int width, int 
     }
 }
 
+juce::AlertWindow* WaiveLookAndFeel::createAlertWindow (const juce::String& title,
+                                                        const juce::String& message,
+                                                        const juce::String& button1,
+                                                        const juce::String& button2,
+                                                        const juce::String& button3,
+                                                        juce::MessageBoxIconType iconType,
+                                                        int numButtons,
+                                                        juce::Component* associatedComponent)
+{
+    juce::ignoreUnused (associatedComponent);
+
+    // Async alerts can outlive the component that requested them, so avoid
+    // binding their placement to a component whose lifetime may already have ended.
+    return LookAndFeel_V4::createAlertWindow (title,
+                                              message,
+                                              button1,
+                                              button2,
+                                              button3,
+                                              iconType,
+                                              numButtons,
+                                              nullptr);
+}
+
 //==============================================================================
 const ColourPalette* getWaivePalette (juce::Component& component)
 {
