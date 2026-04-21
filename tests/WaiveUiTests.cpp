@@ -330,6 +330,12 @@ void runUiCommandRoutingRegression()
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
             "Expected redo command to execute");
     expect (getClipCount (*track) == 2, "Expected redo to remove clip again");
+
+    timeline.getSelectionManager().deselectAll();
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdDeleteTrack),
+            "Expected delete track command invocation without selection to return");
+    expect (te::getAudioTracks (session.getEdit()).size() == 1,
+            "Expected delete track without selected clip context to be a no-op");
 }
 
 void runUiProjectLifecycleRegression()

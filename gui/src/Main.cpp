@@ -28,6 +28,25 @@ juce::File getCompiledSourceToolsDir()
     return {};
 #endif
 }
+
+juce::Array<juce::File> makeAllowedMediaDirectories (ProjectManager* projectManager,
+                                                     const waive::ModelManager* modelManager)
+{
+    juce::Array<juce::File> directories;
+    directories.addIfNotAlreadyThere (juce::File::getSpecialLocation (juce::File::userHomeDirectory));
+
+    if (projectManager != nullptr)
+    {
+        auto projectFile = projectManager->getCurrentFile();
+        if (projectFile != juce::File())
+            directories.addIfNotAlreadyThere (projectFile.getParentDirectory());
+    }
+
+    if (modelManager != nullptr)
+        directories.addIfNotAlreadyThere (modelManager->getStorageDirectory());
+
+    return directories;
+}
 }
 
 //==============================================================================
@@ -118,6 +137,8 @@ public:
 
         modelManager = std::make_unique<waive::ModelManager>();
         toolRegistry = std::make_unique<waive::ToolRegistry>();
+        commandHandler->setAllowedMediaDirectories (makeAllowedMediaDirectories (projectManager.get(),
+                                                                                modelManager.get()));
 
         // External tool runner
         externalToolRunner = std::make_unique<waive::ExternalToolRunner>();
@@ -263,6 +284,8 @@ public:
         commandHandler = std::make_unique<CommandHandler> (editSession->getEdit());
         commandHandler->setProjectFile (projectManager != nullptr ? projectManager->getCurrentFile()
                                                                   : juce::File());
+        commandHandler->setAllowedMediaDirectories (makeAllowedMediaDirectories (projectManager.get(),
+                                                                                modelManager.get()));
         undoableHandler->setCommandHandler (*commandHandler);
 
         updateWindowTitle();
@@ -290,7 +313,11 @@ public:
     void projectFileChanged (const juce::File& projectFile) override
     {
         if (commandHandler != nullptr)
+        {
             commandHandler->setProjectFile (projectFile);
+            commandHandler->setAllowedMediaDirectories (makeAllowedMediaDirectories (projectManager.get(),
+                                                                                    modelManager.get()));
+        }
 
         updateWindowTitle();
     }

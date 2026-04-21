@@ -42,6 +42,21 @@ bool isHeadlessUiEnvironment()
    #endif
 }
 
+te::AudioTrack* getSelectedAudioTrack (SessionComponent* sessionComponent)
+{
+    if (sessionComponent == nullptr)
+        return nullptr;
+
+    auto selectedClips = sessionComponent->getTimeline().getSelectionManager().getSelectedClips();
+    if (selectedClips.isEmpty())
+        return nullptr;
+
+    if (auto* clip = selectedClips.getFirst())
+        return dynamic_cast<te::AudioTrack*> (clip->getTrack());
+
+    return nullptr;
+}
+
 }
 
 //==============================================================================
@@ -342,6 +357,7 @@ void MainComponent::getCommandInfo (juce::CommandID commandID, juce::Application
         case cmdDeleteTrack:
             result.setInfo ("Delete Track", "Delete the selected track", "Edit", 0);
             result.addDefaultKeypress (juce::KeyPress::backspaceKey, juce::ModifierKeys::commandModifier);
+            result.setActive (getSelectedAudioTrack (sessionComponent.get()) != nullptr);
             break;
         case cmdToggleToolSidebar:
             result.setInfo ("Toggle Tool Sidebar", "Show or hide the tool sidebar", "View", 0);
@@ -450,30 +466,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             return true;
         case cmdDeleteTrack:
         {
-            // Find first selected track via selected clips
-            auto& selMgr = sessionComponent->getTimeline().getSelectionManager();
-            auto selectedClips = selMgr.getSelectedClips();
-
-            te::AudioTrack* selectedTrack = nullptr;
-            if (selectedClips.size() > 0)
-            {
-                if (auto* clip = selectedClips.getFirst())
-                    selectedTrack = dynamic_cast<te::AudioTrack*> (clip->getTrack());
-            }
-
-            if (selectedTrack == nullptr)
-            {
-                // If no clips selected, try to find first track
-                auto& edit = editSession.getEdit();
-                for (auto* track : edit.getTrackList())
-                {
-                    if (auto* audioTrack = dynamic_cast<te::AudioTrack*> (track))
-                    {
-                        selectedTrack = audioTrack;
-                        break;
-                    }
-                }
-            }
+            auto* selectedTrack = getSelectedAudioTrack (sessionComponent.get());
 
             if (selectedTrack != nullptr)
             {

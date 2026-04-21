@@ -1,8 +1,6 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include <unordered_set>
-
 class CommandHandler;
 class EditSession;
 
@@ -33,6 +31,4 @@ private:
 
     CommandHandler* commandHandler;
     EditSession& editSession;
-
-    static const std::unordered_set<std::string> readOnlyActions;
 };

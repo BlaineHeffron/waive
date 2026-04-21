@@ -56,12 +56,13 @@
 
 ## Edit Layer Rules
 
-- **All mutations** go through `UndoableCommandHandler`, never call `CommandHandler` directly
-  from UI code.
+- **Never call `CommandHandler` directly from UI code for mutations**.
+  Command-style mutations go through `UndoableCommandHandler`; direct UI interactions may call
+  `EditSession::performEdit()` when they are not naturally expressed as console commands.
 - **Slider coalescing** — Use `runCommandCoalesced()` for continuous controls (volume, pan)
   so a full drag produces a single undo entry.
-- **Read-only commands** (ping, get_tracks, get_edit_state, list_plugins, transport_*)
-  pass through without undo wrapping.
+- **Read-only commands** (`ping`, `get_*`, `list_*`, and transport control commands)
+  pass through without undo wrapping or dirtying the edit.
 - **engine/src/ is shared** — `CommandHandler.h/.cpp` must not depend on GUI-layer types.
   The `UndoableCommandHandler` wrapper is the GUI-only layer that adds undo.
 

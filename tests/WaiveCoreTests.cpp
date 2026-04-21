@@ -236,6 +236,24 @@ void testUndoableCommandHandlerWrapsMutatingCommands (te::Engine& engine)
     session.undo();
     expect (getAudioTrackCount (session.getEdit()) == 1,
             "Expected undo to revert command-server style mutation when routed through undoable handler");
+
+    session.resetChangedStatus();
+    expect (! session.hasChangedSinceSaved(), "Expected reset changed status before read-only command test");
+
+    auto transportResponse = juce::JSON::parse (undoableHandler.handleCommand (R"({ "action":"get_transport_state" })"));
+    expect (transportResponse.isObject(), "Expected get_transport_state response object through undoable handler");
+    expect (transportResponse["status"].toString() == "ok", "Expected get_transport_state to succeed");
+    expect (! session.hasChangedSinceSaved(), "Expected get_transport_state to remain read-only");
+
+    const auto undoDescriptionBeforeFailure = session.getUndoDescription();
+    auto failureResponse = juce::JSON::parse (undoableHandler.handleCommand (R"({ "action":"remove_track", "track_id":999 })"));
+    expect (failureResponse.isObject(), "Expected failing command response object through undoable handler");
+    expect (failureResponse["status"].toString() == "error", "Expected failing command to report error status");
+    expect (failureResponse["message"].toString().contains ("Track not found"),
+            "Expected failing command to preserve the underlying error message");
+    expect (! session.hasChangedSinceSaved(), "Expected failing command to leave edit clean");
+    expect (session.getUndoDescription() == undoDescriptionBeforeFailure,
+            "Expected failing command to avoid creating a new undo transaction");
 }
 
 void testModelManagerSettingsPersistence()
