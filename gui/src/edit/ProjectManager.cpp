@@ -72,8 +72,12 @@ ProjectManager::~ProjectManager()
 //==============================================================================
 bool ProjectManager::newProject()
 {
+    const bool hadUnsavedChanges = isDirty();
     if (! confirmSaveIfDirty())
         return false;
+
+    if (hadUnsavedChanges && isDirty())
+        discardUnsavedChanges();
 
     editSession.createNew();
     currentFile = juce::File();
@@ -117,12 +121,12 @@ bool ProjectManager::openProject (const juce::File& file)
         }
 
         if (shouldRecover)
-            return openProjectInternal (autoSaveFile, file, true);
+            return openProjectInternal (autoSaveFile, file, true, false);
 
         discardAutoSaveOnSuccess = true;
     }
 
-    if (! openProjectInternal (file, file, false))
+    if (! openProjectInternal (file, file, false, true))
         return false;
 
     if (discardAutoSaveOnSuccess)
@@ -133,10 +137,15 @@ bool ProjectManager::openProject (const juce::File& file)
 
 bool ProjectManager::openProjectInternal (const juce::File& fileToLoad,
                                          const juce::File& resultingProjectFile,
-                                         bool markChangedAfterLoad)
+                                         bool markChangedAfterLoad,
+                                         bool discardCurrentAutoSaveOnDiscard)
 {
+    const bool hadUnsavedChanges = isDirty();
     if (! confirmSaveIfDirty())
         return false;
+
+    if (discardCurrentAutoSaveOnDiscard && hadUnsavedChanges && isDirty())
+        discardUnsavedChanges();
 
     editSession.loadFromFile (fileToLoad);
     currentFile = resultingProjectFile;
@@ -166,7 +175,7 @@ bool ProjectManager::recoverProjectFromAutoSave (const juce::File& autoSaveFile,
     if (! autoSaveFile.copyFileTo (recoveryFile))
         return false;
 
-    return openProjectInternal (recoveryFile, originalProjectFile, true);
+    return openProjectInternal (recoveryFile, originalProjectFile, true, false);
 }
 
 bool ProjectManager::save()
@@ -271,6 +280,11 @@ void ProjectManager::checkDirtyState()
         lastDirtyState = currentDirty;
         listeners.call (&Listener::projectDirtyChanged);
     }
+}
+
+void ProjectManager::discardUnsavedChanges()
+{
+    AutoSaveManager::deleteAutoSave (currentFile);
 }
 
 juce::String ProjectManager::getProjectName() const

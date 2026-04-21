@@ -19,6 +19,29 @@ double normalisedToParameterValue (float normalised, const juce::Range<float>& v
                        0.0f, 1.0f,
                        valueRange.getStart(), valueRange.getEnd());
 }
+
+juce::String buildTrackStructureSignature (te::Edit& edit)
+{
+    juce::String signature;
+
+    for (auto* track : edit.getTrackList())
+    {
+        if (dynamic_cast<te::AudioTrack*> (track) == nullptr
+            && dynamic_cast<te::FolderTrack*> (track) == nullptr)
+            continue;
+
+        const auto parentID = track->getParentFolderTrack() != nullptr
+                                ? track->getParentFolderTrack()->itemID.getRawID()
+                                : 0;
+
+        signature << juce::String ((juce::int64) track->itemID.getRawID())
+                  << ':'
+                  << juce::String ((juce::int64) parentID)
+                  << ';';
+    }
+
+    return signature;
+}
 }
 
 //==============================================================================
@@ -399,12 +422,17 @@ void TimelineComponent::rebuildTracks()
             appendTrackLaneRecursive (*track, 0);
 
     lastTrackCount = getDisplayTrackCount();
+    lastTrackStructureSignature = buildTrackStructureSignature (editSession.getEdit());
     resized();
 }
 
 void TimelineComponent::timerCallback()
 {
-    if (getDisplayTrackCount() != lastTrackCount)
+    const auto currentTrackCount = getDisplayTrackCount();
+    const auto currentTrackStructureSignature = buildTrackStructureSignature (editSession.getEdit());
+
+    if (currentTrackCount != lastTrackCount
+        || currentTrackStructureSignature != lastTrackStructureSignature)
         rebuildTracks();
 
     // Poll all track lanes
@@ -567,6 +595,7 @@ void TimelineComponent::editAboutToChange()
     trackLanes.clear();
     trackContainer.removeAllChildren();
     lastTrackCount = -1;
+    lastTrackStructureSignature.clear();
 }
 
 void TimelineComponent::editChanged()

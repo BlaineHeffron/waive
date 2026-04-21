@@ -5,6 +5,45 @@ namespace te = tracktion;
 
 namespace waive {
 
+juce::StringArray ProjectPackager::validateReferencedMedia (te::Edit& edit)
+{
+    juce::StringArray errors;
+
+    for (auto* track : te::getAudioTracks (edit))
+    {
+        if (track == nullptr)
+            continue;
+
+        for (auto* clip : track->getClips())
+        {
+            auto* audioClip = dynamic_cast<te::AudioClipBase*> (clip);
+            if (audioClip == nullptr)
+                continue;
+
+            auto& sourceRef = audioClip->getSourceFileReference();
+            const auto sourceDescription = sourceRef.source.get().trim();
+
+            if (sourceDescription.isEmpty())
+            {
+                errors.add ("Clip '" + audioClip->getName() + "' is missing a source file reference");
+                continue;
+            }
+
+            const auto sourceFile = canonicalisePath (sourceRef.getFile());
+            if (sourceFile == juce::File())
+            {
+                errors.add ("Clip '" + audioClip->getName() + "' could not resolve source: " + sourceDescription);
+                continue;
+            }
+
+            if (! sourceFile.existsAsFile())
+                errors.add ("Referenced media is missing: " + sourceFile.getFullPathName());
+        }
+    }
+
+    return errors;
+}
+
 juce::File ProjectPackager::canonicalisePath (const juce::File& file)
 {
     if (file == juce::File())
@@ -130,6 +169,14 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
     if (! projectDir.exists() || ! projectDir.isDirectory())
     {
         result.errors.add ("Project directory does not exist: " + projectDir.getFullPathName());
+        return result;
+    }
+
+    auto mediaValidationErrors = validateReferencedMedia (edit);
+    if (! mediaValidationErrors.isEmpty())
+    {
+        result.errors = mediaValidationErrors;
+        result.errors.insert (0, "Collect and save aborted because one or more referenced media files are missing or invalid");
         return result;
     }
 

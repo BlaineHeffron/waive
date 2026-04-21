@@ -617,6 +617,98 @@ void runAutoSaveShutdownCleanupRegression()
     (void) projectFile.deleteFile();
 }
 
+void runAutoSaveDiscardOnNewRegression()
+{
+    te::Engine engine ("WaiveUiAutoSaveDiscardOnNewTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto projectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (projectFile), "Expected discard-on-new fixture project to open");
+
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
+    (void) autoSaveFile.deleteFile();
+
+    expect (session.performEdit ("Autosave Discard New Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "autosave_discard_new_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (76, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected discard-on-new mutation to succeed");
+
+    {
+        AutoSaveManager autoSaveManager (session, projectManager, 1);
+        autoSaveManager.triggerAutoSaveForTesting();
+    }
+
+    expect (autoSaveFile.existsAsFile(), "Expected autosave file before discard-on-new");
+    expect (projectManager.newProject(), "Expected dirty newProject to discard unsaved changes in headless mode");
+    expect (! autoSaveFile.existsAsFile(), "Expected newProject discard path to clear autosave file");
+    expect (projectManager.getCurrentFile() == juce::File(), "Expected newProject to clear current file after discard");
+
+    (void) projectFile.deleteFile();
+}
+
+void runAutoSaveDiscardOnOpenRegression()
+{
+    te::Engine engine ("WaiveUiAutoSaveDiscardOnOpenTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto originalProjectFile = createLifecycleFixtureProject (engine);
+    auto replacementProjectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (originalProjectFile), "Expected discard-on-open source project to open");
+
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (originalProjectFile);
+    (void) autoSaveFile.deleteFile();
+
+    expect (session.performEdit ("Autosave Discard Open Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "autosave_discard_open_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (77, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected discard-on-open mutation to succeed");
+
+    {
+        AutoSaveManager autoSaveManager (session, projectManager, 1);
+        autoSaveManager.triggerAutoSaveForTesting();
+    }
+
+    expect (autoSaveFile.existsAsFile(), "Expected autosave file before discard-on-open");
+    expect (projectManager.openProject (replacementProjectFile),
+            "Expected dirty openProject to discard unsaved changes in headless mode");
+    expect (! autoSaveFile.existsAsFile(), "Expected openProject discard path to clear previous autosave file");
+    expect (projectManager.getCurrentFile() == replacementProjectFile,
+            "Expected openProject to switch to replacement project after discard");
+
+    (void) originalProjectFile.deleteFile();
+    (void) replacementProjectFile.deleteFile();
+}
+
 void runModelStorageAllowlistRefreshRegression()
 {
     te::Engine engine ("WaiveUiModelStorageAllowlistTests");
@@ -2479,9 +2571,14 @@ void runPhase5TimelineMixerPolishTests()
     std::cout << "Track height zoom bounds test: PASS" << std::endl;
 
     auto& edit = session->getEdit();
+    edit.ensureNumberOfAudioTracks (2);
     auto audioTracks = te::getAudioTracks (edit);
     auto* sourceTrack = audioTracks.isEmpty() ? nullptr : audioTracks.getFirst();
+    auto* siblingTrack = audioTracks.size() > 1 ? audioTracks.getUnchecked (1) : nullptr;
     expect (sourceTrack != nullptr, "Expected source audio track for folder timeline test");
+    expect (siblingTrack != nullptr, "Expected sibling audio track for folder timeline test");
+    if (siblingTrack != nullptr)
+        siblingTrack->setName ("Sibling Track");
 
     auto folderTrack = edit.insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
     expect (folderTrack != nullptr, "Expected folder track creation");
@@ -2517,6 +2614,23 @@ void runPhase5TimelineMixerPolishTests()
     expect (laneComponents.size() >= 2, "Expected child lane after re-expanding folder");
     expect (laneComponents[1]->getTrackColorForTesting() == stableColorBeforeCollapse,
             "Expected child track color to remain stable across folder collapse changes");
+
+    if (folderTrack != nullptr && siblingTrack != nullptr)
+    {
+        edit.moveTrack (siblingTrack, te::TrackInsertPoint (folderTrack.get(), nullptr));
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (250);
+        laneComponents = timeline.getTrackLaneComponentsForTesting();
+        expect (laneComponents.size() >= 3, "Expected folder move to preserve all visible lanes");
+        expect (laneComponents[2]->getIndentDepth() == 1,
+                "Expected timeline to refresh child indentation after moving a track into a folder");
+
+        edit.moveTrack (siblingTrack, te::TrackInsertPoint (nullptr, folderTrack.get()));
+        juce::MessageManager::getInstance()->runDispatchLoopUntil (250);
+        laneComponents = timeline.getTrackLaneComponentsForTesting();
+        expect (laneComponents.size() >= 3, "Expected folder removal to preserve all visible lanes");
+        expect (laneComponents[2]->getIndentDepth() == 0,
+                "Expected timeline to refresh after removing a track from a folder");
+    }
 
     // Test 2: Transport responsive breakpoint at 900px
     sessionComponent.setBounds (0, 0, 1200, 800);
@@ -2825,6 +2939,8 @@ int main()
     RUN_TEST_SAFELY(runUiProjectLifecycleRegression);
     RUN_TEST_SAFELY(runAutoSaveSnapshotRegression);
     RUN_TEST_SAFELY(runAutoSaveShutdownCleanupRegression);
+    RUN_TEST_SAFELY(runAutoSaveDiscardOnNewRegression);
+    RUN_TEST_SAFELY(runAutoSaveDiscardOnOpenRegression);
     RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);

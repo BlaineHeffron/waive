@@ -128,6 +128,7 @@ private:
     std::unordered_set<te::EditItemID> collapsedFolderTrackIDs;
 
     int lastTrackCount = 0;
+    juce::String lastTrackStructureSignature;
 
 public:
     std::unordered_set<te::EditItemID> previewClipIDs;

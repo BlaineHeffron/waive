@@ -34,6 +34,7 @@ public:
     static bool packageAsZip (const juce::File& projectFile, const juce::File& outputZip);
 
 private:
+    static juce::StringArray validateReferencedMedia (tracktion::engine::Edit& edit);
     static void rollbackCollectedMedia (const std::vector<std::pair<tracktion::engine::AudioClipBase*, juce::String>>& updatedReferences,
                                         const juce::Array<juce::File>& copiedFiles);
     static juce::File canonicalisePath (const juce::File& file);

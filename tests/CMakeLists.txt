@@ -56,7 +56,7 @@ target_compile_definitions(WaiveCoreTests PRIVATE
     JUCE_WEB_BROWSER=0
 )
 
-add_test(NAME WaiveCoreTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveCoreTests_artefacts/Release/WaiveCoreTests)
+add_test(NAME WaiveCoreTests COMMAND $<TARGET_FILE:WaiveCoreTests>)
 set_tests_properties(WaiveCoreTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 juce_add_console_app(WaiveUiTests
@@ -214,7 +214,7 @@ target_compile_definitions(WaiveUiTests PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1
 )
 
-add_test(NAME WaiveUiTests COMMAND ${CMAKE_CURRENT_BINARY_DIR}/WaiveUiTests_artefacts/Release/WaiveUiTests)
+add_test(NAME WaiveUiTests COMMAND $<TARGET_FILE:WaiveUiTests>)
 set_tests_properties(WaiveUiTests PROPERTIES WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
 
 # ── Waive Tool Tests ─────────────────────────────────────────────────────────

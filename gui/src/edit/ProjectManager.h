@@ -43,9 +43,11 @@ public:
 
 private:
     void checkDirtyState();
+    void discardUnsavedChanges();
     bool openProjectInternal (const juce::File& fileToLoad,
                               const juce::File& resultingProjectFile,
-                              bool markChangedAfterLoad);
+                              bool markChangedAfterLoad,
+                              bool discardCurrentAutoSaveOnDiscard = false);
     void addToRecentFiles (const juce::File& file);
 
     EditSession& editSession;
