@@ -8,6 +8,17 @@ PluginPresetManager::PluginPresetManager() = default;
 
 namespace
 {
+juce::String sanitiseIdentifierPart (juce::String value)
+{
+    value = value.trim();
+
+    if (value.isEmpty())
+        return {};
+
+    value = value.replaceCharacters ("/\\:*?\"<>|. ", "____________");
+    return PathSanitizer::sanitizePathComponent (value);
+}
+
 juce::String buildStablePluginIdentifier (tracktion::engine::Plugin& plugin)
 {
     juce::StringArray parts;
@@ -18,30 +29,39 @@ juce::String buildStablePluginIdentifier (tracktion::engine::Plugin& plugin)
     auto name = plugin.getName().trim();
     auto manufacturer = plugin.state.getProperty ("manufacturer", {}).toString().trim();
 
-    if (format.isNotEmpty())
-        parts.add (format);
-    else
-        parts.add (plugin.getPluginType());
+    auto stableId = type;
 
-    if (fileIdentifier.isNotEmpty())
-        parts.add (fileIdentifier);
-    else if (type.isNotEmpty())
-        parts.add (type);
-    else if (name.isNotEmpty())
-        parts.add (name);
+    if (stableId.isEmpty())
+    {
+        if (fileIdentifier.isNotEmpty())
+        {
+            if (juce::File::isAbsolutePath (fileIdentifier))
+                stableId = juce::File (fileIdentifier).getFileNameWithoutExtension();
+            else
+                stableId = fileIdentifier;
+        }
+        else if (name.isNotEmpty())
+        {
+            stableId = name;
+        }
+    }
 
-    if (manufacturer.isNotEmpty())
-        parts.add (manufacturer);
+    if (auto sanitizedFormat = sanitiseIdentifierPart (format.isNotEmpty() ? format : plugin.getPluginType());
+        sanitizedFormat.isNotEmpty())
+        parts.add (sanitizedFormat);
 
-    auto identifier = parts.joinIntoString ("_");
-    auto sanitized = PathSanitizer::sanitizePathComponent (identifier);
+    if (auto sanitizedManufacturer = sanitiseIdentifierPart (manufacturer); sanitizedManufacturer.isNotEmpty())
+        parts.add (sanitizedManufacturer);
 
-    if (sanitized.isNotEmpty())
-        return sanitized;
+    if (auto sanitizedStableId = sanitiseIdentifierPart (stableId); sanitizedStableId.isNotEmpty())
+        parts.add (sanitizedStableId);
+    else if (auto sanitizedName = sanitiseIdentifierPart (name); sanitizedName.isNotEmpty())
+        parts.add (sanitizedName);
 
-    identifier = identifier.replaceCharacters ("/\\:*?\"<>|. ", "____________");
-    sanitized = PathSanitizer::sanitizePathComponent (identifier);
-    return sanitized.isNotEmpty() ? sanitized : "Unknown";
+    if (parts.isEmpty())
+        return "Unknown";
+
+    return parts.joinIntoString ("_");
 }
 }
 

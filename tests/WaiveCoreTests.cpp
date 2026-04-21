@@ -567,9 +567,56 @@ void testCollectAndSaveCopiesExternalMediaAndRewritesReferences (te::Engine& eng
     auto* reloadedAudioClip = dynamic_cast<te::AudioClipBase*> (reloadedTrack->getClips().getFirst());
     expect (reloadedAudioClip != nullptr, "Expected reloaded audio clip");
     auto reloadedSource = reloadedAudioClip->getSourceFileReference().getFile();
+    auto reloadedSourceDescription = reloadedAudioClip->getSourceFileReference().source.get();
     expect (reloadedSource.isAChildOf (projectDir.getChildFile ("Audio")),
             "Expected collected media reference to point into project Audio directory");
     expect (reloadedSource.existsAsFile(), "Expected collected media file to exist inside project");
+    expect (! juce::File::isAbsolutePath (reloadedSourceDescription),
+            "Expected collected media reference to be stored as a relative project path");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testCollectAndSaveRewritesInternalAbsoluteReferencesRelative (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("collect_internal_absolute_reference");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto audioDir = projectDir.getChildFile ("Audio");
+    projectDir.createDirectory();
+    audioDir.createDirectory();
+
+    auto projectFile = projectDir.getChildFile ("portable.tracktionedit");
+    auto internalAudio = writeTestWav (audioDir.getChildFile ("internal_source.wav"));
+    auto backingFile = fixtureDir.getChildFile ("internal_backing.tracktionedit");
+
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected internal-media fixture track");
+
+    auto insertedWaveClip = track->insertWaveClip (
+        "internal_source",
+        internalAudio,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (0.1) },
+          te::TimeDuration() },
+        false);
+    auto* insertedClip = dynamic_cast<te::AudioClipBase*> (insertedWaveClip.get());
+    expect (insertedClip != nullptr, "Expected internal wave clip insertion");
+    insertedClip->getSourceFileReference().setToDirectFileReference (internalAudio, false);
+    expect (juce::File::isAbsolutePath (insertedClip->getSourceFileReference().source.get()),
+            "Expected fixture clip to start with an absolute source reference");
+
+    auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, projectFile);
+    expect (result.filesCopied == 0, "Expected no copy for already-internal media");
+    expect (result.errors.isEmpty(), "Expected collect/save to rewrite internal absolute reference without errors");
+
+    auto reloadedEdit = te::loadEditFromFile (engine, projectFile);
+    auto* reloadedTrack = te::getAudioTracks (*reloadedEdit).getFirst();
+    auto* reloadedAudioClip = dynamic_cast<te::AudioClipBase*> (reloadedTrack->getClips().getFirst());
+    expect (reloadedAudioClip != nullptr, "Expected reloaded internal audio clip");
+    expect (! juce::File::isAbsolutePath (reloadedAudioClip->getSourceFileReference().source.get()),
+            "Expected collect/save to rewrite internal absolute media reference as relative");
 
     (void) fixtureDir.deleteRecursively();
 }
@@ -658,6 +705,58 @@ void testRemoveUnusedMediaReportsActualBytesFreed (te::Engine& engine)
     expect (! unusedAudio.existsAsFile(), "Expected unused media file to be removed from Audio directory");
     expect (projectDir.getChildFile (".trash").getChildFile ("unused.wav").existsAsFile(),
             "Expected unused media file to be moved into .trash");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testMediaManagementCanonicalisesSymlinkedReferences (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("symlinked_media_reference");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto audioDir = projectDir.getChildFile ("Audio");
+    auto aliasDir = fixtureDir.getChildFile ("aliases");
+    projectDir.createDirectory();
+    audioDir.createDirectory();
+    aliasDir.createDirectory();
+
+    auto projectFile = projectDir.getChildFile ("symlink.tracktionedit");
+    auto usedAudio = writeTestWav (audioDir.getChildFile ("used.wav"), 0.3f);
+    auto aliasAudio = aliasDir.getChildFile ("used_alias.wav");
+
+   #if JUCE_WINDOWS
+    const bool aliasCreated = false;
+   #else
+    const bool aliasCreated = usedAudio.createSymbolicLink (aliasAudio, true);
+   #endif
+    if (! aliasCreated)
+    {
+        (void) fixtureDir.deleteRecursively();
+        return;
+    }
+
+    auto edit = te::createEmptyEdit (engine, projectFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected symlink fixture track");
+
+    auto insertedWaveClip = track->insertWaveClip (
+        "used_alias",
+        aliasAudio,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (0.1) },
+          te::TimeDuration() },
+        false);
+    auto* insertedClip = dynamic_cast<te::AudioClipBase*> (insertedWaveClip.get());
+    expect (insertedClip != nullptr, "Expected symlinked wave clip insertion");
+    insertedClip->getSourceFileReference().setToDirectFileReference (aliasAudio, false);
+
+    auto externalMedia = waive::ProjectPackager::findExternalMedia (*edit, projectDir);
+    expect (externalMedia.isEmpty(),
+            "Expected symlinked reference to project media to be treated as internal");
+
+    auto unusedMedia = waive::ProjectPackager::findUnusedMedia (*edit, projectDir);
+    expect (unusedMedia.isEmpty(),
+            "Expected canonicalised symlinked reference to keep project media marked as used");
 
     (void) fixtureDir.deleteRecursively();
 }
@@ -879,14 +978,18 @@ void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine
         auto pluginState = te::createValueTree (te::IDs::PLUGIN,
                                                 te::IDs::type, te::ReverbPlugin::xmlTypeName,
                                                 "pluginFormatName", te::PluginManager::builtInPluginFormatName,
-                                                "fileOrIdentifier", te::ReverbPlugin::xmlTypeName,
+                                                "fileOrIdentifier", "/tmp/Vendor/Reverb.plugin",
                                                 "manufacturer", "Waive");
         auto plugin = edit->getPluginCache().createNewPlugin (pluginState);
         expect (plugin != nullptr, "Expected built-in plugin creation for preset test");
 
         auto pluginIdentifier = waive::PluginPresetManager::getPluginIdentifier (*plugin);
         expect (pluginIdentifier.contains (te::ReverbPlugin::xmlTypeName),
-                "Expected plugin identifier to include the stable file/type identifier");
+                "Expected plugin identifier to include the stable type identifier");
+        expect (! pluginIdentifier.contains ("/tmp"),
+                "Expected plugin identifier to avoid absolute installation paths");
+        expect (! pluginIdentifier.contains ("/"),
+                "Expected plugin identifier to be safe for use as a preset directory name");
 
         waive::PluginPresetManager presetManager;
         auto customPresetDir = fixtureDir.getChildFile ("custom_presets");
@@ -1345,8 +1448,10 @@ int main()
         testAudioAnalysisZeroSampleRate();
         testCollectAndSavePersistsToExplicitProjectFile (engine);
         testCollectAndSaveCopiesExternalMediaAndRewritesReferences (engine);
+        testCollectAndSaveRewritesInternalAbsoluteReferencesRelative (engine);
         testCollectAndSaveRollsBackWhenOneFileFails (engine);
         testRemoveUnusedMediaReportsActualBytesFreed (engine);
+        testMediaManagementCanonicalisesSymlinkedReferences (engine);
         testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
         testCollectAndSaveCommandReturnsErrorOnPackagingFailure (engine);

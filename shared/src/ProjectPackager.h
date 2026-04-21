@@ -34,8 +34,14 @@ public:
     static bool packageAsZip (const juce::File& projectFile, const juce::File& outputZip);
 
 private:
-    static void rollbackCollectedMedia (const std::vector<std::pair<tracktion::engine::AudioClipBase*, juce::File>>& updatedReferences,
+    static void rollbackCollectedMedia (const std::vector<std::pair<tracktion::engine::AudioClipBase*, juce::String>>& updatedReferences,
                                         const juce::Array<juce::File>& copiedFiles);
+    static juce::File canonicalisePath (const juce::File& file);
+    static bool isWithinProjectDirectory (const juce::File& file, const juce::File& projectDir);
+    static bool fileArrayContainsCanonical (const juce::Array<juce::File>& files, const juce::File& candidate);
+    static void rewriteProjectMediaReferencesRelativeToProject (tracktion::engine::Edit& edit,
+                                                                const juce::File& projectDir,
+                                                                std::vector<std::pair<tracktion::engine::AudioClipBase*, juce::String>>& updatedReferences);
     static juce::Array<juce::File> getAllReferencedFiles (tracktion::engine::Edit& edit);
     static juce::File getUniqueTargetFile (const juce::File& targetDir, const juce::String& baseName);
     static bool isAudioFile (const juce::File& file);

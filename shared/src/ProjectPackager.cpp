@@ -5,12 +5,41 @@ namespace te = tracktion;
 
 namespace waive {
 
-void ProjectPackager::rollbackCollectedMedia (const std::vector<std::pair<te::AudioClipBase*, juce::File>>& updatedReferences,
+juce::File ProjectPackager::canonicalisePath (const juce::File& file)
+{
+    if (file == juce::File())
+        return {};
+
+    if (file.exists())
+        return file.getLinkedTarget();
+
+    return juce::File (file.getFullPathName());
+}
+
+bool ProjectPackager::isWithinProjectDirectory (const juce::File& file, const juce::File& projectDir)
+{
+    const auto canonicalFile = canonicalisePath (file);
+    const auto canonicalProjectDir = canonicalisePath (projectDir);
+    return canonicalFile == canonicalProjectDir || canonicalFile.isAChildOf (canonicalProjectDir);
+}
+
+bool ProjectPackager::fileArrayContainsCanonical (const juce::Array<juce::File>& files, const juce::File& candidate)
+{
+    const auto canonicalCandidate = canonicalisePath (candidate);
+
+    for (const auto& file : files)
+        if (canonicalisePath (file) == canonicalCandidate)
+            return true;
+
+    return false;
+}
+
+void ProjectPackager::rollbackCollectedMedia (const std::vector<std::pair<te::AudioClipBase*, juce::String>>& updatedReferences,
                                               const juce::Array<juce::File>& copiedFiles)
 {
-    for (const auto& [clip, originalFile] : updatedReferences)
+    for (const auto& [clip, originalSource] : updatedReferences)
         if (clip != nullptr)
-            clip->getSourceFileReference().setToDirectFileReference (originalFile, true);
+            clip->getSourceFileReference().source = originalSource;
 
     for (const auto& copiedFile : copiedFiles)
         if (copiedFile.existsAsFile())
@@ -25,8 +54,8 @@ juce::Array<juce::File> ProjectPackager::getAllReferencedFiles (te::Edit& edit)
         for (auto* clip : track->getClips())
             if (auto audioClip = dynamic_cast<te::AudioClipBase*> (clip))
             {
-                auto sourceFile = audioClip->getSourceFileReference().getFile();
-                if (sourceFile != juce::File() && ! files.contains (sourceFile))
+                auto sourceFile = canonicalisePath (audioClip->getSourceFileReference().getFile());
+                if (sourceFile != juce::File() && ! fileArrayContainsCanonical (files, sourceFile))
                     files.add (sourceFile);
             }
 
@@ -39,10 +68,35 @@ juce::Array<juce::File> ProjectPackager::findExternalMedia (te::Edit& edit, cons
     auto referencedFiles = getAllReferencedFiles (edit);
 
     for (const auto& file : referencedFiles)
-        if (! file.isAChildOf (projectDir))
+        if (! isWithinProjectDirectory (file, projectDir))
             externalFiles.add (file);
 
     return externalFiles;
+}
+
+void ProjectPackager::rewriteProjectMediaReferencesRelativeToProject (te::Edit& edit,
+                                                                      const juce::File& projectDir,
+                                                                      std::vector<std::pair<te::AudioClipBase*, juce::String>>& updatedReferences)
+{
+    for (auto* track : te::getAudioTracks (edit))
+        for (auto* clip : track->getClips())
+            if (auto audioClip = dynamic_cast<te::AudioClipBase*> (clip))
+            {
+                auto& sourceRef = audioClip->getSourceFileReference();
+
+                if (sourceRef.isUsingProjectReference())
+                    continue;
+
+                const auto sourceFile = canonicalisePath (sourceRef.getFile());
+                if (! sourceFile.existsAsFile() || ! isWithinProjectDirectory (sourceFile, projectDir))
+                    continue;
+
+                const auto previousSource = sourceRef.source.get();
+                sourceRef.setToDirectFileReference (sourceFile, true);
+
+                if (sourceRef.source.get() != previousSource)
+                    updatedReferences.emplace_back (audioClip, previousSource);
+            }
 }
 
 juce::File ProjectPackager::getUniqueTargetFile (const juce::File& targetDir, const juce::String& baseName)
@@ -70,7 +124,7 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
                                                                 const juce::File& projectFile)
 {
     CollectResult result;
-    std::vector<std::pair<te::AudioClipBase*, juce::File>> updatedReferences;
+    std::vector<std::pair<te::AudioClipBase*, juce::String>> updatedReferences;
     juce::Array<juce::File> copiedFiles;
 
     if (! projectDir.exists() || ! projectDir.isDirectory())
@@ -95,6 +149,7 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
     }
 
     auto saveTarget = projectFile != juce::File() ? projectFile : te::EditFileOperations (edit).getEditFile();
+    const bool saveTargetExisted = saveTarget.existsAsFile();
     if (saveTarget == juce::File())
     {
         result.errors.add ("Failed to save edit: no target project file is available");
@@ -106,6 +161,15 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
     {
         result.errors.add ("Failed to save edit: target directory does not exist");
         return result;
+    }
+
+    if (! saveTarget.existsAsFile())
+    {
+        if (! saveTarget.create())
+        {
+            result.errors.add ("Failed to prepare target project file: " + saveTarget.getFullPathName());
+            return result;
+        }
     }
 
     bool copyFailed = false;
@@ -134,10 +198,10 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
             for (auto* clip : track->getClips())
                 if (auto audioClip = dynamic_cast<te::AudioClipBase*> (clip))
                 {
-                    auto clipSourceFile = audioClip->getSourceFileReference().getFile();
+                    auto clipSourceFile = canonicalisePath (audioClip->getSourceFileReference().getFile());
                     if (clipSourceFile == sourceFile)
                     {
-                        updatedReferences.emplace_back (audioClip, clipSourceFile);
+                        updatedReferences.emplace_back (audioClip, audioClip->getSourceFileReference().source.get());
                         audioClip->getSourceFileReference().setToDirectFileReference (targetFile, true);
                     }
                 }
@@ -148,16 +212,22 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
     if (copyFailed)
     {
         rollbackCollectedMedia (updatedReferences, copiedFiles);
+        if (! saveTargetExisted && saveTarget.existsAsFile())
+            (void) saveTarget.deleteFile();
         result.filesCopied = 0;
         result.bytesCopied = 0;
         result.errors.insert (0, "Collect and save aborted because one or more media files could not be copied");
         return result;
     }
 
+    rewriteProjectMediaReferencesRelativeToProject (edit, projectDir, updatedReferences);
+
     edit.flushState();
     if (! te::EditFileOperations (edit).saveAs (saveTarget, true))
     {
         rollbackCollectedMedia (updatedReferences, copiedFiles);
+        if (! saveTargetExisted && saveTarget.existsAsFile())
+            (void) saveTarget.deleteFile();
         result.filesCopied = 0;
         result.bytesCopied = 0;
         result.errors.add ("Failed to save edit with updated paths");
@@ -185,7 +255,7 @@ juce::Array<juce::File> ProjectPackager::findUnusedMedia (te::Edit& edit, const 
     for (const auto& iter : juce::RangedDirectoryIterator (audioDir, false, "*", juce::File::findFiles))
     {
         auto file = iter.getFile();
-        if (isAudioFile (file) && ! referencedFiles.contains (file))
+        if (isAudioFile (file) && ! fileArrayContainsCanonical (referencedFiles, file))
             unusedFiles.add (file);
     }
 
