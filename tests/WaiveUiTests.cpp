@@ -2125,8 +2125,8 @@ void testTooltipKeyboardShortcuts()
             "Expected stop button tooltip to contain 'Space' shortcut");
 
     auto recordTooltip = sessionComponent.getTransportTooltipForTesting ("record");
-    expect (recordTooltip.isNotEmpty() && (recordTooltip.contains ("Ctrl") || recordTooltip.contains ("Backspace")),
-            "Expected record button tooltip to contain keyboard shortcut");
+    expect (recordTooltip.isNotEmpty() && recordTooltip.contains ("(R)"),
+            "Expected record button tooltip to contain the 'R' shortcut");
 
     std::cout << "testTooltipKeyboardShortcuts: PASS" << std::endl;
 }

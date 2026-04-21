@@ -121,7 +121,7 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
                                   { { "track_id", prop ("integer", "0-based track index") },
                                     { "file_path", prop ("string", "Absolute path to the audio file") },
                                     { "start_time", prop ("number", "Start time in seconds") } },
-                                  { "track_id", "file_path", "start_time" }),
+                                  { "track_id", "file_path" }),
                       "audio" });
 
     // insert_midi_clip

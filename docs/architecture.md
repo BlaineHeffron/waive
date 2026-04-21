@@ -15,9 +15,9 @@ Responsibilities:
 
 Waive runs the GUI and engine **in-process** so users can see edits applied in real time, open plugin editors, and manually adjust what tools do.
 
-### Layer 2: Tools (In-Process)
+### Layer 2: Tools (Built-In + External)
 
-Tools run in-process and can apply edits to the active `Edit`. This keeps the editing experience fully interactive and avoids proxying requests across process boundaries.
+Built-in C++ tools run in-process against the active `Edit`. External Python tools run out-of-process via `ExternalToolRunner` and exchange files through temp input/output directories. This keeps the editing experience interactive while isolating Python dependencies and failures from the main app process.
 
 Responsibilities:
 - AI inference (arrangement, mixing suggestions, MIDI generation)
@@ -41,7 +41,7 @@ Waive implements defense-in-depth security controls to prevent path traversal, i
   - Usage: `ModelManager` applies `sanitizePathComponent()` to `modelID` and `version` parameters before constructing filesystem paths in `getModelDirectory()`.
   - Usage: Tool artifact storage paths are sanitized before writing plan outputs or cached analysis results.
 - **Command Handler Input Validation**: The `CommandHandler` (engine/src/) validates all file paths in commands before passing them to Tracktion Engine APIs. File paths must be absolute, canonical, and within the configured allowlist. In the GUI app, that allowlist is wired from the user's home directory, the active project directory when a project is open, and the model storage directory. Relative paths and symlinks pointing outside allowed directories are rejected.
-- **Model Storage Isolation**: The `ModelManager` enforces strict storage directory boundaries. Models are installed only within the user-configured model storage directory (default: `~/.waive/models/`). Quota enforcement prevents disk exhaustion attacks via oversized model downloads.
+- **Model Storage Isolation**: The `ModelManager` enforces strict storage directory boundaries. Models are installed only within the user-configured model storage directory (default: platform app-data path `Waive/models`, e.g. `~/.config/Waive/models` on Linux). Quota enforcement prevents disk exhaustion attacks via oversized model downloads.
 
 ### Performance Architecture
 

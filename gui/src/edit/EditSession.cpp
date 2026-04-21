@@ -84,8 +84,11 @@ bool EditSession::performEdit (const juce::String& actionName,
     if (edit == nullptr)
         return false;
 
-    if (! coalesce || lastTransactionName != actionName)
-        edit->getUndoManager().beginNewTransaction (actionName);
+    auto& undoManager = edit->getUndoManager();
+    const auto startedNewTransaction = ! coalesce || lastTransactionName != actionName;
+
+    if (startedNewTransaction)
+        undoManager.beginNewTransaction (actionName);
 
     lastTransactionName = actionName;
 
@@ -98,12 +101,16 @@ bool EditSession::performEdit (const juce::String& actionName,
     }
     catch (const std::exception& e)
     {
-        edit->getUndoManager().undo();
+        if (startedNewTransaction && undoManager.getNumActionsInCurrentTransaction() > 0)
+            undoManager.undoCurrentTransactionOnly();
+
         juce::Logger::writeToLog ("EditSession::performEdit failed: " + juce::String (e.what()));
     }
     catch (...)
     {
-        edit->getUndoManager().undo();
+        if (startedNewTransaction && undoManager.getNumActionsInCurrentTransaction() > 0)
+            undoManager.undoCurrentTransactionOnly();
+
         juce::Logger::writeToLog ("EditSession::performEdit failed with unknown exception");
     }
 

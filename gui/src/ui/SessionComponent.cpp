@@ -90,12 +90,12 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
 
     playButton.setTooltip ("Play (Space)");
     stopButton.setTooltip ("Stop (Space)");
-    recordButton.setTooltip ("Record audio (Ctrl+R)");
+    recordButton.setTooltip ("Record audio (R)");
     stopRecordButton.setTooltip ("Stop recording");
     recordFromMicButton.setTooltip ("Record from selected microphone (auto-creates armed track)");
     recordStatusLabel.setTooltip ("Current recording status");
     micInputCombo.setTooltip ("Microphone input device used by Mic Rec");
-    addTrackButton.setTooltip ("Add Track (Ctrl+T)");
+    addTrackButton.setTooltip ("Add Track");
     loopButton.setTooltip ("Loop On/Off (L)");
     punchButton.setTooltip ("Punch In/Out");
     setLoopInButton.setTooltip ("Set Loop In Point");
@@ -116,7 +116,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     stopButton.setTitle ("Stop");
     stopButton.setDescription ("Stop playback (Space)");
     recordButton.setTitle ("Record");
-    recordButton.setDescription ("Start recording audio (Ctrl+R)");
+    recordButton.setDescription ("Start recording audio (R)");
     stopRecordButton.setTitle ("Stop Record");
     stopRecordButton.setDescription ("Stop recording audio");
     recordFromMicButton.setTitle ("Mic Rec");
@@ -126,7 +126,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     micInputCombo.setTitle ("Mic Input");
     micInputCombo.setDescription ("Select microphone input device");
     addTrackButton.setTitle ("Add Track");
-    addTrackButton.setDescription ("Add new audio track (Ctrl+T)");
+    addTrackButton.setDescription ("Add new audio track");
     loopButton.setTitle ("Loop");
     loopButton.setDescription ("Toggle loop mode (L)");
     punchButton.setTitle ("Punch");
@@ -367,6 +367,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
         addChildComponent (chatPanel.get());  // hidden by default (popout)
 
         chatClipButton.setTooltip ("Clip/Unclip AI chat panel to side");
+        chatClipButton.setTitle ("Clip Chat Panel");
+        chatClipButton.setDescription ("Clip or unclip the AI chat panel to the side of the session");
         chatClipButton.onClick = [this]
         {
             chatPanelClippedToSide = ! chatPanelClippedToSide;
@@ -375,6 +377,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
         addChildComponent (chatClipButton);
 
         chatCloseButton.setTooltip ("Close AI chat panel");
+        chatCloseButton.setTitle ("Close Chat Panel");
+        chatCloseButton.setDescription ("Close the AI chat panel");
         chatCloseButton.onClick = [this]
         {
             chatPanelVisible = false;
@@ -386,6 +390,8 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     // Piano roll panel (created on demand)
     closePianoRollButton.onClick = [this] { closePianoRoll(); };
     closePianoRollButton.setTooltip ("Close Piano Roll");
+    closePianoRollButton.setTitle ("Close Piano Roll");
+    closePianoRollButton.setDescription ("Close the piano roll editor");
     addChildComponent (closePianoRollButton);
 
     configureKeyboardFocusOrder();

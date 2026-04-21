@@ -49,6 +49,7 @@
 ## Accessibility
 
 - **Every interactive component must call `setTitle()` for accessibility**. This provides a text label for screen readers and assistive technology.
+- Exceptions should be rare and explicit. If a component is intentionally hidden from accessibility APIs, document why near the component setup.
 - **All file path components from external input must pass through `sanitizePathComponent()`**. Never trust user input or external data when constructing file paths.
 - **Every interactive component must have a tooltip via `setTooltip()`**. Tooltips provide user guidance and keyboard shortcut hints.
 - **Use `waive::Spacing` constants instead of magic numbers for padding/margins**. This maintains visual consistency across components.

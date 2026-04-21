@@ -10,7 +10,7 @@ Waive has three native C++ regression test executables integrated with CTest.
   - Current coverage:
     - coalesced undo transaction behavior
     - clip duplication preserving MIDI data
-    - `EditSession::performEdit` exception handling
+    - `EditSession::performEdit` exception handling without corrupting prior undo history
 
 - `WaiveUiTests`
   - Scope: no-user UI automation by instantiating real components and invoking commands programmatically.

@@ -4,6 +4,17 @@
 namespace waive
 {
 
+namespace
+{
+void drainChildProcessOutput (juce::ChildProcess& process)
+{
+    char buffer[4096];
+    while (process.readProcessOutput (buffer, sizeof (buffer)) > 0)
+    {
+    }
+}
+}
+
 ExternalToolRunner::ExternalToolRunner()
 {
     toolsDirs.push_back (getToolsDirectory());
@@ -125,10 +136,13 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
 
     while (true)
     {
+        drainChildProcessOutput (process);
+
         bool stillRunning = process.isRunning();
 
         if (! stillRunning)
         {
+            drainChildProcessOutput (process);
             exitCode = (int) process.getExitCode();
             processCompleted = true;
             break;
@@ -164,7 +178,10 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
 
     if (exitCode != 0)
     {
+        auto stderrText = process.readAllProcessOutput().trim();
         output.message = "External tool failed with exit code " + juce::String (exitCode);
+        if (stderrText.isNotEmpty())
+            output.message << ": " << stderrText;
         cleanupTempDirectory();
         return output;
     }

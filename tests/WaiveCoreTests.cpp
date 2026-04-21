@@ -213,12 +213,30 @@ void testDuplicateMidiClipPreservesSequence (EditSession& session)
 
 void testPerformEditExceptionSafety (EditSession& session)
 {
+    auto& edit = session.getEdit();
+    const auto initialTrackCount = getAudioTrackCount (edit);
+
+    auto firstMutationOk = session.performEdit ("Successful Mutation", [&] (te::Edit& e)
+    {
+        e.ensureNumberOfAudioTracks (getAudioTrackCount (e) + 1);
+    });
+
+    expect (firstMutationOk, "Expected setup mutation to succeed");
+    expect (getAudioTrackCount (edit) == initialTrackCount + 1,
+            "Expected setup mutation to add one track");
+
     auto ok = session.performEdit ("Throwing Mutation", [&] (te::Edit&)
     {
         throw std::runtime_error ("intentional test exception");
     });
 
     expect (! ok, "Expected performEdit to return false when mutation throws");
+    expect (getAudioTrackCount (edit) == initialTrackCount + 1,
+            "Expected throwing mutation not to undo the previous successful edit");
+
+    session.undo();
+    expect (getAudioTrackCount (edit) == initialTrackCount,
+            "Expected undo history before the failing mutation to remain intact");
 }
 
 void testUndoableCommandHandlerWrapsMutatingCommands (te::Engine& engine)

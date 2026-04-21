@@ -4,7 +4,8 @@
 
 ## Features
 
-- **56 commands** for timeline, clip, track, automation, preset, and media operations
+- **56 console commands** for timeline, clip, track, automation, preset, and media operations
+- **3 AI helper commands** for tool discovery and session undo/redo
 - **7 built-in tools** for audio analysis and manipulation
 - **10 Python AI tools** for intelligent audio processing
 - **Multi-provider AI chat** integrated into the workflow
