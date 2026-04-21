@@ -981,6 +981,15 @@ void runUiPhase4ToolFrameworkRegression()
     expect (highlightedTracks.contains (0),
             "Expected tool preview to highlight affected mixer track");
 
+    toolsComponent.selectToolForTesting ("rename_tracks_from_clips");
+    expect (! toolsComponent.hasPendingPlanForTesting(),
+            "Expected switching tools to clear any stale pending plan");
+    expect (toolsComponent.getPreviewTextForTesting().isEmpty(),
+            "Expected switching tools to clear the old preview text");
+    expect (sessionComponent.getToolPreviewTracksForTesting().isEmpty(),
+            "Expected switching tools to clear preview track highlights");
+
+    toolsComponent.selectToolForTesting ("normalize_selected_clips");
     toolsComponent.rejectPlanForTesting();
     expect (! toolsComponent.hasPendingPlanForTesting(), "Expected rejected plan to clear pending plan");
     expect (std::abs (audioClip->getGainDB()) < 0.05f,

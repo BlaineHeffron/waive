@@ -9,24 +9,34 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
 {
     statusLabel.setJustificationType (juce::Justification::centredLeft);
     statusLabel.setText ("In-process command console", juce::dontSendNotification);
+    statusLabel.setTitle ("Console Status");
+    statusLabel.setDescription ("Status for the in-process JSON command console");
 
     requestEditor.setMultiLine (true);
     requestEditor.setReturnKeyStartsNewLine (true);
     requestEditor.setText ("{ \"action\": \"ping\" }");
+    requestEditor.setTitle ("Command Request");
+    requestEditor.setDescription ("Enter a JSON command to send to the engine");
+    requestEditor.setTooltip ("Enter JSON command here");
 
     responseEditor.setMultiLine (true);
     responseEditor.setReadOnly (true);
     responseEditor.setReturnKeyStartsNewLine (true);
     responseEditor.setText ("Enter a JSON command above and click Send.\nSee docs/command_schema.json for available commands.");
+    responseEditor.setTitle ("Command Response Log");
+    responseEditor.setDescription ("Shows command responses and errors");
+    responseEditor.setTooltip ("Command responses and errors");
     if (auto* pal = waive::getWaivePalette (*this))
         responseEditor.setColour (juce::TextEditor::textColourId, pal->textMuted);
 
     sendButton.setButtonText ("Send");
+    sendButton.setTitle ("Send Command");
+    sendButton.setDescription ("Send the JSON command to the engine");
     sendButton.setTooltip ("Send command (Enter)");
     clearButton.setButtonText ("Clear Log");
+    clearButton.setTitle ("Clear Response Log");
+    clearButton.setDescription ("Clear the command response log");
     clearButton.setTooltip ("Clear response");
-
-    requestEditor.setTooltip ("Enter JSON command here");
 
     addAndMakeVisible (statusLabel);
     addAndMakeVisible (requestEditor);
@@ -38,7 +48,9 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
     {
         auto request = requestEditor.getText();
         auto response = commandHandler.handleCommand (request);
-        appendLog ("> " + request + "\n" + response + "\n\n");
+        const auto parsed = juce::JSON::parse (response);
+        const bool isError = parsed.isObject() && parsed.hasProperty ("error");
+        appendLog ("> " + request + "\n" + response + "\n\n", isError);
     };
 
     clearButton.onClick = [this]
@@ -67,23 +79,20 @@ void ConsoleComponent::resized()
     responseEditor.setBounds (bounds);
 }
 
-void ConsoleComponent::appendLog (const juce::String& text)
+void ConsoleComponent::appendLog (const juce::String& text, bool isError)
 {
     // Clear placeholder on first real response
-    static bool firstAppend = true;
-    if (firstAppend)
+    if (! hasAppendedResponse)
     {
         responseEditor.clear();
         if (auto* pal = waive::getWaivePalette (*this))
             responseEditor.setColour (juce::TextEditor::textColourId, pal->textPrimary);
-        firstAppend = false;
+        hasAppendedResponse = true;
     }
 
-    // Check if response contains error key
-    auto parsed = juce::JSON::parse (text);
     if (auto* pal = waive::getWaivePalette (*this))
     {
-        if (parsed.isObject() && parsed.hasProperty ("error"))
+        if (isError)
             responseEditor.setColour (juce::TextEditor::textColourId, pal->danger);
         else
             responseEditor.setColour (juce::TextEditor::textColourId, pal->textPrimary);

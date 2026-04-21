@@ -79,6 +79,7 @@ private:
     void handlePlanCompletion (waive::JobStatus status, std::optional<waive::ToolPlan> planResult);
     juce::File resolveProjectCacheDirectory() const;
     juce::String getToolModelRequirement (const juce::String& toolName) const;
+    void clearPendingPlanState (const juce::String& statusText = {});
 
     waive::ToolRegistry& toolRegistry;
     EditSession& editSession;

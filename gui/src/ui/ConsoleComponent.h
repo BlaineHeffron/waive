@@ -14,9 +14,10 @@ public:
     void resized() override;
 
 private:
-    void appendLog (const juce::String& text);
+    void appendLog (const juce::String& text, bool isError);
 
     UndoableCommandHandler& commandHandler;
+    bool hasAppendedResponse = false;
 
     juce::Label statusLabel;
     juce::TextEditor requestEditor;

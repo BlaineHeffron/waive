@@ -367,6 +367,7 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
 
     toolCombo.onChange = [this] {
         loadDefaultParamsForSelectedTool();
+        clearPendingPlanState();
         lastPlanError.clear();
         updateButtonStates();
     };
@@ -610,10 +611,7 @@ void ToolSidebarComponent::rejectPlan()
     if (planRunning)
         return;
 
-    pendingPlan.reset();
-    previewEditor.clear();
-    sessionComponent.clearToolPreview();
-    setStatusText ("Plan rejected");
+    clearPendingPlanState ("Plan rejected");
     updateButtonStates();
 }
 
@@ -632,6 +630,16 @@ juce::String ToolSidebarComponent::getSelectedToolName() const
         return {};
 
     return toolNamesByComboIndex[idx];
+}
+
+void ToolSidebarComponent::clearPendingPlanState (const juce::String& statusText)
+{
+    pendingPlan.reset();
+    previewEditor.clear();
+    sessionComponent.clearToolPreview();
+
+    if (statusText.isNotEmpty())
+        setStatusText (statusText);
 }
 
 void ToolSidebarComponent::updateButtonStates()
@@ -702,24 +710,15 @@ void ToolSidebarComponent::handlePlanCompletion (waive::JobStatus status, std::o
     }
     else if (status == waive::JobStatus::Cancelled)
     {
-        pendingPlan.reset();
-        previewEditor.clear();
-        sessionComponent.clearToolPreview();
-        setStatusText ("Plan cancelled");
+        clearPendingPlanState ("Plan cancelled");
     }
     else if (status == waive::JobStatus::Failed)
     {
-        pendingPlan.reset();
-        previewEditor.clear();
-        sessionComponent.clearToolPreview();
-        setStatusText ("Plan failed");
+        clearPendingPlanState ("Plan failed");
     }
     else
     {
-        pendingPlan.reset();
-        previewEditor.clear();
-        sessionComponent.clearToolPreview();
-        setStatusText ("Plan did not complete");
+        clearPendingPlanState ("Plan did not complete");
     }
 
     updateButtonStates();
