@@ -5,6 +5,7 @@
 #include "WaiveLookAndFeel.h"
 #include <tracktion_engine/tracktion_engine.h>
 #include <cmath>
+#include <optional>
 
 namespace te = tracktion;
 
@@ -309,6 +310,25 @@ bool RenderDialog::isCustomRangeVisibleForTesting() const
     return startEditor.isVisible() && endEditor.isVisible();
 }
 
+void RenderDialog::setCustomRangeForTesting (const juce::String& startSeconds, const juce::String& endSeconds)
+{
+    startEditor.setText (startSeconds, juce::dontSendNotification);
+    endEditor.setText (endSeconds, juce::dontSendNotification);
+}
+
+void RenderDialog::setLoopRangeForTesting (double startSeconds, double endSeconds, bool enabled)
+{
+    auto& transport = editSession.getEdit().getTransport();
+    transport.setLoopRange (te::TimeRange (te::TimePosition::fromSeconds (startSeconds),
+                                           te::TimePosition::fromSeconds (endSeconds)));
+    transport.looping = enabled;
+}
+
+bool RenderDialog::triggerRenderForTesting()
+{
+    return prepareRenderData();
+}
+
 void RenderDialog::setStemsModeForTesting (bool shouldRenderStems)
 {
     if (shouldRenderStems != stemsToggle.getToggleState())
@@ -500,10 +520,10 @@ void RenderDialog::browseForOutputPath()
     }
 }
 
-void RenderDialog::performRender()
+bool RenderDialog::prepareRenderData()
 {
     if (rendering)
-        return;
+        return false;
 
     const bool doStems = stemsToggle.getToggleState();
     auto outputTarget = juce::File (outputPathEditor.getText());
@@ -515,43 +535,8 @@ void RenderDialog::performRender()
                                                  "Invalid Path",
                                                  doStems ? "Output directory does not exist."
                                                          : "Output file directory does not exist.");
-        return;
+        return false;
     }
-
-    rendering = true;
-    progressValue = -1.0;
-    renderButton.setEnabled (false);
-    formatCombo.setEnabled (false);
-    sampleRateCombo.setEnabled (false);
-    bitDepthCombo.setEnabled (false);
-    oggQualitySlider.setEnabled (false);
-    rangeCombo.setEnabled (false);
-    startEditor.setEnabled (false);
-    endEditor.setEnabled (false);
-    normalizeToggle.setEnabled (false);
-    mixdownToggle.setEnabled (false);
-    stemsToggle.setEnabled (false);
-    outputPathEditor.setEnabled (false);
-    browseButton.setEnabled (false);
-    progressBar.setVisible (true);
-
-    // Capture all needed data BEFORE launching thread (no main-thread object access from thread)
-    struct RenderData
-    {
-        int formatId;
-        double sampleRate;
-        int bitDepth;
-        double oggQuality;
-        te::TimeRange range;
-        juce::BigInteger tracksMask;
-        bool doStems;
-        juce::File outputFile;
-        bool normalize;
-        double normalizeLevel;
-        juce::ValueTree editState;
-        juce::File editFile;
-        te::Engine* enginePtr;
-    };
 
     // Determine format
     int formatId = formatCombo.getSelectedId();
@@ -584,7 +569,26 @@ void RenderDialog::performRender()
     if (rangeCombo.getSelectedId() == 2) // Loop region
     {
         auto& transport = edit.getTransport();
+        if (! transport.looping)
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                                                    "Loop Region Unavailable",
+                                                    "Enable looping and set a valid loop range before rendering the loop region.",
+                                                    "OK",
+                                                    this);
+            return false;
+        }
+
         range = te::TimeRange (transport.loopPoint1, transport.loopPoint2);
+        if (range.getEnd() <= range.getStart())
+        {
+            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                                                    "Invalid Loop Range",
+                                                    "Set a loop end point after the loop start point before rendering the loop region.",
+                                                    "OK",
+                                                    this);
+            return false;
+        }
     }
     else if (rangeCombo.getSelectedId() == 3) // Custom
     {
@@ -598,8 +602,7 @@ void RenderDialog::performRender()
                                                       "End time must be greater than start time.",
                                                       "OK",
                                                       this);
-            resetControls();
-            return;
+            return false;
         }
 
         range = te::TimeRange (te::TimePosition::fromSeconds (start), te::TimePosition::fromSeconds (end));
@@ -615,14 +618,42 @@ void RenderDialog::performRender()
     bool normalize = normalizeToggle.getToggleState();
     double normalizeLevel = -0.1; // -0.1 dBFS
 
+    pendingRenderData = RenderData { formatId, sampleRate, bitDepth, oggQuality,
+                                     range.getStart().inSeconds(), range.getEnd().inSeconds(), tracksMask,
+                                     doStems, outputTarget, normalize, normalizeLevel,
+                                     edit.state.createCopy(),
+                                     te::EditFileOperations (edit).getEditFile(),
+                                     &edit.engine };
+    return true;
+}
+
+void RenderDialog::performRender()
+{
+    if (! prepareRenderData())
+        return;
+
+    rendering = true;
+    progressValue = -1.0;
+    renderButton.setEnabled (false);
+    formatCombo.setEnabled (false);
+    sampleRateCombo.setEnabled (false);
+    bitDepthCombo.setEnabled (false);
+    oggQualitySlider.setEnabled (false);
+    rangeCombo.setEnabled (false);
+    startEditor.setEnabled (false);
+    endEditor.setEnabled (false);
+    normalizeToggle.setEnabled (false);
+    mixdownToggle.setEnabled (false);
+    stemsToggle.setEnabled (false);
+    outputPathEditor.setEnabled (false);
+    browseButton.setEnabled (false);
+    progressBar.setVisible (true);
+
+    auto data = *pendingRenderData;
+    pendingRenderData.reset();
+
     if (renderThread.joinable())
         renderThread.join();
-
-    RenderData data { formatId, sampleRate, bitDepth, oggQuality, range, tracksMask,
-                      doStems, outputTarget, normalize, normalizeLevel,
-                      edit.state.createCopy(),
-                      te::EditFileOperations (edit).getEditFile(),
-                      &edit.engine };
 
     auto safeThis = juce::Component::SafePointer<RenderDialog> (this);
     renderThread = std::thread ([safeThis, data]() mutable
@@ -693,7 +724,8 @@ void RenderDialog::performRender()
                 params.bitDepth = data.bitDepth;
                 params.sampleRateForAudio = data.sampleRate;
                 params.quality = (data.formatId == 3) ? (int)(data.oggQuality * 10) : 0;
-                params.time = data.range;
+                params.time = te::TimeRange (te::TimePosition::fromSeconds (data.rangeStartSeconds),
+                                             te::TimePosition::fromSeconds (data.rangeEndSeconds));
                 params.tracksToDo = singleMask;
                 params.usePlugins = true;
                 params.useMasterPlugins = true;
@@ -717,7 +749,8 @@ void RenderDialog::performRender()
             params.bitDepth = data.bitDepth;
             params.sampleRateForAudio = data.sampleRate;
             params.quality = (data.formatId == 3) ? (int)(data.oggQuality * 10) : 0;
-            params.time = data.range;
+            params.time = te::TimeRange (te::TimePosition::fromSeconds (data.rangeStartSeconds),
+                                         te::TimePosition::fromSeconds (data.rangeEndSeconds));
             params.tracksToDo = data.tracksMask;
             params.usePlugins = true;
             params.useMasterPlugins = true;
@@ -792,6 +825,7 @@ void RenderDialog::performRender()
 
 void RenderDialog::resetControls()
 {
+    pendingRenderData.reset();
     rendering = false;
     progressValue = 0.0;
     progressBar.setVisible (false);

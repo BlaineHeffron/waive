@@ -2301,6 +2301,11 @@ void runRenderDialogRegression()
     expect (! renderDialog.isCustomRangeVisibleForTesting(),
             "Expected custom range editors hidden for entire project range");
 
+    renderDialog.setLoopRangeForTesting (0.0, 0.0, false);
+    renderDialog.selectRangeForTesting (2);
+    expect (! renderDialog.triggerRenderForTesting(),
+            "Expected loop-region render preparation to reject disabled or empty loop ranges");
+
     renderDialog.setStemsModeForTesting (true);
     expect (renderDialog.getOutputLabelTextForTesting() == "Output Dir:",
             "Expected stems mode to switch the output control to a directory");
@@ -2343,6 +2348,10 @@ void runPianoRollRegression()
     pianoRoll.setBounds (0, 0, 900, 500);
     pianoRoll.resized();
     pianoRoll.focusEditor();
+
+    auto initialView = pianoRoll.getViewportPositionForTesting();
+    expect (initialView.x > 0 || initialView.y > 0,
+            "Expected piano roll to center its initial viewport around existing notes");
 
     const auto initialWidth = pianoRoll.getNoteGridWidthForTesting();
     expect (initialWidth >= (int) std::ceil ((30.0 + 1.0) * pianoRoll.getPixelsPerBeatForTesting()),

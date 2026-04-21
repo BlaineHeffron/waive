@@ -5,6 +5,7 @@
 #include "WaiveFonts.h"
 #include <algorithm>
 #include <cmath>
+#include <limits>
 
 namespace
 {
@@ -18,6 +19,45 @@ double getBeatsPerBarForTimeSignature (te::Edit& edit, const te::TimeSigSetting&
         return (double) numerator;
 
     return (double) numerator * (4.0 / (double) denominator);
+}
+
+struct PianoRollInitialView
+{
+    int x = 0;
+    int y = 0;
+};
+
+PianoRollInitialView computeInitialViewPosition (te::MidiClip& clip,
+                                                 int viewportWidth,
+                                                 int viewportHeight,
+                                                 int rowHeight,
+                                                 double pixelsPerBeat)
+{
+    PianoRollInitialView view;
+
+    auto& notes = clip.getSequence();
+    if (notes.getNotes().isEmpty())
+        return view;
+
+    double minBeat = std::numeric_limits<double>::max();
+    double maxBeat = std::numeric_limits<double>::lowest();
+    int minPitch = 127;
+    int maxPitch = 0;
+
+    for (auto* note : notes.getNotes())
+    {
+        minBeat = std::min (minBeat, note->getStartBeat().inBeats());
+        maxBeat = std::max (maxBeat, note->getStartBeat().inBeats() + note->getLengthBeats().inBeats());
+        minPitch = std::min (minPitch, note->getNoteNumber());
+        maxPitch = std::max (maxPitch, note->getNoteNumber());
+    }
+
+    const double centerBeat = (minBeat + maxBeat) * 0.5;
+    const int centerPitch = (minPitch + maxPitch) / 2;
+
+    view.x = juce::jmax (0, (int) std::round (centerBeat * pixelsPerBeat) - viewportWidth / 2);
+    view.y = juce::jmax (0, ((127 - centerPitch) * rowHeight) - viewportHeight / 2);
+    return view;
 }
 
 }
@@ -1366,6 +1406,13 @@ void PianoRollComponent::resized()
     viewport->setBounds (bounds);
     refreshGridLayout();
     syncVelocityLaneToViewport();
+
+    auto initialView = computeInitialViewPosition (midiClip,
+                                                   viewport->getWidth(),
+                                                   viewport->getHeight(),
+                                                   keyboard->getRowHeight(),
+                                                   pixelsPerBeat);
+    viewport->setViewPosition (initialView.x, initialView.y);
 }
 
 void PianoRollComponent::previewMidiNote (int pitch)
@@ -1436,6 +1483,11 @@ double PianoRollComponent::getPixelsPerBeatForTesting() const
 int PianoRollComponent::getKeyboardRowHeightForTesting() const
 {
     return keyboard != nullptr ? keyboard->getRowHeight() : 0;
+}
+
+juce::Point<int> PianoRollComponent::getViewportPositionForTesting() const
+{
+    return viewport != nullptr ? viewport->getViewPosition() : juce::Point<int>();
 }
 
 void PianoRollComponent::zoomInForTesting()

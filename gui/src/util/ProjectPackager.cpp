@@ -129,6 +129,7 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
     }
 
     auto externalFiles = findExternalMedia (edit, projectDir);
+    bool copyFailed = false;
 
     for (const auto& sourceFile : externalFiles)
     {
@@ -137,6 +138,7 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
         if (!sourceFile.copyFileTo (targetFile))
         {
             result.errors.add ("Failed to copy: " + sourceFile.getFullPathName());
+            copyFailed = true;
             continue;
         }
 
@@ -144,6 +146,7 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
         if (!targetFile.existsAsFile() || targetFile.getSize() != sourceFile.getSize())
         {
             result.errors.add ("Copy verification failed for: " + sourceFile.getFullPathName());
+            copyFailed = true;
             targetFile.deleteFile();
             continue;
         }
@@ -170,6 +173,15 @@ ProjectPackager::CollectResult ProjectPackager::collectAndSave (te::Edit& edit,
         }
 
         copiedFiles.add (targetFile);
+    }
+
+    if (copyFailed)
+    {
+        rollbackCollectedMedia (updatedReferences, copiedFiles);
+        result.filesCopied = 0;
+        result.bytesCopied = 0;
+        result.errors.insert (0, "Collect and save aborted because one or more media files could not be copied");
+        return result;
     }
 
     edit.flushState();

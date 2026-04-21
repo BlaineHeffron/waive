@@ -42,6 +42,7 @@ public:
     int getNoteGridWidthForTesting() const;
     double getPixelsPerBeatForTesting() const;
     int getKeyboardRowHeightForTesting() const;
+    juce::Point<int> getViewportPositionForTesting() const;
     void zoomInForTesting();
     void zoomOutForTesting();
 

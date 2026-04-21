@@ -762,6 +762,54 @@ void testCollectAndSaveCommandReturnsErrorOnPackagingFailure (te::Engine& engine
     (void) fixtureDir.deleteRecursively();
 }
 
+void testCollectAndSaveRollsBackOnPartialCopyFailure (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("collect_partial_failure");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto externalDir = fixtureDir.getChildFile ("external");
+    expect (projectDir.createDirectory().wasOk(), "Expected project directory for partial collect failure");
+    expect (externalDir.createDirectory().wasOk(), "Expected external directory for partial collect failure");
+
+    auto projectFile = projectDir.getChildFile ("partial_collect.tracktionedit");
+    auto goodAudio = writeTestWav (externalDir.getChildFile ("good.wav"), 0.2f);
+    auto missingAudio = externalDir.getChildFile ("missing.wav");
+
+    auto edit = te::createEmptyEdit (engine, projectFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected track for partial collect failure");
+    expect (track->insertWaveClip (
+                "good",
+                goodAudio,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.2) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected good source clip insertion");
+    expect (track->insertWaveClip (
+                "missing",
+                missingAudio,
+                { { te::TimePosition::fromSeconds (0.3),
+                    te::TimePosition::fromSeconds (0.5) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected missing source clip insertion");
+
+    auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, projectFile);
+    expect (! result.errors.isEmpty(), "Expected collect-and-save partial copy failure to report errors");
+    expect (result.filesCopied == 0, "Expected partial copy failure to roll back copied file count");
+    expect (! projectDir.getChildFile ("Audio").getChildFile ("good.wav").existsAsFile(),
+            "Expected successful copy to be rolled back after partial failure");
+
+    auto clips = track->getClips();
+    expect (clips.size() == 2, "Expected both clips to remain after partial collect failure");
+    if (auto* firstClip = dynamic_cast<te::AudioClipBase*> (clips[0]))
+        expect (firstClip->getSourceFileReference().getFile() == goodAudio,
+                "Expected good clip reference to remain external after rollback");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("remove_unused_media_command_failure");
@@ -1180,6 +1228,7 @@ int main()
         testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
         testCollectAndSaveCommandReturnsErrorOnPackagingFailure (engine);
+        testCollectAndSaveRollsBackOnPartialCopyFailure (engine);
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testMoveTrackToFolderRejectsCycles (engine);
