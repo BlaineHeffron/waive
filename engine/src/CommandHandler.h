@@ -94,6 +94,18 @@ private:
     te::PluginList* getPluginListForParams (const juce::var& params,
                                             juce::String& errorMessage,
                                             juce::String* targetDescription = nullptr);
+    bool requireIntProperty (const juce::var& params,
+                             const char* propertyName,
+                             int& valueOut,
+                             juce::var& errorResult);
+    bool requireDoubleProperty (const juce::var& params,
+                                const char* propertyName,
+                                double& valueOut,
+                                juce::var& errorResult);
+    bool requireStringProperty (const juce::var& params,
+                                const char* propertyName,
+                                juce::String& valueOut,
+                                juce::var& errorResult);
     juce::File resolveProjectFile() const;
     te::Track* getTrackById (int trackIndex);
     te::AudioTrack* getAudioTrackById (int trackIndex);

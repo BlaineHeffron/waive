@@ -54,4 +54,6 @@ private:
     mutable juce::ApplicationProperties appProperties;
     juce::ListenerList<Listener> listeners;
     bool lastDirtyState = false;
+
+    JUCE_DECLARE_WEAK_REFERENCEABLE (ProjectManager)
 };

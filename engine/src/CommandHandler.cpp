@@ -246,6 +246,51 @@ juce::File CommandHandler::resolveProjectFile() const
     return edit.editFileRetriever();
 }
 
+bool CommandHandler::requireIntProperty (const juce::var& params,
+                                         const char* propertyName,
+                                         int& valueOut,
+                                         juce::var& errorResult)
+{
+    if (! params.hasProperty (propertyName))
+    {
+        errorResult = makeError ("Missing required parameter: " + juce::String (propertyName));
+        return false;
+    }
+
+    valueOut = static_cast<int> (params[propertyName]);
+    return true;
+}
+
+bool CommandHandler::requireDoubleProperty (const juce::var& params,
+                                            const char* propertyName,
+                                            double& valueOut,
+                                            juce::var& errorResult)
+{
+    if (! params.hasProperty (propertyName))
+    {
+        errorResult = makeError ("Missing required parameter: " + juce::String (propertyName));
+        return false;
+    }
+
+    valueOut = static_cast<double> (params[propertyName]);
+    return true;
+}
+
+bool CommandHandler::requireStringProperty (const juce::var& params,
+                                            const char* propertyName,
+                                            juce::String& valueOut,
+                                            juce::var& errorResult)
+{
+    if (! params.hasProperty (propertyName))
+    {
+        errorResult = makeError ("Missing required parameter: " + juce::String (propertyName));
+        return false;
+    }
+
+    valueOut = params[propertyName].toString();
+    return true;
+}
+
 //==============================================================================
 juce::String CommandHandler::handleCommand (const juce::String& jsonString)
 {
@@ -873,7 +918,7 @@ juce::var CommandHandler::handleRecordFromMic()
     auto result = makeOk();
     if (auto* obj = result.getDynamicObject())
     {
-        obj->setProperty ("track_index", targetTrack->getIndexInEditTrackList());
+        obj->setProperty ("track_index", getPublicTrackIndex (edit, targetTrack));
         obj->setProperty ("input_device", waveIn->getName());
     }
     return result;
@@ -940,8 +985,12 @@ juce::var CommandHandler::handleDeleteClip (const juce::var& params)
 
 juce::var CommandHandler::handleMoveClip (const juce::var& params)
 {
-    int trackId = params["track_id"];
-    int clipIdx = params["clip_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int clipIdx = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult))
+        return errorResult;
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1351,9 +1400,6 @@ juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
         return makeError ("Missing required parameter: enabled");
 
     bool enabled = params["enabled"];
-    auto& transport = edit.getTransport();
-
-    transport.looping.setValue (enabled, nullptr);
 
     if (enabled && params.hasProperty ("start") && params.hasProperty ("end"))
     {
@@ -1361,7 +1407,15 @@ juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
         double endSec = params["end"];
         if (startSec >= endSec)
             return makeError ("Loop start must be less than end");
+    }
 
+    auto& transport = edit.getTransport();
+    transport.looping.setValue (enabled, nullptr);
+
+    if (enabled && params.hasProperty ("start") && params.hasProperty ("end"))
+    {
+        double startSec = params["start"];
+        double endSec = params["end"];
         transport.setLoopRange ({ te::TimePosition::fromSeconds (startSec),
                                   te::TimePosition::fromSeconds (endSec) });
     }
@@ -1695,7 +1749,11 @@ juce::var CommandHandler::handleGetPluginParameters (const juce::var& params)
 
 juce::var CommandHandler::handleGetAutomationParams (const juce::var& params)
 {
-    auto trackId = (int) params["track_id"];
+    juce::var errorResult;
+    int trackId = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult))
+        return errorResult;
+
     auto* track = getAudioTrackById (trackId);
     if (! track)
         return makeError ("Audio track not found: " + juce::String (trackId));
@@ -1727,8 +1785,13 @@ juce::var CommandHandler::handleGetAutomationParams (const juce::var& params)
 
 juce::var CommandHandler::handleGetAutomationPoints (const juce::var& params)
 {
-    auto trackId = (int) params["track_id"];
-    auto paramIndex = (int) params["param_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int paramIndex = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "param_index", paramIndex, errorResult))
+        return errorResult;
+
     auto* track = getAudioTrackById (trackId);
     if (! track)
         return makeError ("Audio track not found: " + juce::String (trackId));
@@ -1762,10 +1825,18 @@ juce::var CommandHandler::handleGetAutomationPoints (const juce::var& params)
 
 juce::var CommandHandler::handleAddAutomationPoint (const juce::var& params)
 {
-    auto trackId = (int) params["track_id"];
-    auto paramIndex = (int) params["param_index"];
-    auto timeSec = (double) params["time"];
-    auto value = (float) (double) params["value"];
+    juce::var errorResult;
+    int trackId = 0;
+    int paramIndex = 0;
+    double timeSec = 0.0;
+    double valueDouble = 0.0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "param_index", paramIndex, errorResult)
+        || ! requireDoubleProperty (params, "time", timeSec, errorResult)
+        || ! requireDoubleProperty (params, "value", valueDouble, errorResult))
+        return errorResult;
+
+    auto value = (float) valueDouble;
     auto curveVal = params.hasProperty ("curve") ? (float) (double) params["curve"] : 0.0f;
 
     auto* track = getAudioTrackById (trackId);
@@ -1795,9 +1866,14 @@ juce::var CommandHandler::handleAddAutomationPoint (const juce::var& params)
 
 juce::var CommandHandler::handleRemoveAutomationPoint (const juce::var& params)
 {
-    auto trackId = (int) params["track_id"];
-    auto paramIndex = (int) params["param_index"];
-    auto pointIndex = (int) params["point_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int paramIndex = 0;
+    int pointIndex = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "param_index", paramIndex, errorResult)
+        || ! requireIntProperty (params, "point_index", pointIndex, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (! track)
@@ -1823,8 +1899,12 @@ juce::var CommandHandler::handleRemoveAutomationPoint (const juce::var& params)
 
 juce::var CommandHandler::handleClearAutomation (const juce::var& params)
 {
-    auto trackId = (int) params["track_id"];
-    auto paramIndex = (int) params["param_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int paramIndex = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "param_index", paramIndex, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (! track)
@@ -1843,8 +1923,12 @@ juce::var CommandHandler::handleClearAutomation (const juce::var& params)
 
 juce::var CommandHandler::handleSetClipFade (const juce::var& params)
 {
-    auto trackId = (int) params["track_id"];
-    auto clipIndex = (int) params["clip_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int clipIndex = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "clip_index", clipIndex, errorResult))
+        return errorResult;
 
     auto* clip = getClipByIndex (trackId, clipIndex);
     if (! clip)
@@ -1958,8 +2042,12 @@ te::Clip* CommandHandler::getClipByIndex (int trackIndex, int clipIndex)
 
 juce::var CommandHandler::handleSetTimeSignature (const juce::var& params)
 {
-    auto numerator = (int) params["numerator"];
-    auto denominator = (int) params["denominator"];
+    juce::var errorResult;
+    int numerator = 0;
+    int denominator = 0;
+    if (! requireIntProperty (params, "numerator", numerator, errorResult)
+        || ! requireIntProperty (params, "denominator", denominator, errorResult))
+        return errorResult;
 
     if (numerator < 1 || numerator > 32)
         return makeError ("Numerator must be 1-32");
@@ -1996,8 +2084,12 @@ juce::var CommandHandler::handleSetTimeSignature (const juce::var& params)
 
 juce::var CommandHandler::handleAddMarker (const juce::var& params)
 {
-    auto timeSec = (double) params["time"];
-    auto name = params["name"].toString();
+    juce::var errorResult;
+    double timeSec = 0.0;
+    juce::String name;
+    if (! requireDoubleProperty (params, "time", timeSec, errorResult)
+        || ! requireStringProperty (params, "name", name, errorResult))
+        return errorResult;
 
     if (name.isEmpty())
         return makeError ("Marker name is required");
@@ -2027,7 +2119,10 @@ juce::var CommandHandler::handleAddMarker (const juce::var& params)
 
 juce::var CommandHandler::handleRemoveMarker (const juce::var& params)
 {
-    auto markerId = (int) params["marker_id"];
+    juce::var errorResult;
+    int markerId = 0;
+    if (! requireIntProperty (params, "marker_id", markerId, errorResult))
+        return errorResult;
 
     auto* markerTrack = edit.getMarkerTrack();
     if (! markerTrack)
@@ -2076,8 +2171,12 @@ juce::var CommandHandler::handleListMarkers()
 
 juce::var CommandHandler::handleReorderTrack (const juce::var& params)
 {
-    auto trackId = (int) params["track_id"];
-    auto newPosition = (int) params["new_position"];
+    juce::var errorResult;
+    int trackId = 0;
+    int newPosition = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "new_position", newPosition, errorResult))
+        return errorResult;
 
     auto* track = getTrackById (trackId);
     if (! track)

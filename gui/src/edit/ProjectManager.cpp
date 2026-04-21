@@ -255,9 +255,11 @@ void ProjectManager::removeListener (Listener* listener)
 
 void ProjectManager::notifyDirtyChanged()
 {
-    juce::MessageManager::callAsync ([this]
+    juce::WeakReference<ProjectManager> weakThis (this);
+    juce::MessageManager::callAsync ([weakThis]
     {
-        checkDirtyState();
+        if (weakThis != nullptr)
+            weakThis->checkDirtyState();
     });
 }
 

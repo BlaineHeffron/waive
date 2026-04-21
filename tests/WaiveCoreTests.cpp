@@ -1622,6 +1622,86 @@ void testExportStemsReportsRenderFailures (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testSetLoopRegionRejectsInvalidBoundsWithoutMutation (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("invalid_loop_region");
+    auto backingFile = fixtureDir.getChildFile ("invalid_loop_region.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    CommandHandler handler (*edit);
+
+    auto& transport = edit->getTransport();
+    transport.looping.setValue (false, nullptr);
+    transport.setLoopRange ({ te::TimePosition::fromSeconds (1.0),
+                              te::TimePosition::fromSeconds (3.0) });
+
+    auto response = runJsonCommand (handler, R"({
+        "action":"set_loop_region",
+        "enabled":true,
+        "start":5.0,
+        "end":2.0
+    })");
+
+    expect (response["status"].toString() == "error",
+            "Expected invalid set_loop_region request to fail");
+    expect (! transport.looping.get(),
+            "Expected invalid set_loop_region to leave loop enabled state unchanged");
+
+    auto loopRange = transport.getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 1.0) < 0.01,
+            "Expected invalid set_loop_region to preserve prior loop start");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 3.0) < 0.01,
+            "Expected invalid set_loop_region to preserve prior loop end");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("malformed_command_requests");
+    auto backingFile = fixtureDir.getChildFile ("malformed_command_requests.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected audio track for malformed-command test");
+
+    auto clip = track->insertMIDIClip (
+        "source",
+        te::TimeRange (te::TimePosition::fromSeconds (0.0),
+                       te::TimePosition::fromSeconds (1.0)),
+        nullptr);
+    expect (clip != nullptr, "Expected MIDI clip fixture for malformed-command test");
+
+    CommandHandler handler (*edit);
+
+    auto moveResponse = runJsonCommand (handler, R"({
+        "action":"move_clip",
+        "delta_seconds":0.5
+    })");
+    expect (moveResponse["status"].toString() == "error",
+            "Expected move_clip without track_id and clip_index to fail");
+    expect (std::abs (clip->getPosition().getStart().inSeconds()) < 0.01,
+            "Expected malformed move_clip request not to mutate the clip");
+
+    auto automationResponse = runJsonCommand (handler, R"({
+        "action":"add_automation_point",
+        "track_id":0,
+        "value":0.5,
+        "time":1.0
+    })");
+    expect (automationResponse["status"].toString() == "error",
+            "Expected add_automation_point without param_index to fail");
+
+    auto markerResponse = runJsonCommand (handler, R"({
+        "action":"add_marker",
+        "name":"marker_only"
+    })");
+    expect (markerResponse["status"].toString() == "error",
+            "Expected add_marker without time to fail");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 } // namespace
 
 int main()
@@ -1669,6 +1749,8 @@ int main()
         testFolderSoloMutePropagatesThroughNestedFolders (engine);
         testCommandHandlerAcceptsDocumentedAliases (engine);
         testExportStemsReportsRenderFailures (engine);
+        testSetLoopRegionRejectsInvalidBoundsWithoutMutation (engine);
+        testCommandHandlerRejectsMalformedCommandRequests (engine);
 
         std::cout << "WaiveCoreTests: PASS" << std::endl;
         return 0;
