@@ -50,9 +50,20 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     // Create unique temp directory
     auto tempDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
                        .getChildFile ("waive_tool_" + juce::String (juce::Random::getSystemRandom().nextInt64()));
+    output.temporaryDirectory = tempDir;
+
+    const auto cleanupTempDirectory = [&output]
+    {
+        if (output.temporaryDirectory != juce::File() && output.temporaryDirectory.exists())
+            (void) output.temporaryDirectory.deleteRecursively();
+
+        output.temporaryDirectory = juce::File();
+    };
+
     if (! tempDir.createDirectory())
     {
         output.message = "Failed to create temp directory";
+        cleanupTempDirectory();
         return output;
     }
 
@@ -61,6 +72,7 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     if (! inputDir.createDirectory() || ! outputDir.createDirectory())
     {
         output.message = "Failed to create input/output directories";
+        cleanupTempDirectory();
         return output;
     }
 
@@ -69,6 +81,7 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     if (! paramsFile.replaceWithText (juce::JSON::toString (params)))
     {
         output.message = "Failed to write params.json";
+        cleanupTempDirectory();
         return output;
     }
 
@@ -79,6 +92,7 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
         if (! inputAudioFile.copyFileTo (destInputFile))
         {
             output.message = "Failed to copy input audio";
+            cleanupTempDirectory();
             return output;
         }
     }
@@ -100,6 +114,7 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     if (! started)
     {
         output.message = "Failed to launch external tool: " + manifest.executable;
+        cleanupTempDirectory();
         return output;
     }
 
@@ -123,6 +138,7 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
         {
             process.kill();
             output.message = "External tool execution cancelled";
+            cleanupTempDirectory();
             return output;
         }
 
@@ -132,6 +148,7 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
         {
             process.kill();
             output.message = "External tool execution timed out after " + juce::String (manifest.timeoutMs) + "ms";
+            cleanupTempDirectory();
             return output;
         }
 
@@ -141,12 +158,14 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     if (! processCompleted)
     {
         output.message = "Process state unknown";
+        cleanupTempDirectory();
         return output;
     }
 
     if (exitCode != 0)
     {
         output.message = "External tool failed with exit code " + juce::String (exitCode);
+        cleanupTempDirectory();
         return output;
     }
 

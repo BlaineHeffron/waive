@@ -3,6 +3,7 @@
 #include "ToolDiff.h"
 #include "JobQueue.h"
 #include "EditSession.h"
+#include "PathSanitizer.h"
 #include "SelectionManager.h"
 #include "SessionComponent.h"
 #include "TimelineComponent.h"
@@ -13,6 +14,35 @@ namespace te = tracktion;
 
 namespace
 {
+juce::File stageExternalToolOutput (const juce::File& cacheDirectory,
+                                    const juce::String& toolName,
+                                    const juce::String& planID,
+                                    const juce::File& sourceFile)
+{
+    if (cacheDirectory == juce::File() || ! sourceFile.existsAsFile())
+        return {};
+
+    const auto sanitizedToolName = waive::PathSanitizer::sanitizePathComponent (toolName);
+    const auto sanitizedPlanID = waive::PathSanitizer::sanitizePathComponent (planID);
+    if (sanitizedToolName.isEmpty() || sanitizedPlanID.isEmpty())
+        return {};
+
+    auto artifactDirectory = cacheDirectory.getChildFile ("tools")
+                                           .getChildFile (sanitizedToolName)
+                                           .getChildFile ("plan_" + sanitizedPlanID);
+    if (artifactDirectory.createDirectory().failed())
+        return {};
+
+    auto targetFile = artifactDirectory.getChildFile ("output" + sourceFile.getFileExtension());
+    if (targetFile.existsAsFile())
+        (void) targetFile.deleteFile();
+
+    if (! sourceFile.copyFileTo (targetFile))
+        return {};
+
+    return targetFile;
+}
+
 te::AudioTrack* findOrCreateTrackByName (te::Edit& edit, const juce::String& trackName)
 {
     auto tracks = te::getAudioTracks (edit);
@@ -90,7 +120,9 @@ juce::Result ExternalTool::preparePlan (const ToolExecutionContext& context,
     }
 
     outTask.jobName = manifest.displayName;
-    outTask.run = [this, params, inputAudioFile, clipStartSeconds, clipEndSeconds, clipName]
+    const auto cacheDirectory = context.projectCacheDirectory;
+
+    outTask.run = [this, params, inputAudioFile, clipStartSeconds, clipEndSeconds, clipName, cacheDirectory]
                   (ProgressReporter& reporter)
     {
         ToolPlan plan;
@@ -100,10 +132,18 @@ juce::Result ExternalTool::preparePlan (const ToolExecutionContext& context,
         plan.inputParams = params;
 
         auto output = runner.run (manifest, params, inputAudioFile, reporter);
+        const auto cleanupTempDirectory = [&output]
+        {
+            if (output.temporaryDirectory != juce::File() && output.temporaryDirectory.exists())
+                (void) output.temporaryDirectory.deleteRecursively();
+
+            output.temporaryDirectory = juce::File();
+        };
 
         if (! output.success)
         {
             plan.summary = "External tool failed: " + output.message;
+            cleanupTempDirectory();
             return plan;
         }
 
@@ -112,17 +152,28 @@ juce::Result ExternalTool::preparePlan (const ToolExecutionContext& context,
         // If tool produces audio output, add clipInserted entry
         if (manifest.producesAudioOutput && output.outputAudioFile.existsAsFile())
         {
+            const auto stagedOutput = stageExternalToolOutput (cacheDirectory, manifest.name, plan.planID,
+                                                               output.outputAudioFile);
+            if (stagedOutput == juce::File())
+            {
+                plan.summary = "External tool failed: could not stage generated audio output";
+                cleanupTempDirectory();
+                return plan;
+            }
+
             ToolDiffEntry insert;
             insert.kind = ToolDiffKind::clipInserted;
             insert.targetName = clipName.isEmpty() ? "External Tool Output" : clipName + " [processed]";
             insert.parameterID = "clip.file_path";
             insert.beforeValue = clipStartSeconds;
             insert.afterValue = clipEndSeconds;
-            insert.afterText = output.outputAudioFile.getFullPathName();
+            insert.afterText = stagedOutput.getFullPathName();
             insert.summary = "Insert processed audio clip";
             plan.changes.add (insert);
+            plan.artifactFile = stagedOutput;
         }
 
+        cleanupTempDirectory();
         return plan;
     };
 
@@ -150,19 +201,18 @@ juce::Result ExternalTool::apply (const ToolExecutionContext& context,
             if (change.kind != ToolDiffKind::clipInserted)
                 continue;
 
-            // Validate that output file path is within a safe temp directory
+            // Validate the staged artifact path canonically so symlinks cannot escape the cache.
             auto audioFile = juce::File (change.afterText);
-            auto canonicalPath = audioFile.getFullPathName();
-            auto tempBase = juce::File::getSpecialLocation (juce::File::tempDirectory).getFullPathName();
-
-            if (! canonicalPath.startsWith (tempBase))
-                continue;  // Reject files outside temp directory
-
-            if (canonicalPath.contains ("..") || canonicalPath.startsWith ("/etc") ||
-                canonicalPath.startsWith ("/root") || canonicalPath.startsWith ("/sys"))
-                continue;  // Reject suspicious paths
-
             if (! audioFile.existsAsFile())
+                continue;
+
+            const auto canonicalAudioFile = audioFile.getLinkedTarget();
+            const auto canonicalCacheDirectory = context.projectCacheDirectory.getLinkedTarget();
+            if (canonicalAudioFile == juce::File() || canonicalCacheDirectory == juce::File())
+                continue;
+
+            if (canonicalAudioFile != canonicalCacheDirectory
+                && ! canonicalAudioFile.isAChildOf (canonicalCacheDirectory))
                 continue;
 
             auto insertedClip = destTrack->insertWaveClip (

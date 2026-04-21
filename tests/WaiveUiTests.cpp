@@ -517,8 +517,11 @@ void runAutoSaveSnapshotRegression()
                                          100, 0, &edit.getUndoManager());
     }), "Expected autosave mutation to succeed");
 
+    juce::Thread::sleep (1100);
     autoSaveManager.triggerAutoSaveForTesting();
     expect (autoSaveFile.existsAsFile(), "Expected autosave file to be created");
+    expect (autoSaveFile.setLastModificationTime (juce::Time::getCurrentTime() + juce::RelativeTime::seconds (5.0)),
+            "Expected autosave file timestamp override to succeed");
 
     te::Engine verifyEngine ("WaiveUiAutoSaveVerify");
     verifyEngine.getPluginManager().initialise();
@@ -527,6 +530,17 @@ void runAutoSaveSnapshotRegression()
     expect (autoSavedTrack != nullptr, "Expected autosaved project track");
     expect (getClipCount (*autoSavedTrack) == 2,
             "Expected autosave snapshot to include unsaved in-memory clip");
+
+    expect (projectManager.openProject (projectFile),
+            "Expected headless openProject to recover newer autosave automatically");
+    auto* recoveredTrack = getFirstTrack (session.getEdit());
+    expect (recoveredTrack != nullptr, "Expected recovered project track after headless openProject");
+    expect (getClipCount (*recoveredTrack) == 2,
+            "Expected headless openProject to load the newer autosave contents");
+    expect (projectManager.isDirty(),
+            "Expected auto-recovered project to remain dirty until explicitly saved");
+    expect (autoSaveFile.existsAsFile(),
+            "Expected autosave file to remain available until an explicit save clears it");
 
     (void) projectFile.deleteFile();
 }

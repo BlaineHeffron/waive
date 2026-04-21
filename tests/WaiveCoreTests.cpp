@@ -1210,6 +1210,81 @@ void testPluginPresetCommandsSupportMasterChain (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testCommandSchemaDocumentsPresetTargetingRequirements()
+{
+    auto schemaFile = juce::File::getCurrentWorkingDirectory()
+                          .getChildFile ("docs")
+                          .getChildFile ("command_schema.json");
+    expect (schemaFile.existsAsFile(), "Expected command schema file to exist");
+
+    auto parsed = juce::JSON::parse (schemaFile.loadFileAsString());
+    auto* schemaObject = parsed.getDynamicObject();
+    expect (schemaObject != nullptr, "Expected command schema JSON to parse as an object");
+
+    auto* rules = schemaObject->getProperty ("allOf").getArray();
+    expect (rules != nullptr, "Expected command schema allOf array");
+
+    const auto hasPresetTargetingRule = [&] (const juce::String& actionName)
+    {
+        for (const auto& ruleVar : *rules)
+        {
+            auto* ruleObj = ruleVar.getDynamicObject();
+            if (ruleObj == nullptr)
+                continue;
+
+            auto* ifObj = ruleObj->getProperty ("if").getDynamicObject();
+            auto* thenObj = ruleObj->getProperty ("then").getDynamicObject();
+            if (ifObj == nullptr || thenObj == nullptr)
+                continue;
+
+            auto* ifProperties = ifObj->getProperty ("properties").getDynamicObject();
+            auto* actionObj = ifProperties != nullptr ? ifProperties->getProperty ("action").getDynamicObject()
+                                                      : nullptr;
+            if (actionObj == nullptr || actionObj->getProperty ("const").toString() != actionName)
+                continue;
+
+            auto* anyOfRules = thenObj->getProperty ("anyOf").getArray();
+            if (anyOfRules == nullptr)
+                return false;
+
+            bool sawTrackIndexRule = false;
+            bool sawMasterRule = false;
+
+            for (const auto& anyOfVar : *anyOfRules)
+            {
+                auto* anyOfObj = anyOfVar.getDynamicObject();
+                if (anyOfObj == nullptr)
+                    continue;
+
+                auto* requiredArray = anyOfObj->getProperty ("required").getArray();
+                if (requiredArray == nullptr)
+                    continue;
+
+                if (requiredArray->contains ("track_index"))
+                    sawTrackIndexRule = true;
+
+                if (requiredArray->contains ("master"))
+                {
+                    auto* properties = anyOfObj->getProperty ("properties").getDynamicObject();
+                    auto* masterObj = properties != nullptr ? properties->getProperty ("master").getDynamicObject()
+                                                            : nullptr;
+                    if (masterObj != nullptr && masterObj->getProperty ("const").equalsWithSameType (true))
+                        sawMasterRule = true;
+                }
+            }
+
+            return sawTrackIndexRule && sawMasterRule;
+        }
+
+        return false;
+    };
+
+    expect (hasPresetTargetingRule ("save_plugin_preset"),
+            "Expected save_plugin_preset schema rule to require track_index or master=true");
+    expect (hasPresetTargetingRule ("load_plugin_preset"),
+            "Expected load_plugin_preset schema rule to require track_index or master=true");
+}
+
 void testSetParameterAcceptsStablePluginIdentifier (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("set_parameter_identifier");
@@ -1585,6 +1660,7 @@ int main()
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testPluginPresetCommandsSupportMasterChain (engine);
+        testCommandSchemaDocumentsPresetTargetingRequirements();
         testSetParameterAcceptsStablePluginIdentifier (engine);
         testTrackCommandsReturnPublicIndicesWithFolderTracks (engine);
         testReorderTrackUsesPublicIndicesAcrossFolderTracks (engine);

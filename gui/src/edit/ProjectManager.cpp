@@ -104,7 +104,8 @@ bool ProjectManager::openProject (const juce::File& file)
         bool shouldRecover = false;
         if (isHeadlessUiEnvironment())
         {
-            juce::Logger::writeToLog ("ProjectManager: headless environment detected, opening saved project version without recovery prompt");
+            juce::Logger::writeToLog ("ProjectManager: headless environment detected, auto-recovering newer autosave");
+            shouldRecover = true;
         }
         else
         {
