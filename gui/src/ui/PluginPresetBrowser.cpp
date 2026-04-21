@@ -1,14 +1,17 @@
 #include "PluginPresetBrowser.h"
+#include "../edit/EditSession.h"
 #include "../theme/WaiveLookAndFeel.h"
-#include "../tools/PluginPresetManager.h"
+#include "PluginPresetManager.h"
 #include <tracktion_engine/tracktion_engine.h>
+#include <stdexcept>
 
 namespace te = tracktion;
 
 namespace waive {
 
-PluginPresetBrowser::PluginPresetBrowser()
-    : presetManager (std::make_unique<PluginPresetManager>())
+PluginPresetBrowser::PluginPresetBrowser (EditSession& session)
+    : editSession (session),
+      presetManager (std::make_unique<PluginPresetManager>())
 {
     addAndMakeVisible (presetComboBox);
     addAndMakeVisible (saveButton);
@@ -65,7 +68,13 @@ void PluginPresetBrowser::onPresetSelected()
     if (selectedText.isEmpty())
         return;
 
-    if (!presetManager->loadPreset (*currentPlugin, selectedText))
+    const auto ok = editSession.performEdit ("Load Plugin Preset", [this, selectedText] (te::Edit&)
+    {
+        if (! presetManager->loadPreset (*currentPlugin, selectedText))
+            throw std::runtime_error ("Failed to load preset");
+    });
+
+    if (! ok)
     {
         juce::NativeMessageBox::showMessageBoxAsync (
             juce::MessageBoxIconType::WarningIcon,

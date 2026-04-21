@@ -146,7 +146,7 @@ struct PluginBrowserComponent::ChainModel : public juce::ListBoxModel
 
 //==============================================================================
 PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCommandHandler& handler)
-    : editSession (session), commandHandler (handler)
+    : editSession (session), commandHandler (handler), presetBrowser (session)
 {
     editSession.addListener (this);
 

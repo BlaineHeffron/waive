@@ -5,12 +5,45 @@
 #include "WaiveLookAndFeel.h"
 #include <tracktion_engine/tracktion_engine.h>
 #include <cmath>
+#include <cstdlib>
 #include <optional>
 
 namespace te = tracktion;
 
 namespace
 {
+
+bool isHeadlessUiEnvironment()
+{
+#if JUCE_LINUX || JUCE_BSD
+    const auto hasDisplayEnv = [] (const char* name)
+    {
+        if (const auto* value = std::getenv (name))
+            return *value != '\0';
+
+        return false;
+    };
+
+    return ! hasDisplayEnv ("DISPLAY") && ! hasDisplayEnv ("WAYLAND_DISPLAY");
+#else
+    return false;
+#endif
+}
+
+void showRenderValidationError (juce::Component* parent, const juce::String& title, const juce::String& message)
+{
+    if (isHeadlessUiEnvironment())
+    {
+        juce::Logger::writeToLog ("RenderDialog validation failed: " + title + " - " + message);
+        return;
+    }
+
+    juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
+                                            title,
+                                            message,
+                                            "OK",
+                                            parent);
+}
 
 std::unique_ptr<te::Edit> createSnapshotEditForRender (te::Engine& engine,
                                                        const juce::ValueTree& state,
@@ -529,12 +562,13 @@ bool RenderDialog::prepareRenderData()
     auto outputTarget = juce::File (outputPathEditor.getText());
     auto outputDirectory = doStems ? outputTarget : outputTarget.getParentDirectory();
 
-    if (outputDirectory == juce::File() || ! outputDirectory.exists())
+    if (outputDirectory == juce::File() || ! outputDirectory.exists()
+        || (doStems && ! outputDirectory.isDirectory()))
     {
-        juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
-                                                 "Invalid Path",
-                                                 doStems ? "Output directory does not exist."
-                                                         : "Output file directory does not exist.");
+        showRenderValidationError (this,
+                                   "Invalid Path",
+                                   doStems ? "Output path must be an existing directory."
+                                           : "Output file directory does not exist.");
         return false;
     }
 
@@ -571,22 +605,18 @@ bool RenderDialog::prepareRenderData()
         auto& transport = edit.getTransport();
         if (! transport.looping)
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-                                                    "Loop Region Unavailable",
-                                                    "Enable looping and set a valid loop range before rendering the loop region.",
-                                                    "OK",
-                                                    this);
+            showRenderValidationError (this,
+                                       "Loop Region Unavailable",
+                                       "Enable looping and set a valid loop range before rendering the loop region.");
             return false;
         }
 
         range = te::TimeRange (transport.loopPoint1, transport.loopPoint2);
         if (range.getEnd() <= range.getStart())
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-                                                    "Invalid Loop Range",
-                                                    "Set a loop end point after the loop start point before rendering the loop region.",
-                                                    "OK",
-                                                    this);
+            showRenderValidationError (this,
+                                       "Invalid Loop Range",
+                                       "Set a loop end point after the loop start point before rendering the loop region.");
             return false;
         }
     }
@@ -597,11 +627,9 @@ bool RenderDialog::prepareRenderData()
 
         if (end <= start)
         {
-            juce::AlertWindow::showMessageBoxAsync (juce::MessageBoxIconType::WarningIcon,
-                                                      "Invalid Time Range",
-                                                      "End time must be greater than start time.",
-                                                      "OK",
-                                                      this);
+            showRenderValidationError (this,
+                                       "Invalid Time Range",
+                                       "End time must be greater than start time.");
             return false;
         }
 

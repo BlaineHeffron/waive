@@ -21,12 +21,12 @@ target_sources(WaiveCoreTests PRIVATE
     ../gui/src/tools/AudioAnalysisCache.cpp
     ../gui/src/tools/AudioAnalysis.h
     ../gui/src/tools/AudioAnalysis.cpp
-    ../gui/src/tools/PluginPresetManager.h
-    ../gui/src/tools/PluginPresetManager.cpp
-    ../gui/src/util/PathSanitizer.h
-    ../gui/src/util/PathSanitizer.cpp
-    ../gui/src/util/ProjectPackager.h
-    ../gui/src/util/ProjectPackager.cpp
+    ../shared/src/PluginPresetManager.h
+    ../shared/src/PluginPresetManager.cpp
+    ../shared/src/PathSanitizer.h
+    ../shared/src/PathSanitizer.cpp
+    ../shared/src/ProjectPackager.h
+    ../shared/src/ProjectPackager.cpp
     ../engine/src/CommandHandler.h
     ../engine/src/CommandHandler.cpp
 )
@@ -37,10 +37,10 @@ find_package(CURL REQUIRED)
 
 target_include_directories(WaiveCoreTests PRIVATE
     ../engine/src
+    ../shared/src
     ../gui/src/edit
     ../gui/src/ui
     ../gui/src/tools
-    ../gui/src/util
 )
 
 target_link_libraries(WaiveCoreTests PRIVATE
@@ -171,14 +171,14 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/tools/StemSeparationTool.cpp
     ../gui/src/tools/AutoMixSuggestionsTool.h
     ../gui/src/tools/AutoMixSuggestionsTool.cpp
-    ../gui/src/tools/PluginPresetManager.h
-    ../gui/src/tools/PluginPresetManager.cpp
+    ../shared/src/PluginPresetManager.h
+    ../shared/src/PluginPresetManager.cpp
     ../gui/src/util/CommandHelpers.h
     ../gui/src/util/CommandHelpers.cpp
-    ../gui/src/util/PathSanitizer.h
-    ../gui/src/util/PathSanitizer.cpp
-    ../gui/src/util/ProjectPackager.h
-    ../gui/src/util/ProjectPackager.cpp
+    ../shared/src/PathSanitizer.h
+    ../shared/src/PathSanitizer.cpp
+    ../shared/src/ProjectPackager.h
+    ../shared/src/ProjectPackager.cpp
 
     ../engine/src/CommandHandler.h
     ../engine/src/CommandHandler.cpp
@@ -189,6 +189,7 @@ juce_generate_juce_header(WaiveUiTests)
 
 target_include_directories(WaiveUiTests PRIVATE
     ../engine/src
+    ../shared/src
     ../gui/src
     ../gui/src/ui
     ../gui/src/ai
@@ -329,8 +330,8 @@ target_sources(WaiveToolTests PRIVATE
     ../gui/src/ui/PluginPresetBrowser.cpp
 
     # Tool Managers
-    ../gui/src/tools/PluginPresetManager.h
-    ../gui/src/tools/PluginPresetManager.cpp
+    ../shared/src/PluginPresetManager.h
+    ../shared/src/PluginPresetManager.cpp
 
     # Edit layer
     ../gui/src/edit/EditSession.h
@@ -343,12 +344,12 @@ target_sources(WaiveToolTests PRIVATE
     ../gui/src/edit/AutoSaveManager.cpp
 
     # Utilities
-    ../gui/src/util/PathSanitizer.h
-    ../gui/src/util/PathSanitizer.cpp
+    ../shared/src/PathSanitizer.h
+    ../shared/src/PathSanitizer.cpp
     ../gui/src/util/CommandHelpers.h
     ../gui/src/util/CommandHelpers.cpp
-    ../gui/src/util/ProjectPackager.h
-    ../gui/src/util/ProjectPackager.cpp
+    ../shared/src/ProjectPackager.h
+    ../shared/src/ProjectPackager.cpp
 
     # Engine
     ../engine/src/CommandHandler.h
@@ -361,6 +362,7 @@ find_package(CURL REQUIRED)
 
 target_include_directories(WaiveToolTests PRIVATE
     ../engine/src
+    ../shared/src
     ../gui/src
     ../gui/src/ui
     ../gui/src/ai

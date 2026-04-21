@@ -4,6 +4,7 @@
 #include <memory>
 
 namespace tracktion { inline namespace engine { class Plugin; }}
+class EditSession;
 
 namespace waive {
     class PluginPresetManager;
@@ -14,7 +15,7 @@ namespace waive {
 class PluginPresetBrowser : public juce::Component
 {
 public:
-    PluginPresetBrowser();
+    explicit PluginPresetBrowser (EditSession& editSession);
     ~PluginPresetBrowser() override;
 
     void setPlugin (tracktion::engine::Plugin* plugin);
@@ -28,6 +29,7 @@ private:
     void onSaveClicked();
     void onDeleteClicked();
 
+    EditSession& editSession;
     tracktion::engine::Plugin* currentPlugin = nullptr;
     std::unique_ptr<waive::PluginPresetManager> presetManager;
 

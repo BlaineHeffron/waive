@@ -556,7 +556,7 @@ void testCollectAndSaveCopiesExternalMediaAndRewritesReferences (te::Engine& eng
     (void) fixtureDir.deleteRecursively();
 }
 
-void testCollectAndSaveKeepsSuccessfulCopiesWhenOneFileFails (te::Engine& engine)
+void testCollectAndSaveRollsBackWhenOneFileFails (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("collect_partial_success");
     auto projectDir = fixtureDir.getChildFile ("project");
@@ -594,20 +594,14 @@ void testCollectAndSaveKeepsSuccessfulCopiesWhenOneFileFails (te::Engine& engine
     edit->markAsChanged();
 
     auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, projectFile);
-    expect (result.filesCopied == 1, "Expected collect/save to keep successful copies when another file fails");
+    expect (result.filesCopied == 0, "Expected collect/save to roll back copied file count when another file fails");
     expect (! result.errors.isEmpty(), "Expected collect/save to report the failed copy");
-    expect (projectFile.existsAsFile(), "Expected partial collect/save to still persist the project file");
+    expect (! projectDir.getChildFile ("Audio").getChildFile ("copy_me.wav").existsAsFile(),
+            "Expected partial collect/save to remove copied media after rollback");
+    expect (! projectFile.existsAsFile(), "Expected partial collect/save rollback to avoid persisting the project file");
 
-    auto reloadedEdit = te::loadEditFromFile (engine, projectFile);
-    auto reloadedTracks = te::getAudioTracks (*reloadedEdit);
-    auto* reloadedCopiedClip = dynamic_cast<te::AudioClipBase*> (reloadedTracks[0]->getClips().getFirst());
-    auto* reloadedMissingClip = dynamic_cast<te::AudioClipBase*> (reloadedTracks[1]->getClips().getFirst());
-    expect (reloadedCopiedClip != nullptr && reloadedMissingClip != nullptr,
-            "Expected partial collect/save to preserve both clip references");
-    expect (reloadedCopiedClip->getSourceFileReference().getFile().isAChildOf (projectDir.getChildFile ("Audio")),
-            "Expected successfully copied media reference to be rewritten into project Audio");
-    expect (reloadedMissingClip->getSourceFileReference().getFile() == missingAudio,
-            "Expected failed media copy to keep the original external reference");
+    expect (tracks[0]->getClips().size() == 1, "Expected copied track clip to remain after rollback");
+    expect (tracks[1]->getClips().size() == 1, "Expected missing track clip to remain after rollback");
 
     (void) fixtureDir.deleteRecursively();
 }
@@ -800,12 +794,11 @@ void testCollectAndSaveRollsBackOnPartialCopyFailure (te::Engine& engine)
     expect (result.filesCopied == 0, "Expected partial copy failure to roll back copied file count");
     expect (! projectDir.getChildFile ("Audio").getChildFile ("good.wav").existsAsFile(),
             "Expected successful copy to be rolled back after partial failure");
+    expect (! projectFile.existsAsFile(),
+            "Expected partial collect failure rollback to avoid persisting the project file");
 
     auto clips = track->getClips();
     expect (clips.size() == 2, "Expected both clips to remain after partial collect failure");
-    if (auto* firstClip = dynamic_cast<te::AudioClipBase*> (clips[0]))
-        expect (firstClip->getSourceFileReference().getFile() == goodAudio,
-                "Expected good clip reference to remain external after rollback");
 
     (void) fixtureDir.deleteRecursively();
 }
@@ -1223,7 +1216,7 @@ int main()
         testAudioAnalysisZeroSampleRate();
         testCollectAndSavePersistsToExplicitProjectFile (engine);
         testCollectAndSaveCopiesExternalMediaAndRewritesReferences (engine);
-        testCollectAndSaveKeepsSuccessfulCopiesWhenOneFileFails (engine);
+        testCollectAndSaveRollsBackWhenOneFileFails (engine);
         testRemoveUnusedMediaReportsActualBytesFreed (engine);
         testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);

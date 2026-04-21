@@ -1,6 +1,6 @@
 #include "CommandHandler.h"
-#include "../../gui/src/tools/PluginPresetManager.h"
-#include "../../gui/src/util/ProjectPackager.h"
+#include "PluginPresetManager.h"
+#include "ProjectPackager.h"
 
 namespace
 {
@@ -2068,8 +2068,11 @@ juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
     if (plugin == nullptr)
         return makeError ("Plugin not found");
 
+    edit.getUndoManager().beginNewTransaction ("Load Plugin Preset");
     if (!presetManager->loadPreset (*plugin, presetName))
         return makeError ("Failed to load preset");
+
+    edit.markAsChanged();
 
     auto* result = new juce::DynamicObject();
     result->setProperty ("status", "ok");

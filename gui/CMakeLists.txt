@@ -107,8 +107,6 @@ target_sources(Waive PRIVATE
     src/tools/StemSeparationTool.cpp
     src/tools/AutoMixSuggestionsTool.h
     src/tools/AutoMixSuggestionsTool.cpp
-    src/tools/PluginPresetManager.h
-    src/tools/PluginPresetManager.cpp
 
     # AI
     src/ai/AiSettings.h
@@ -127,12 +125,16 @@ target_sources(Waive PRIVATE
     # Utilities
     src/util/CommandHelpers.h
     src/util/CommandHelpers.cpp
-    src/util/PathSanitizer.h
-    src/util/PathSanitizer.cpp
-    src/util/ProjectPackager.h
-    src/util/ProjectPackager.cpp
     src/util/ScreenshotCapture.h
     src/util/ScreenshotCapture.cpp
+
+    # Shared utilities reused by GUI and engine.
+    ../shared/src/PathSanitizer.h
+    ../shared/src/PathSanitizer.cpp
+    ../shared/src/ProjectPackager.h
+    ../shared/src/ProjectPackager.cpp
+    ../shared/src/PluginPresetManager.h
+    ../shared/src/PluginPresetManager.cpp
 
     # Reuse the command handler for the in-app console.
     ../engine/src/CommandHandler.h
@@ -148,6 +150,7 @@ find_package(CURL REQUIRED)
 
 target_include_directories(Waive PRIVATE
     ../engine/src
+    ../shared/src
     src
     src/ui
     src/edit

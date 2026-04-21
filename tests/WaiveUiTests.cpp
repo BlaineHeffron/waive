@@ -22,6 +22,7 @@
 #include "WaiveLookAndFeel.h"
 
 #include <cmath>
+#include <cstdlib>
 #include <functional>
 #include <iostream>
 #include <stdexcept>
@@ -32,6 +33,23 @@ namespace te = tracktion;
 
 namespace
 {
+
+bool isHeadlessUiEnvironment()
+{
+#if JUCE_LINUX || JUCE_BSD
+    const auto hasDisplayEnv = [] (const char* name)
+    {
+        if (const auto* value = std::getenv (name))
+            return *value != '\0';
+
+        return false;
+    };
+
+    return ! hasDisplayEnv ("DISPLAY") && ! hasDisplayEnv ("WAYLAND_DISPLAY");
+#else
+    return false;
+#endif
+}
 
 void expect (bool condition, const std::string& message)
 {
@@ -2257,6 +2275,12 @@ void runPhase5TimelineMixerPolishTests()
 void runRenderDialogRegression()
 {
     std::cout << "runRenderDialogRegression..." << std::endl;
+
+    if (isHeadlessUiEnvironment())
+    {
+        std::cout << "Skipping render dialog regression: no display server available" << std::endl;
+        return;
+    }
 
     te::Engine engine ("WaiveRenderDialogTests");
     engine.getPluginManager().initialise();
