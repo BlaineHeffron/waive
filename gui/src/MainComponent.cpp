@@ -482,22 +482,26 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                 {
                     // Capture track itemID to safely locate track in async callback
                     auto trackID = selectedTrack->itemID;
+                    auto safeThis = juce::Component::SafePointer<MainComponent> (this);
                     juce::AlertWindow::showOkCancelBox (
                         juce::MessageBoxIconType::WarningIcon,
                         "Delete Track",
                         "This track contains " + juce::String (selectedTrack->getClips().size()) + " clip(s). Are you sure?",
                         "Delete", "Cancel",
                         nullptr,
-                        juce::ModalCallbackFunction::create ([this, trackID] (int choice)
+                        juce::ModalCallbackFunction::create ([safeThis, trackID] (int choice)
                         {
+                            if (safeThis == nullptr)
+                                return;
+
                             if (choice == 1)
                             {
-                                auto& edit = editSession.getEdit();
+                                auto& edit = safeThis->editSession.getEdit();
                                 for (auto* track : edit.getTrackList())
                                 {
                                     if (track->itemID == trackID)
                                     {
-                                        editSession.performEdit ("Delete Track", [track] (te::Edit& ed)
+                                        safeThis->editSession.performEdit ("Delete Track", [track] (te::Edit& ed)
                                         {
                                             ed.deleteTrack (track);
                                         });

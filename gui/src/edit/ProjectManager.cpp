@@ -27,6 +27,31 @@ bool isHeadlessUiEnvironment()
 #endif
 }
 
+bool replaceFileAtomically (const juce::File& sourceFile, const juce::File& destinationFile)
+{
+    if (! sourceFile.existsAsFile())
+        return false;
+
+    auto tempFile = destinationFile.getSiblingFile (destinationFile.getFileName()
+                                                    + ".tmp-"
+                                                    + juce::Uuid().toString());
+
+    if (tempFile.exists())
+        (void) tempFile.deleteFile();
+
+    if (! sourceFile.copyFileTo (tempFile))
+        return false;
+
+    const bool success = destinationFile.existsAsFile()
+                           ? tempFile.replaceFileIn (destinationFile)
+                           : tempFile.moveFileTo (destinationFile);
+
+    if (! success && tempFile.exists())
+        (void) tempFile.deleteFile();
+
+    return success;
+}
+
 }
 
 //==============================================================================
@@ -156,10 +181,7 @@ bool ProjectManager::save()
         if (! fileOps.save (false, true, false))
             return false;
 
-        if (currentFile.existsAsFile() && ! currentFile.deleteFile())
-            return false;
-
-        if (! backingFile.copyFileTo (currentFile))
+        if (! replaceFileAtomically (backingFile, currentFile))
             return false;
     }
     else
@@ -195,10 +217,7 @@ bool ProjectManager::saveAs()
         if (! fileOps.save (false, true, false))
             return false;
 
-        if (file.existsAsFile() && ! file.deleteFile())
-            return false;
-
-        if (! backingFile.copyFileTo (file))
+        if (! replaceFileAtomically (backingFile, file))
             return false;
     }
     else

@@ -20,6 +20,24 @@ ChatPanelComponent::ChatPanelComponent (AiAgent& a, AiSettings& s)
     statusLabel.setText ("Ready", juce::dontSendNotification);
     statusLabel.setFont (waive::Fonts::caption());
     statusLabel.setJustificationType (juce::Justification::centredRight);
+    statusLabel.setTitle ("AI Status");
+    statusLabel.setDescription ("Current AI provider and request status");
+    statusLabel.setTooltip ("Current AI status");
+
+    settingsButton.setTitle ("AI Settings");
+    settingsButton.setDescription ("Open AI provider and credential settings");
+    settingsButton.setTooltip ("Open AI settings");
+    settingsButton.setWantsKeyboardFocus (true);
+
+    providerCombo.setTitle ("AI Provider");
+    providerCombo.setDescription ("Select the active AI provider");
+    providerCombo.setTooltip ("Select AI provider");
+    providerCombo.setWantsKeyboardFocus (true);
+
+    modelCombo.setTitle ("AI Model");
+    modelCombo.setDescription ("Select the active AI model");
+    modelCombo.setTooltip ("Select AI model");
+    modelCombo.setWantsKeyboardFocus (true);
 
     settingsButton.onClick = [this] { showSettingsDialog(); };
 
@@ -48,6 +66,9 @@ ChatPanelComponent::ChatPanelComponent (AiAgent& a, AiSettings& s)
     messageDisplay.setReadOnly (true);
     messageDisplay.setScrollbarsShown (true);
     messageDisplay.setFont (waive::Fonts::body());
+    messageDisplay.setTitle ("Conversation");
+    messageDisplay.setDescription ("Conversation history with the AI assistant");
+    messageDisplay.setTooltip ("Conversation history");
     addAndMakeVisible (messageDisplay);
 
     // Approval bar (hidden by default)
@@ -56,6 +77,14 @@ ChatPanelComponent::ChatPanelComponent (AiAgent& a, AiSettings& s)
     addChildComponent (approvalLabel);
 
     approvalLabel.setFont (waive::Fonts::caption());
+    approvalLabel.setTitle ("Pending Tool Approval");
+    approvalLabel.setDescription ("Shows when AI tool calls need approval");
+    approvalLabel.setTooltip ("Pending tool approval");
+
+    approveButton.setTitle ("Approve");
+    approveButton.setDescription ("Approve the pending AI tool calls");
+    approveButton.setTooltip ("Approve pending AI tool calls");
+    approveButton.setWantsKeyboardFocus (true);
 
     approveButton.onClick = [this]
     {
@@ -70,24 +99,43 @@ ChatPanelComponent::ChatPanelComponent (AiAgent& a, AiSettings& s)
         showApprovalBar = false;
         resized();
     };
+    rejectButton.setTitle ("Reject");
+    rejectButton.setDescription ("Reject the pending AI tool calls");
+    rejectButton.setTooltip ("Reject pending AI tool calls");
+    rejectButton.setWantsKeyboardFocus (true);
 
     // Input bar
     inputField.setMultiLine (false);
     inputField.setTextToShowWhenEmpty ("Type a message...", juce::Colours::grey);
     inputField.setFont (waive::Fonts::body());
+    inputField.setTitle ("Message Input");
+    inputField.setDescription ("Type a message to send to the AI assistant");
+    inputField.setTooltip ("Type a message");
     inputField.onReturnKey = [this] { sendCurrentMessage(); };
     addAndMakeVisible (inputField);
 
     autoApplyToggle.setToggleState (settings.isAutoApply(), juce::dontSendNotification);
+    autoApplyToggle.setTitle ("Auto Apply");
+    autoApplyToggle.setDescription ("Automatically apply approved AI tool changes");
+    autoApplyToggle.setTooltip ("Toggle auto-apply for AI tool changes");
+    autoApplyToggle.setWantsKeyboardFocus (true);
     autoApplyToggle.onClick = [this]
     {
         settings.setAutoApply (autoApplyToggle.getToggleState());
     };
     addAndMakeVisible (autoApplyToggle);
 
+    sendButton.setTitle ("Send");
+    sendButton.setDescription ("Send the current message to the AI assistant");
+    sendButton.setTooltip ("Send message");
+    sendButton.setWantsKeyboardFocus (true);
     sendButton.onClick = [this] { sendCurrentMessage(); };
     addAndMakeVisible (sendButton);
 
+    clearButton.setTitle ("Clear");
+    clearButton.setDescription ("Clear the current AI conversation");
+    clearButton.setTooltip ("Clear conversation");
+    clearButton.setWantsKeyboardFocus (true);
     clearButton.onClick = [this] { agent.clearConversation(); };
     addAndMakeVisible (clearButton);
 }

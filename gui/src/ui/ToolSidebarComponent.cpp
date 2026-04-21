@@ -239,24 +239,27 @@ private:
         dialog->addButton ("OK", 1);
         dialog->addButton ("Cancel", 0);
 
-        auto& mgr = modelManager;
-        auto* self = this;
-        dialog->enterModalState (true, juce::ModalCallbackFunction::create ([self, &mgr, dialogPtr = dialog.get()] (int result)
+        auto safeThis = juce::Component::SafePointer<ModelManagerSection> (this);
+        auto safeDialog = juce::Component::SafePointer<juce::AlertWindow> (dialog.get());
+        dialog->enterModalState (true, juce::ModalCallbackFunction::create ([safeThis, safeDialog] (int result)
         {
+            if (safeThis == nullptr || safeDialog == nullptr)
+                return;
+
             if (result == 1)
             {
-                auto dirPath = dialogPtr->getTextEditorContents ("directory");
-                auto quotaMB = dialogPtr->getTextEditorContents ("quota").getLargeIntValue();
+                auto dirPath = safeDialog->getTextEditorContents ("directory");
+                auto quotaMB = safeDialog->getTextEditorContents ("quota").getLargeIntValue();
 
                 if (dirPath.isNotEmpty())
                 {
                     juce::File newDir (dirPath);
-                    mgr.setStorageDirectory (newDir);
+                    safeThis->modelManager.setStorageDirectory (newDir);
                 }
 
                 if (quotaMB > 0)
                 {
-                    auto quotaResult = mgr.setQuotaBytes (quotaMB * 1024 * 1024);
+                    auto quotaResult = safeThis->modelManager.setQuotaBytes (quotaMB * 1024 * 1024);
                     if (quotaResult.failed())
                     {
                         juce::AlertWindow::showMessageBoxAsync (juce::AlertWindow::WarningIcon,
@@ -265,8 +268,8 @@ private:
                     }
                 }
 
-                self->updateUsageLabel();
-                self->refreshModelList();
+                safeThis->updateUsageLabel();
+                safeThis->refreshModelList();
             }
         }), true);
 

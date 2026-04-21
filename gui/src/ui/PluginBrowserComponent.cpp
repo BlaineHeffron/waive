@@ -170,6 +170,7 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     insertButton.onClick = [this] { insertSelectedBrowserPlugin(); };
     insertButton.setTitle ("Insert Plugin");
     insertButton.setDescription ("Insert selected plugin to track or master");
+    insertButton.setTooltip ("Insert selected plugin");
     insertButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (insertButton);
 
@@ -179,6 +180,7 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     trackCombo.onChange = [this] { updateControlsFromSelection(); };
     trackCombo.setTitle ("Track Selector");
     trackCombo.setDescription ("Select track for plugin chain");
+    trackCombo.setTooltip ("Select track or master bus");
     trackCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (trackCombo);
 
@@ -187,6 +189,7 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     chainList.setModel (chainModel.get());
     chainList.setTitle ("Plugin Chain");
     chainList.setDescription ("Plugin chain for selected track");
+    chainList.setTooltip ("Plugin chain for the selected track");
     chainList.setWantsKeyboardFocus (true);
     addAndMakeVisible (chainList);
 
@@ -209,6 +212,12 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     openEditorButton.setDescription ("Open plugin editor window");
     closeEditorButton.setTitle ("Close Editor");
     closeEditorButton.setDescription ("Close plugin editor window");
+    removeButton.setTooltip ("Remove selected plugin");
+    upButton.setTooltip ("Move selected plugin up");
+    downButton.setTooltip ("Move selected plugin down");
+    bypassButton.setTooltip ("Toggle bypass for selected plugin");
+    openEditorButton.setTooltip ("Open selected plugin editor");
+    closeEditorButton.setTooltip ("Close selected plugin editor");
 
     removeButton.setWantsKeyboardFocus (true);
     upButton.setWantsKeyboardFocus (true);
@@ -232,6 +241,7 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     inputCombo.onChange = [this] { applyInputSelection(); };
     inputCombo.setTitle ("Audio Input");
     inputCombo.setDescription ("Select audio input device for track");
+    inputCombo.setTooltip ("Select track input");
     inputCombo.setWantsKeyboardFocus (true);
     addAndMakeVisible (inputCombo);
 
@@ -241,6 +251,8 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     armButton.setDescription ("Arm track for recording");
     monitorButton.setTitle ("Monitor");
     monitorButton.setDescription ("Monitor input signal");
+    armButton.setTooltip ("Arm track for recording");
+    monitorButton.setTooltip ("Monitor selected input");
     armButton.setWantsKeyboardFocus (true);
     monitorButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (armButton);
@@ -259,12 +271,14 @@ PluginBrowserComponent::PluginBrowserComponent (EditSession& session, UndoableCo
     sendSlider.onDragEnd = [this] { editSession.endCoalescedTransaction(); };
     sendSlider.setTitle ("Send Level");
     sendSlider.setDescription ("Aux send level in dB");
+    sendSlider.setTooltip ("Adjust aux send level");
     sendSlider.setWantsKeyboardFocus (true);
     addAndMakeVisible (sendSlider);
 
     addReverbReturnButton.onClick = [this] { ensureReverbReturnOnMaster(); };
     addReverbReturnButton.setTitle ("Add Reverb");
     addReverbReturnButton.setDescription ("Add reverb return to master");
+    addReverbReturnButton.setTooltip ("Add reverb return on master");
     addReverbReturnButton.setWantsKeyboardFocus (true);
     addAndMakeVisible (addReverbReturnButton);
 

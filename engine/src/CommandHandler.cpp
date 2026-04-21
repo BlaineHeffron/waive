@@ -1,4 +1,5 @@
 #include "CommandHandler.h"
+#include "PathSanitizer.h"
 #include "PluginPresetManager.h"
 #include "ProjectPackager.h"
 
@@ -201,6 +202,13 @@ bool tryGetStringProperty (const juce::var& params,
     }
 
     return false;
+}
+
+juce::String sanitiseOutputFileComponent (const juce::String& name, const juce::String& fallback)
+{
+    auto safe = name.replaceCharacters (" /\\:*?\"<>|", "__________").trim();
+    safe = waive::PathSanitizer::sanitizePathComponent (safe);
+    return safe.isNotEmpty() ? safe : fallback;
 }
 }
 
@@ -1449,7 +1457,7 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
             continue;
 
         // Sanitize track name for filename
-        auto safeName = track->getName().replaceCharacters (" /\\:*?\"<>|", "__________");
+        auto safeName = sanitiseOutputFileComponent (track->getName(), "Track");
         auto stemFile = outputDir.getChildFile (juce::String::formatted ("%02d_", i) + safeName + ".wav");
 
         // Create mask for just this track
@@ -1528,7 +1536,7 @@ juce::var CommandHandler::handleBounceTrack (const juce::var& params)
                          .getChildFile ("waive_bounces");
     bounceDir.createDirectory();
 
-    auto safeName = track->getName().replaceCharacters (" /\\:*?\"<>|", "__________");
+    auto safeName = sanitiseOutputFileComponent (track->getName(), "Track");
     auto bounceFile = bounceDir.getChildFile (safeName + "_bounced.wav");
 
     juce::BigInteger trackMask;

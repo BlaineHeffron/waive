@@ -1,6 +1,7 @@
 #include "RenderDialog.h"
 #include "EditSession.h"
 #include "UndoableCommandHandler.h"
+#include "PathSanitizer.h"
 #include "WaiveSpacing.h"
 #include "WaiveLookAndFeel.h"
 #include <tracktion_engine/tracktion_engine.h>
@@ -77,8 +78,8 @@ double getProjectSampleRate (te::Edit& edit)
 
 juce::String sanitiseStemFileComponent (const juce::String& name)
 {
-    auto safe = name.replaceCharacters ("\\/:*?\"<>|", "________");
-    safe = safe.trim();
+    auto safe = name.replaceCharacters ("\\/:*?\"<>|", "________").trim();
+    safe = waive::PathSanitizer::sanitizePathComponent (safe);
     return safe.isEmpty() ? "Track" : safe;
 }
 
