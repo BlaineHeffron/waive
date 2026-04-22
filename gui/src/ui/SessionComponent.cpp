@@ -1312,7 +1312,7 @@ void SessionComponent::setLoopEnabled (bool enabled)
 
     editSession.performEdit (enabled ? "Enable Loop" : "Disable Loop", [enabled] (te::Edit& edit)
     {
-        edit.getTransport().looping = enabled;
+        edit.getTransport().looping.setValue (enabled, &edit.getUndoManager());
     });
 }
 
@@ -1323,7 +1323,8 @@ void SessionComponent::setPunchEnabled (bool enabled)
 
     editSession.performEdit (enabled ? "Enable Punch" : "Disable Punch", [enabled] (te::Edit& edit)
     {
-        edit.recordingPunchInOut = enabled;
+        auto transportState = edit.state.getOrCreateChildWithName (te::IDs::TRANSPORT, nullptr);
+        transportState.setProperty (te::IDs::recordPunchInOut, enabled, &edit.getUndoManager());
     });
 }
 
@@ -1340,7 +1341,7 @@ void SessionComponent::setLoopPointAtPlayhead (bool isLoopIn)
         else
             transport.setLoopOut (loopPoint);
 
-        transport.looping = true;
+        transport.looping.setValue (true, &edit.getUndoManager());
     });
 }
 
@@ -1362,7 +1363,8 @@ void SessionComponent::setClickEnabled (bool enabled)
 
     editSession.performEdit (enabled ? "Enable Click" : "Disable Click", [enabled] (te::Edit& edit)
     {
-        edit.clickTrackEnabled = enabled;
+        auto clickState = edit.state.getOrCreateChildWithName (te::IDs::CLICKTRACK, nullptr);
+        clickState.setProperty (te::IDs::active, enabled, &edit.getUndoManager());
     });
 }
 

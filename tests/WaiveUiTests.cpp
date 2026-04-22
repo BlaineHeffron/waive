@@ -463,6 +463,13 @@ void runUiProjectLifecycleRegression()
     expect (projectManager.isDirty(),
             "Expected recovered project to remain dirty until explicitly saved");
 
+    auto recoveredBackingFile = te::EditFileOperations (session.getEdit()).getEditFile();
+    expect (recoveredBackingFile != juce::File(), "Expected recovered edit backing file");
+    expect (recoveredBackingFile != projectFile,
+            "Expected autosave recovery to use a temp backing file before explicit save");
+    expect (recoveredBackingFile.existsAsFile(),
+            "Expected recovered temp backing file to exist before explicit save");
+
     auto* recoveredOpenTrack = getFirstTrack (session.getEdit());
     expect (recoveredOpenTrack != nullptr, "Expected recovered project track");
     expect (getClipCount (*recoveredOpenTrack) == 3,
@@ -471,6 +478,8 @@ void runUiProjectLifecycleRegression()
     expect (projectManager.save(), "Expected save after recovery to succeed");
     expect (! projectManager.isDirty(), "Expected save after recovery to clear dirty state");
     expect (! autoSaveFile.existsAsFile(), "Expected explicit save to clear autosave file");
+    expect (! recoveredBackingFile.existsAsFile(),
+            "Expected explicit save after recovery to clean up the temp backing file");
 
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdNew),
             "Expected new project command to execute");
@@ -765,6 +774,63 @@ void runAutoSaveSaveAsCleanupRegression()
     (void) originalProjectFile.deleteFile();
     (void) saveAsProjectFile.deleteFile();
     (void) saveAsDir.deleteRecursively();
+}
+
+void runUndoRedoDirtyStateNotificationRegression()
+{
+    struct EditStateListener final : EditSession::Listener
+    {
+        void editStateChanged() override { ++changeCount; }
+        int changeCount = 0;
+    };
+
+    te::Engine engine ("WaiveUiUndoRedoDirtyStateTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+    EditStateListener editStateListener;
+    session.addListener (&editStateListener);
+
+    auto projectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (projectFile), "Expected dirty-state fixture project to open");
+    expect (! projectManager.isDirty(), "Expected opened fixture project to start clean");
+
+    expect (session.performEdit ("Dirty State Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "dirty_state_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (79, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected dirty-state mutation to succeed");
+
+    expect (projectManager.isDirty(), "Expected mutation to mark project dirty");
+    expect (editStateListener.changeCount >= 1,
+            "Expected mutation to emit editStateChanged");
+
+    const auto notificationsAfterMutation = editStateListener.changeCount;
+    session.undo();
+    expect (! projectManager.isDirty(), "Expected undo to restore clean project state");
+    expect (editStateListener.changeCount > notificationsAfterMutation,
+            "Expected undo to emit editStateChanged");
+
+    const auto notificationsAfterUndo = editStateListener.changeCount;
+    session.redo();
+    expect (projectManager.isDirty(), "Expected redo to restore dirty project state");
+    expect (editStateListener.changeCount > notificationsAfterUndo,
+            "Expected redo to emit editStateChanged");
+
+    session.removeListener (&editStateListener);
+    (void) projectFile.deleteFile();
 }
 
 void runModelStorageAllowlistRefreshRegression()
@@ -3065,6 +3131,7 @@ int main()
     RUN_TEST_SAFELY(runAutoSaveDiscardOnNewRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnOpenRegression);
     RUN_TEST_SAFELY(runAutoSaveSaveAsCleanupRegression);
+    RUN_TEST_SAFELY(runUndoRedoDirtyStateNotificationRegression);
     RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);

@@ -52,6 +52,9 @@ public:
     /** Mark the edit as changed without mutating through performEdit(). */
     void markAsChanged();
 
+    /** Set the saved-state baseline from an on-disk project file without loading it. */
+    void setSavedStateFromFile (const juce::File& file);
+
     //==============================================================================
     /** Execute a mutation wrapped in an undo transaction.
         Returns true if the lambda ran without throwing. */
@@ -74,8 +77,13 @@ public:
     juce::String getRedoDescription() const;
 
 private:
+    juce::String buildCurrentStateSnapshot() const;
+    static juce::String buildStateSnapshotFromFile (const juce::File& file);
+    void syncChangedStatusToSavedState();
+
     te::Engine& engine;
     std::unique_ptr<te::Edit> edit;
     juce::String lastTransactionName;
+    juce::String lastSavedStateSnapshot;
     juce::ListenerList<Listener> listeners;
 };

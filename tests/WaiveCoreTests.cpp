@@ -274,6 +274,29 @@ void testUndoableCommandHandlerWrapsMutatingCommands (te::Engine& engine)
             "Expected failing command to avoid creating a new undo transaction");
 }
 
+void testClickTrackToggleSupportsUndoRedo (te::Engine& engine)
+{
+    EditSession session (engine);
+    auto& edit = session.getEdit();
+    const bool initialClickEnabled = edit.clickTrackEnabled.get();
+
+    auto ok = session.performEdit ("Enable Click", [] (te::Edit& e)
+    {
+        e.clickTrackEnabled.setValue (true, &e.getUndoManager());
+    });
+
+    expect (ok, "Expected click-track toggle mutation to succeed");
+    expect (edit.clickTrackEnabled.get(), "Expected click-track toggle to enable click");
+    expect (session.canUndo(), "Expected click-track toggle to create an undo entry");
+
+    session.undo();
+    expect (edit.clickTrackEnabled.get() == initialClickEnabled,
+            "Expected undo to restore original click-track state");
+
+    session.redo();
+    expect (edit.clickTrackEnabled.get(), "Expected redo to restore enabled click-track state");
+}
+
 void testModelManagerSettingsPersistence()
 {
     auto fixtureDir = juce::File::getCurrentWorkingDirectory()
@@ -1780,6 +1803,7 @@ int main()
         testDuplicateMidiClipPreservesSequence (session);
         testPerformEditExceptionSafety (session);
         testUndoableCommandHandlerWrapsMutatingCommands (engine);
+        testClickTrackToggleSupportsUndoRedo (engine);
         testModelManagerSettingsPersistence();
         testPathSanitizerRejectsTraversal();
         testPathSanitizerValidatesDirectory();

@@ -52,6 +52,20 @@ bool replaceFileAtomically (const juce::File& sourceFile, const juce::File& dest
     return success;
 }
 
+void deleteTransientBackingFileIfNeeded (const juce::File& backingFile,
+                                         const juce::File& destinationFile)
+{
+    if (backingFile == juce::File() || backingFile == destinationFile)
+        return;
+
+    const auto tempDirectory = juce::File::getSpecialLocation (juce::File::tempDirectory);
+    if (! backingFile.isAChildOf (tempDirectory))
+        return;
+
+    if (backingFile.existsAsFile())
+        (void) backingFile.deleteFile();
+}
+
 }
 
 //==============================================================================
@@ -151,7 +165,10 @@ bool ProjectManager::openProjectInternal (const juce::File& fileToLoad,
     currentFile = resultingProjectFile;
 
     if (markChangedAfterLoad)
+    {
+        editSession.setSavedStateFromFile (resultingProjectFile);
         editSession.markAsChanged();
+    }
     else
         editSession.resetChangedStatus();
 
@@ -201,6 +218,7 @@ bool ProjectManager::save()
             return false;
     }
 
+    deleteTransientBackingFileIfNeeded (backingFile, currentFile);
     editSession.resetChangedStatus();
     AutoSaveManager::deleteAutoSave (currentFile);
     listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
@@ -249,6 +267,8 @@ bool ProjectManager::saveAs (const juce::File& file)
         if (! fileOps.saveAs (targetFile))
             return false;
     }
+
+    deleteTransientBackingFileIfNeeded (backingFile, targetFile);
 
     if (previousFile != juce::File() && previousFile != targetFile)
         AutoSaveManager::deleteAutoSave (previousFile);

@@ -1,11 +1,29 @@
 #include "EditSession.h"
 
+namespace
+{
+juce::ValueTree sanitiseStateForSnapshot (juce::ValueTree state)
+{
+    state.removeProperty (te::IDs::lastSignificantChange, nullptr);
+    return state;
+}
+
+juce::String createStateSnapshot (juce::ValueTree state)
+{
+    if (auto xml = sanitiseStateForSnapshot (std::move (state)).createXml())
+        return xml->toString();
+
+    return {};
+}
+}
+
 EditSession::EditSession (te::Engine& eng)
     : engine (eng)
 {
     auto editFile = juce::File::createTempFile (".tracktionedit");
     edit = te::createEmptyEdit (engine, editFile);
     edit->getUndoManager().clearUndoHistory();
+    lastSavedStateSnapshot = buildCurrentStateSnapshot();
 }
 
 EditSession::~EditSession() = default;
@@ -41,6 +59,7 @@ void EditSession::createNew()
     auto newEdit = te::createEmptyEdit (engine, editFile);
     newEdit->ensureNumberOfAudioTracks (1);
     replaceEdit (std::move (newEdit));
+    resetChangedStatus();
 }
 
 //==============================================================================
@@ -58,7 +77,10 @@ bool EditSession::hasChangedSinceSaved() const
 void EditSession::resetChangedStatus()
 {
     if (edit != nullptr)
+    {
+        lastSavedStateSnapshot = buildCurrentStateSnapshot();
         edit->resetChangedStatus();
+    }
 }
 
 void EditSession::markAsChanged()
@@ -68,6 +90,11 @@ void EditSession::markAsChanged()
         edit->markAsChanged();
         listeners.call (&Listener::editStateChanged);
     }
+}
+
+void EditSession::setSavedStateFromFile (const juce::File& file)
+{
+    lastSavedStateSnapshot = buildStateSnapshotFromFile (file);
 }
 
 //==============================================================================
@@ -131,13 +158,17 @@ bool EditSession::canRedo() const
 void EditSession::undo()
 {
     edit->undo();
+    syncChangedStatusToSavedState();
     lastTransactionName.clear();
+    listeners.call (&Listener::editStateChanged);
 }
 
 void EditSession::redo()
 {
     edit->redo();
+    syncChangedStatusToSavedState();
     lastTransactionName.clear();
+    listeners.call (&Listener::editStateChanged);
 }
 
 void EditSession::endCoalescedTransaction()
@@ -153,4 +184,35 @@ juce::String EditSession::getUndoDescription() const
 juce::String EditSession::getRedoDescription() const
 {
     return edit->getUndoManager().getRedoDescription();
+}
+
+juce::String EditSession::buildCurrentStateSnapshot() const
+{
+    if (edit == nullptr)
+        return {};
+
+    return createStateSnapshot (edit->state.createCopy());
+}
+
+juce::String EditSession::buildStateSnapshotFromFile (const juce::File& file)
+{
+    if (! file.existsAsFile())
+        return {};
+
+    auto xml = juce::XmlDocument::parse (file);
+    if (xml == nullptr)
+        return {};
+
+    return createStateSnapshot (juce::ValueTree::fromXml (*xml));
+}
+
+void EditSession::syncChangedStatusToSavedState()
+{
+    if (edit == nullptr)
+        return;
+
+    if (buildCurrentStateSnapshot() == lastSavedStateSnapshot)
+        edit->resetChangedStatus();
+    else
+        edit->markAsChanged();
 }
