@@ -1969,6 +1969,13 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     auto* reverb = dynamic_cast<te::ReverbPlugin*> (plugin.get());
     expect (reverb != nullptr, "Expected reverb plugin instance for malformed-command test");
     track->pluginList.insertPlugin (plugin, 0, nullptr);
+    juce::PluginDescription builtInReverbDescription;
+    builtInReverbDescription.name = "Built-in Reverb";
+    builtInReverbDescription.fileOrIdentifier = te::ReverbPlugin::xmlTypeName;
+    builtInReverbDescription.pluginFormatName = te::PluginManager::builtInPluginFormatName;
+    builtInReverbDescription.category = "Effect";
+    builtInReverbDescription.manufacturerName = "Waive";
+    edit->engine.getPluginManager().knownPluginList.addType (builtInReverbDescription);
     auto reverbParams = reverb->getAutomatableParameters();
     expect (! reverbParams.isEmpty(), "Expected reverb to expose automatable parameters");
     auto* firstPluginParam = reverbParams.getFirst();
@@ -1980,9 +1987,12 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     expect (audioFixture.existsAsFile(), "Expected audio fixture for malformed-command test");
     auto midiFixture = writeTestMidi (fixtureDir.getChildFile ("malformed_source.mid"));
     expect (midiFixture.existsAsFile(), "Expected MIDI fixture for malformed-command test");
+    auto exportOutput = fixtureDir.getChildFile ("malformed_mixdown.wav");
+    auto stemsOutputDir = fixtureDir.getChildFile ("malformed_stems");
 
     const auto originalTrackCount = getAudioTrackCount (*edit);
     const auto originalClipCount = track->getClips().size();
+    const auto originalPluginCount = track->pluginList.size();
 
     CommandHandler handler (*edit);
 
@@ -2059,6 +2069,15 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     expect (std::abs ((double) firstPluginParam->getCurrentValue() - (double) originalPluginParamValue) < 0.0001,
             "Expected malformed set_parameter request not to mutate the plugin parameter");
 
+    auto loadPluginResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"load_plugin",
+        "plugin_id":"%s"
+    })", te::ReverbPlugin::xmlTypeName));
+    expect (loadPluginResponse["status"].toString() == "error",
+            "Expected load_plugin without track_id to fail");
+    expect (track->pluginList.size() == originalPluginCount,
+            "Expected malformed load_plugin request not to insert a plugin on track 0");
+
     auto soloResponse = runJsonCommand (handler, R"({
         "action":"solo_track",
         "track_id":0,
@@ -2091,6 +2110,26 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected malformed set_loop_region request not to change loop start");
     expect (std::abs (edit->getTransport().getLoopRange().getEnd().inSeconds() - 1.5) < 0.0001,
             "Expected malformed set_loop_region request not to change loop end");
+
+    auto exportMixdownResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"export_mixdown",
+        "file_path":"%s",
+        "start":"oops"
+    })", exportOutput.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (exportMixdownResponse["status"].toString() == "error",
+            "Expected export_mixdown with non-numeric start to fail");
+    expect (! exportOutput.existsAsFile(),
+            "Expected malformed export_mixdown request not to create an output file");
+
+    auto exportStemsResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"export_stems",
+        "output_dir":"%s",
+        "start":"oops"
+    })", stemsOutputDir.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (exportStemsResponse["status"].toString() == "error",
+            "Expected export_stems with non-numeric start to fail");
+    expect (! stemsOutputDir.exists(),
+            "Expected malformed export_stems request not to create the output directory");
 
     auto moveResponse = runJsonCommand (handler, R"({
         "action":"move_clip",

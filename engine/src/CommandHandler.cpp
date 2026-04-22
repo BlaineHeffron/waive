@@ -323,6 +323,25 @@ bool CommandHandler::requireBoolProperty (const juce::var& params,
     return true;
 }
 
+bool CommandHandler::requireOptionalDoubleProperty (const juce::var& params,
+                                                    const char* propertyName,
+                                                    double& valueOut,
+                                                    juce::var& errorResult)
+{
+    if (! params.hasProperty (propertyName))
+        return true;
+
+    const auto& value = params[propertyName];
+    if (! value.isInt() && ! value.isInt64() && ! value.isDouble())
+    {
+        errorResult = makeError ("Parameter must be numeric: " + juce::String (propertyName));
+        return false;
+    }
+
+    valueOut = static_cast<double> (value);
+    return true;
+}
+
 bool CommandHandler::requireStringProperty (const juce::var& params,
                                             const char* propertyName,
                                             juce::String& valueOut,
@@ -727,8 +746,12 @@ juce::var CommandHandler::handleInsertMidiClip (const juce::var& params)
 
 juce::var CommandHandler::handleLoadPlugin (const juce::var& params)
 {
-    int trackId      = params["track_id"];
-    auto pluginId    = params["plugin_id"].toString();
+    juce::var errorResult;
+    int trackId = 0;
+    juce::String pluginId;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireStringProperty (params, "plugin_id", pluginId, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -1522,10 +1545,10 @@ juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
 
 juce::var CommandHandler::handleExportMixdown (const juce::var& params)
 {
-    if (! params.hasProperty ("file_path"))
-        return makeError ("Missing required parameter: file_path");
-
-    auto filePath = params["file_path"].toString();
+    juce::var errorResult;
+    juce::String filePath;
+    if (! requireStringProperty (params, "file_path", filePath, errorResult))
+        return errorResult;
     juce::File outputFile (filePath);
 
     // Validate output path
@@ -1536,8 +1559,11 @@ juce::var CommandHandler::handleExportMixdown (const juce::var& params)
     outputFile.getParentDirectory().createDirectory();
 
     // Determine render range
-    double startSec = params.hasProperty ("start") ? (double) params["start"] : 0.0;
-    double endSec = params.hasProperty ("end") ? (double) params["end"] : edit.getLength().inSeconds();
+    double startSec = 0.0;
+    double endSec = edit.getLength().inSeconds();
+    if (! requireOptionalDoubleProperty (params, "start", startSec, errorResult)
+        || ! requireOptionalDoubleProperty (params, "end", endSec, errorResult))
+        return errorResult;
 
     if (endSec <= startSec)
         return makeError ("End time must be greater than start time");
@@ -1574,10 +1600,10 @@ juce::var CommandHandler::handleExportMixdown (const juce::var& params)
 
 juce::var CommandHandler::handleExportStems (const juce::var& params)
 {
-    if (! params.hasProperty ("output_dir"))
-        return makeError ("Missing required parameter: output_dir");
-
-    auto outputDirPath = params["output_dir"].toString();
+    juce::var errorResult;
+    juce::String outputDirPath;
+    if (! requireStringProperty (params, "output_dir", outputDirPath, errorResult))
+        return errorResult;
     juce::File outputDir (outputDirPath);
 
     // Validate path (with symlink resolution)
@@ -1586,8 +1612,11 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
 
     outputDir.createDirectory();
 
-    double startSec = params.hasProperty ("start") ? (double) params["start"] : 0.0;
-    double endSec = params.hasProperty ("end") ? (double) params["end"] : edit.getLength().inSeconds();
+    double startSec = 0.0;
+    double endSec = edit.getLength().inSeconds();
+    if (! requireOptionalDoubleProperty (params, "start", startSec, errorResult)
+        || ! requireOptionalDoubleProperty (params, "end", endSec, errorResult))
+        return errorResult;
 
     auto audioTracks = te::getAudioTracks (edit);
     juce::Array<juce::var> exportedFiles;
