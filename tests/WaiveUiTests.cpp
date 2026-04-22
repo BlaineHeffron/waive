@@ -569,6 +569,8 @@ void runUiProjectLifecycleRegression()
     expect (! autoSaveFile.existsAsFile(), "Expected explicit save to clear autosave file");
     expect (! recoveredBackingFile.existsAsFile(),
             "Expected explicit save after recovery to clean up the temp backing file");
+    expect (te::EditFileOperations (session.getEdit()).getEditFile() == projectFile,
+            "Expected explicit save after recovery to rebind the live edit backing file to the project");
 
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdNew),
             "Expected new project command to execute");

@@ -225,6 +225,9 @@ bool ProjectManager::save()
 
         if (! replaceFileAtomically (backingFile, currentFile))
             return false;
+
+        if (te::EditFileOperations (editSession.getEdit()).getEditFile() != currentFile)
+            rebindEditBackingFile (editSession.getEdit(), currentFile);
     }
     else
     {

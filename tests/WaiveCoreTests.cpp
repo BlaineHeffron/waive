@@ -2107,6 +2107,161 @@ void testExportStemsAllowsNewOutputDirectoriesWithinAllowlist (te::Engine& engin
     (void) fixtureDir.deleteRecursively();
 }
 
+void testCommandHandlerRejectsSymlinkEscapesForOutputFiles (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("output_symlink_escape");
+    auto allowedDir = fixtureDir.getChildFile ("allowed");
+    auto outsideDir = fixtureDir.getChildFile ("outside");
+    auto projectFile = allowedDir.getChildFile ("output_symlink_escape.tracktionedit");
+    allowedDir.createDirectory();
+    outsideDir.createDirectory();
+
+   #if JUCE_WINDOWS
+    juce::ignoreUnused (engine);
+    (void) fixtureDir.deleteRecursively();
+    return;
+   #else
+    auto edit = te::createEmptyEdit (engine, projectFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected audio track for symlink output validation test");
+
+    auto audioFile = writeTestWav (allowedDir.getChildFile ("source.wav"));
+    expect (audioFile.existsAsFile(), "Expected source WAV fixture for symlink output validation test");
+
+    expect (track->insertWaveClip (
+                "source",
+                audioFile,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.1) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected clip insertion for symlink output validation test");
+    edit->getTransport().ensureContextAllocated();
+    expect (te::EditFileOperations (*edit).saveAs (projectFile, true),
+            "Expected project save for symlink output validation test");
+
+    auto outsideMixdown = outsideDir.getChildFile ("outside_mixdown.wav");
+    auto linkMixdown = allowedDir.getChildFile ("mixdown_alias.wav");
+    expect (outsideMixdown.create(), "Expected outside mixdown target file");
+    expect (outsideMixdown.replaceWithText ("sentinel"), "Expected outside mixdown sentinel");
+    expect (outsideMixdown.createSymbolicLink (linkMixdown, true),
+            "Expected symlinked mixdown alias");
+
+    auto outsideZip = outsideDir.getChildFile ("outside_package.zip");
+    auto linkZip = allowedDir.getChildFile ("package_alias.zip");
+    expect (outsideZip.create(), "Expected outside package target file");
+    expect (outsideZip.replaceWithText ("zip sentinel"), "Expected outside package sentinel");
+    expect (outsideZip.createSymbolicLink (linkZip, true),
+            "Expected symlinked package alias");
+
+    CommandHandler handler (*edit);
+    handler.setProjectFile (projectFile);
+    handler.setAllowedMediaDirectories ({ allowedDir });
+
+    auto exportResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"export_mixdown",
+        "file_path":"%s",
+        "start":0.0,
+        "end":0.1
+    })", linkMixdown.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (exportResponse["status"].toString() == "error",
+            "Expected export_mixdown to reject symlinked output file escaping allowlist");
+    expect (outsideMixdown.loadFileAsString() == "sentinel",
+            "Expected rejected export_mixdown not to overwrite escaped target file");
+
+    auto packageResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"package_as_zip",
+        "file_path":"%s"
+    })", linkZip.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (packageResponse["status"].toString() == "error",
+            "Expected package_as_zip to reject symlinked output file escaping allowlist");
+    expect (outsideZip.loadFileAsString() == "zip sentinel",
+            "Expected rejected package_as_zip not to overwrite escaped target file");
+
+    (void) fixtureDir.deleteRecursively();
+   #endif
+}
+
+void testBounceTrackWritesProjectManagedUniqueFiles (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("bounce_project_managed");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto projectFile = projectDir.getChildFile ("bounce_project_managed.tracktionedit");
+    projectDir.createDirectory();
+
+    auto edit = te::createEmptyEdit (engine, projectFile);
+    edit->ensureNumberOfAudioTracks (2);
+
+    auto tracks = te::getAudioTracks (*edit);
+    expect (tracks.size() >= 2, "Expected two audio tracks for bounce output test");
+
+    auto sourceA = writeTestWav (projectDir.getChildFile ("source_a.wav"), 0.2f);
+    auto sourceB = writeTestWav (projectDir.getChildFile ("source_b.wav"), 0.4f);
+    expect (sourceA.existsAsFile() && sourceB.existsAsFile(),
+            "Expected source WAV fixtures for bounce output test");
+
+    auto* trackA = tracks.getUnchecked (0);
+    auto* trackB = tracks.getUnchecked (1);
+    trackA->setName ("Kick");
+    trackB->setName ("Kick");
+
+    expect (trackA->insertWaveClip (
+                "source_a",
+                sourceA,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.1) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected first clip insertion for bounce output test");
+    expect (trackB->insertWaveClip (
+                "source_b",
+                sourceB,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.1) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected second clip insertion for bounce output test");
+    edit->getTransport().ensureContextAllocated();
+
+    CommandHandler handler (*edit);
+    handler.setProjectFile (projectFile);
+
+    auto firstBounce = runJsonCommand (handler, R"({
+        "action":"bounce_track",
+        "track_id":0
+    })");
+    expect (firstBounce["status"].toString() == "ok", "Expected first bounce_track to succeed");
+
+    auto secondBounce = runJsonCommand (handler, R"({
+        "action":"bounce_track",
+        "track_id":1
+    })");
+    expect (secondBounce["status"].toString() == "ok", "Expected second bounce_track to succeed");
+
+    auto firstBounceFile = juce::File (firstBounce["bounce_file"].toString());
+    auto secondBounceFile = juce::File (secondBounce["bounce_file"].toString());
+
+    expect (firstBounceFile.existsAsFile(), "Expected first bounced file to exist");
+    expect (secondBounceFile.existsAsFile(), "Expected second bounced file to exist");
+    expect (firstBounceFile != secondBounceFile,
+            "Expected repeated bounce_track calls with the same track name to use unique output files");
+    expect (firstBounceFile.isAChildOf (projectDir) && secondBounceFile.isAChildOf (projectDir),
+            "Expected bounced files for a saved project to be written inside the project directory");
+
+    auto* bouncedClipA = dynamic_cast<te::WaveAudioClip*> (trackA->getClips().getFirst());
+    auto* bouncedClipB = dynamic_cast<te::WaveAudioClip*> (trackB->getClips().getFirst());
+    expect (bouncedClipA != nullptr && bouncedClipB != nullptr,
+            "Expected bounced clips to be wave clips");
+    expect (bouncedClipA->getSourceFileReference().getFile() == firstBounceFile,
+            "Expected first bounced clip to reference its managed project file");
+    expect (bouncedClipB->getSourceFileReference().getFile() == secondBounceFile,
+            "Expected second bounced clip to reference its managed project file");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testSetLoopRegionRejectsInvalidBoundsWithoutMutation (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("invalid_loop_region");
@@ -2784,6 +2939,8 @@ int main()
         testCommandHandlerAcceptsDocumentedAliases (engine);
         testExportStemsReportsRenderFailures (engine);
         testExportStemsAllowsNewOutputDirectoriesWithinAllowlist (engine);
+        testCommandHandlerRejectsSymlinkEscapesForOutputFiles (engine);
+        testBounceTrackWritesProjectManagedUniqueFiles (engine);
         testSetLoopRegionRejectsInvalidBoundsWithoutMutation (engine);
         testUndoableCommandHandlerSupportsLoopRegionUndoRedo (engine);
         testCommandHandlerRejectsMalformedCommandRequests (engine);

@@ -142,11 +142,37 @@ bool isOutputPathAllowed (const juce::String& originalPath,
     if (! juce::File::isAbsolutePath (originalPath))
         return false;
 
-    auto parentDir = outputPath.getParentDirectory();
-    if (parentDir == juce::File())
-        return false;
+    return isWithinAllowedDirectories (originalPath, outputPath, allowedDirectories);
+}
 
-    return isWithinAllowedDirectories (parentDir.getFullPathName(), parentDir, allowedDirectories);
+juce::File buildManagedBounceOutputFile (te::Edit& edit,
+                                         const juce::File& projectFile,
+                                         const juce::String& trackName)
+{
+    juce::ignoreUnused (edit);
+
+    auto safeName = trackName.replaceCharacters (" /\\:*?\"<>|", "__________").trim();
+    safeName = waive::PathSanitizer::sanitizePathComponent (safeName);
+    if (safeName.isEmpty())
+        safeName = "Track";
+
+    if (projectFile != juce::File())
+    {
+        auto bouncesDir = projectFile.getParentDirectory()
+                                     .getChildFile ("Audio")
+                                     .getChildFile ("Bounces");
+        if (bouncesDir.createDirectory().failed())
+            return {};
+
+        return bouncesDir.getNonexistentChildFile (safeName + "_bounced", ".wav", false);
+    }
+
+    auto bounceDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                         .getChildFile ("waive_bounces");
+    if (bounceDir.createDirectory().failed())
+        return {};
+
+    return bounceDir.getNonexistentChildFile (safeName + "_bounced", ".wav", false);
 }
 
 void applyFolderSoloToSubtree (te::FolderTrack& folderTrack, bool solo)
@@ -1817,13 +1843,9 @@ juce::var CommandHandler::handleBounceTrack (const juce::var& params)
         endSec = std::max (endSec, pos.getEnd().inSeconds());
     }
 
-    // Create bounce file in temp directory
-    auto bounceDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                         .getChildFile ("waive_bounces");
-    bounceDir.createDirectory();
-
-    auto safeName = sanitiseOutputFileComponent (track->getName(), "Track");
-    auto bounceFile = bounceDir.getChildFile (safeName + "_bounced.wav");
+    auto bounceFile = buildManagedBounceOutputFile (edit, resolveProjectFile(), track->getName());
+    if (bounceFile == juce::File())
+        return makeError ("Failed to prepare bounce output file");
 
     juce::BigInteger trackMask;
     trackMask.setBit (track->getIndexInEditTrackList());
