@@ -11,6 +11,7 @@
 #include "ProjectPackager.h"
 #include "PluginPresetManager.h"
 #include "CommandHandler.h"
+#include "AiToolSchema.h"
 
 #include <cmath>
 #include <cstdlib>
@@ -1528,6 +1529,63 @@ void testCommandSchemaDocumentsPresetTargetingRequirements()
             "Expected load_plugin_preset schema rule to require track_index or master=true");
 }
 
+void testAiToolSchemaDocumentsPresetTargetingRequirements()
+{
+    auto defs = waive::generateCommandDefinitions();
+
+    const auto hasPresetTargetingRule = [&] (const juce::String& toolName)
+    {
+        for (const auto& def : defs)
+        {
+            if (def.name != toolName)
+                continue;
+
+            auto* schemaObj = def.inputSchema.getDynamicObject();
+            if (schemaObj == nullptr)
+                return false;
+
+            auto* anyOfRules = schemaObj->getProperty ("anyOf").getArray();
+            if (anyOfRules == nullptr)
+                return false;
+
+            bool sawTrackIndexRule = false;
+            bool sawMasterRule = false;
+
+            for (const auto& ruleVar : *anyOfRules)
+            {
+                auto* ruleObj = ruleVar.getDynamicObject();
+                if (ruleObj == nullptr)
+                    continue;
+
+                auto* requiredArray = ruleObj->getProperty ("required").getArray();
+                if (requiredArray != nullptr)
+                {
+                    if (requiredArray->contains ("track_index"))
+                        sawTrackIndexRule = true;
+                    if (requiredArray->contains ("master"))
+                    {
+                        auto* properties = ruleObj->getProperty ("properties").getDynamicObject();
+                        auto* masterObj = properties != nullptr ? properties->getProperty ("master").getDynamicObject()
+                                                                : nullptr;
+                        if (masterObj != nullptr && (bool) masterObj->hasProperty ("const")
+                            && (bool) masterObj->getProperty ("const"))
+                            sawMasterRule = true;
+                    }
+                }
+            }
+
+            return sawTrackIndexRule && sawMasterRule;
+        }
+
+        return false;
+    };
+
+    expect (hasPresetTargetingRule ("cmd_save_plugin_preset"),
+            "Expected AI tool schema for save_plugin_preset to require track_index or master=true");
+    expect (hasPresetTargetingRule ("cmd_load_plugin_preset"),
+            "Expected AI tool schema for load_plugin_preset to require track_index or master=true");
+}
+
 void testSetParameterAcceptsStablePluginIdentifier (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("set_parameter_identifier");
@@ -2573,6 +2631,7 @@ int main()
         testPluginPresetCommandsSupportMasterChain (engine);
         testPluginPresetCommandsRejectMissingPluginIndex (engine);
         testCommandSchemaDocumentsPresetTargetingRequirements();
+        testAiToolSchemaDocumentsPresetTargetingRequirements();
         testSetParameterAcceptsStablePluginIdentifier (engine);
         testTrackCommandsReturnPublicIndicesWithFolderTracks (engine);
         testReorderTrackUsesPublicIndicesAcrossFolderTracks (engine);

@@ -39,6 +39,31 @@ static juce::var prop (const juce::String& type, const juce::String& description
     return juce::var (obj);
 }
 
+static juce::var withTrackOrMasterTargeting (juce::var schema)
+{
+    auto* schemaObj = schema.getDynamicObject();
+    if (schemaObj == nullptr)
+        return schema;
+
+    auto* anyOfRule = new juce::Array<juce::var>();
+
+    auto* trackRule = new juce::DynamicObject();
+    trackRule->setProperty ("required", juce::Array<juce::var> { "track_index" });
+    anyOfRule->add (juce::var (trackRule));
+
+    auto* masterRule = new juce::DynamicObject();
+    masterRule->setProperty ("required", juce::Array<juce::var> { "master" });
+    auto* masterProperties = new juce::DynamicObject();
+    auto* masterConst = new juce::DynamicObject();
+    masterConst->setProperty ("const", true);
+    masterProperties->setProperty ("master", juce::var (masterConst));
+    masterRule->setProperty ("properties", juce::var (masterProperties));
+    anyOfRule->add (juce::var (masterRule));
+
+    schemaObj->setProperty ("anyOf", juce::var (anyOfRule));
+    return schema;
+}
+
 std::vector<AiToolDefinition> generateToolDefinitions (const ToolRegistry& registry)
 {
     std::vector<AiToolDefinition> defs;
@@ -353,23 +378,23 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
     // save_plugin_preset
     defs.push_back ({ "cmd_save_plugin_preset",
                       "Save the current state of a plugin as a named preset.",
-                      makeSchema ("object",
-                                  { { "track_index", prop ("integer", "0-based track index; omit and set master=true for the master chain") },
-                                    { "master", prop ("boolean", "Target the master plugin chain instead of a track") },
-                                    { "plugin_index", prop ("integer", "0-based user plugin index on the track") },
-                                    { "preset_name", prop ("string", "Preset name to save") } },
-                                  { "plugin_index", "preset_name" }),
+                      withTrackOrMasterTargeting (makeSchema ("object",
+                                                              { { "track_index", prop ("integer", "0-based track index; omit and set master=true for the master chain") },
+                                                                { "master", prop ("boolean", "Target the master plugin chain instead of a track") },
+                                                                { "plugin_index", prop ("integer", "0-based user plugin index on the track") },
+                                                                { "preset_name", prop ("string", "Preset name to save") } },
+                                                              { "plugin_index", "preset_name" })),
                       "mixing" });
 
     // load_plugin_preset
     defs.push_back ({ "cmd_load_plugin_preset",
                       "Load a named preset onto a plugin.",
-                      makeSchema ("object",
-                                  { { "track_index", prop ("integer", "0-based track index; omit and set master=true for the master chain") },
-                                    { "master", prop ("boolean", "Target the master plugin chain instead of a track") },
-                                    { "plugin_index", prop ("integer", "0-based user plugin index on the track") },
-                                    { "preset_name", prop ("string", "Preset name to load") } },
-                                  { "plugin_index", "preset_name" }),
+                      withTrackOrMasterTargeting (makeSchema ("object",
+                                                              { { "track_index", prop ("integer", "0-based track index; omit and set master=true for the master chain") },
+                                                                { "master", prop ("boolean", "Target the master plugin chain instead of a track") },
+                                                                { "plugin_index", prop ("integer", "0-based user plugin index on the track") },
+                                                                { "preset_name", prop ("string", "Preset name to load") } },
+                                                              { "plugin_index", "preset_name" })),
                       "mixing" });
 
     // add_folder_track
