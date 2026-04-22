@@ -2019,6 +2019,25 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     expect (getAudioTrackCount (*edit) == originalTrackCount,
             "Expected malformed remove_track request not to delete any track");
 
+    auto trackIdMalformedResponse = runJsonCommand (handler, R"({
+        "action":"set_track_volume",
+        "track_id":"oops",
+        "value_db":-3.0
+    })");
+    expect (trackIdMalformedResponse["status"].toString() == "error",
+            "Expected set_track_volume with non-integer track_id to fail");
+    expect (std::abs (volumePlugin->volParam->getCurrentValue() - originalVolumeValue) < 0.0001f,
+            "Expected malformed track_id not to retarget track 0 volume");
+
+    auto seekMalformedResponse = runJsonCommand (handler, R"({
+        "action":"transport_seek",
+        "position":"oops"
+    })");
+    expect (seekMalformedResponse["status"].toString() == "error",
+            "Expected transport_seek with non-numeric position to fail");
+    expect (std::abs (edit->getTransport().getPosition().inSeconds() - 1.25) < 0.0001,
+            "Expected malformed transport_seek request not to reset the transport position");
+
     auto duplicateTrackResponse = runJsonCommand (handler, R"({
         "action":"duplicate_track"
     })");

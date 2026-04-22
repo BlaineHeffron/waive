@@ -282,7 +282,14 @@ bool CommandHandler::requireIntProperty (const juce::var& params,
         return false;
     }
 
-    valueOut = static_cast<int> (params[propertyName]);
+    const auto& value = params[propertyName];
+    if (! value.isInt() && ! value.isInt64())
+    {
+        errorResult = makeError ("Parameter must be integer: " + juce::String (propertyName));
+        return false;
+    }
+
+    valueOut = static_cast<int> (value);
     return true;
 }
 
@@ -297,7 +304,14 @@ bool CommandHandler::requireDoubleProperty (const juce::var& params,
         return false;
     }
 
-    valueOut = static_cast<double> (params[propertyName]);
+    const auto& value = params[propertyName];
+    if (! value.isInt() && ! value.isInt64() && ! value.isDouble())
+    {
+        errorResult = makeError ("Parameter must be numeric: " + juce::String (propertyName));
+        return false;
+    }
+
+    valueOut = static_cast<double> (value);
     return true;
 }
 
