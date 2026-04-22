@@ -27,6 +27,16 @@ bool isReadOnlyAction (const juce::String& action)
 
     return action.startsWith ("get_") || action.startsWith ("list_");
 }
+
+bool isPassThroughAction (const juce::String& action)
+{
+    return isReadOnlyAction (action)
+        || action == "export_mixdown"
+        || action == "export_stems"
+        || action == "package_as_zip"
+        || action == "collect_and_save"
+        || action == "remove_unused_media";
+}
 }
 
 UndoableCommandHandler::UndoableCommandHandler (CommandHandler& handler, EditSession& session)
@@ -64,8 +74,8 @@ juce::String UndoableCommandHandler::handleInternal (const juce::String& jsonStr
 
     auto action = parsed["action"].toString();
 
-    // Read-only and transport commands pass through without undo wrapping.
-    if (isReadOnlyAction (action))
+    // Read-only queries and file-side-effect commands pass through without undo wrapping.
+    if (isPassThroughAction (action))
         return commandHandler->handleCommand (jsonString);
 
     // Mutating command — wrap in undo transaction.

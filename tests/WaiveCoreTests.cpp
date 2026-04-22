@@ -365,6 +365,50 @@ void testUndoableCommandHandlerWrapsMutatingCommands (te::Engine& engine)
             "Expected failing command to avoid creating a new undo transaction");
 }
 
+void testUndoableCommandHandlerPassesThroughExportCommands (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("undoable_export_passthrough");
+    auto backingFile = fixtureDir.getChildFile ("undoable_export_passthrough.tracktionedit");
+    auto audioFile = writeTestWav (fixtureDir.getChildFile ("source.wav"), 0.25f);
+
+    EditSession session (engine);
+    auto& edit = session.getEdit();
+    edit.editFileRetriever = [backingFile] { return backingFile; };
+    edit.ensureNumberOfAudioTracks (1);
+
+    auto* track = te::getAudioTracks (edit).getFirst();
+    expect (track != nullptr, "Expected track for undoable export passthrough test");
+    expect (track->insertWaveClip (
+                "source",
+                audioFile,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.25) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected clip insertion for undoable export passthrough test");
+
+    CommandHandler handler (edit);
+    handler.setProjectFile (backingFile);
+    handler.setAllowedMediaDirectories ({ fixtureDir });
+    UndoableCommandHandler undoableHandler (handler, session);
+
+    session.resetChangedStatus();
+    expect (! session.canUndo(), "Expected fresh export passthrough test not to have undo history");
+
+    auto outputFile = fixtureDir.getChildFile ("mixdown.wav");
+    auto response = juce::JSON::parse (undoableHandler.handleCommand (juce::String::formatted (R"({
+        "action":"export_mixdown",
+        "file_path":"%s"
+    })", outputFile.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8())));
+    expect (response.isObject(), "Expected export_mixdown response object through undoable handler");
+    expect (response["status"].toString() == "ok", "Expected export_mixdown to succeed through undoable handler");
+    expect (outputFile.existsAsFile(), "Expected export_mixdown to create the output file");
+    expect (! session.canUndo(), "Expected export_mixdown not to create an undo transaction");
+    expect (! session.hasChangedSinceSaved(), "Expected export_mixdown not to dirty the edit session");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testClickTrackToggleSupportsUndoRedo (te::Engine& engine)
 {
     EditSession session (engine);
@@ -2504,6 +2548,7 @@ int main()
         testCoalescedPerformEditExceptionSafety (engine);
         testDirtyStateSavepointAcrossCoalescedUndoRedo (engine);
         testUndoableCommandHandlerWrapsMutatingCommands (engine);
+        testUndoableCommandHandlerPassesThroughExportCommands (engine);
         testClickTrackToggleSupportsUndoRedo (engine);
         testModelManagerSettingsPersistence();
         testPathSanitizerRejectsTraversal();
