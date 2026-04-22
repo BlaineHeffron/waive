@@ -22,6 +22,7 @@ struct ChatMessage
 
     std::vector<ToolCall> toolCalls;
     juce::String toolCallId;  // for toolResult messages
+    juce::String toolName;    // for providers that require the original function name on tool results
 };
 
 struct AiToolDefinition

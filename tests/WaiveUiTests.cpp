@@ -2236,7 +2236,7 @@ void runProjectScopedChatHistorySaveAsRegression()
         return messages;
     };
 
-    const auto unsavedHistoryFile = waive::ProjectChatHistoryController::getUnsavedHistoryFile();
+    const auto unsavedHistoryFile = chatHistoryController.getCurrentHistoryFile();
     (void) unsavedHistoryFile.deleteFile();
     expect (waive::ChatHistorySerializer::saveChatHistory (makeConversation ("Unsaved project chat"),
                                                            unsavedHistoryFile),
@@ -2274,6 +2274,97 @@ void runProjectScopedChatHistorySaveAsRegression()
     (void) saveAsDir.deleteRecursively();
 
     std::cout << "runProjectScopedChatHistorySaveAsRegression: PASS" << std::endl;
+}
+
+void runUnsavedProjectsUseIsolatedChatHistoryRegression()
+{
+    te::Engine engine ("WaiveUiUnsavedChatIsolation");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+    waive::ToolRegistry toolRegistry;
+    waive::JobQueue jobQueue;
+    waive::AiSettings aiSettings;
+    ProjectManager projectManager (session);
+    waive::AiAgent agent (aiSettings, undoableHandler, toolRegistry, jobQueue);
+    waive::ProjectChatHistoryController chatHistoryController (agent, projectManager);
+
+    auto makeConversation = [] (const juce::String& text)
+    {
+        std::vector<waive::ChatMessage> messages;
+        waive::ChatMessage message;
+        message.role = waive::ChatMessage::Role::assistant;
+        message.content = text;
+        messages.push_back (std::move (message));
+        return messages;
+    };
+
+    const auto firstUnsavedHistoryFile = chatHistoryController.getCurrentHistoryFile();
+    (void) firstUnsavedHistoryFile.deleteFile();
+    expect (waive::ChatHistorySerializer::saveChatHistory (makeConversation ("Unsaved A"), firstUnsavedHistoryFile),
+            "Expected first unsaved chat history save to succeed");
+
+    chatHistoryController.loadCurrentConversation();
+    auto conversation = agent.getConversation();
+    expect (conversation.size() == 1 && conversation[0].content == "Unsaved A",
+            "Expected first unsaved project history to load");
+
+    expect (projectManager.newProject(), "Expected new unsaved project creation to succeed");
+
+    const auto secondUnsavedHistoryFile = chatHistoryController.getCurrentHistoryFile();
+    expect (secondUnsavedHistoryFile != firstUnsavedHistoryFile,
+            "Expected each unsaved project to use a distinct chat history file");
+
+    conversation = agent.getConversation();
+    expect (conversation.empty(), "Expected new unsaved project not to inherit previous unsaved chat history");
+
+    (void) firstUnsavedHistoryFile.deleteFile();
+    (void) secondUnsavedHistoryFile.deleteFile();
+    (void) firstUnsavedHistoryFile.getParentDirectory().deleteRecursively();
+
+    std::cout << "runUnsavedProjectsUseIsolatedChatHistoryRegression: PASS" << std::endl;
+}
+
+void runAiSettingsDoNotPersistApiKeysRegression()
+{
+    waive::AiSettings settings;
+
+    juce::ApplicationProperties properties;
+    juce::PropertiesFile::Options opts;
+    opts.applicationName = "WaiveUiAiSettingsTest";
+    opts.filenameSuffix = ".settings";
+    opts.folderName = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                          .getNonexistentChildFile ("waive_ai_settings_", "", true)
+                          .getFullPathName();
+    properties.setStorageParameters (opts);
+
+    settings.loadFromProperties (properties);
+    settings.setApiKey (waive::AiProviderType::openai, "secret-openai-key");
+    settings.setApiKey (waive::AiProviderType::anthropic, "secret-anthropic-key");
+    settings.saveToProperties (properties);
+
+    auto* userSettings = properties.getUserSettings();
+    expect (userSettings != nullptr, "Expected user settings file to be available");
+    expect (userSettings->getValue ("ai_openai_key").isEmpty(),
+            "Expected OpenAI API key not to be persisted to properties");
+    expect (userSettings->getValue ("ai_anthropic_key").isEmpty(),
+            "Expected Anthropic API key not to be persisted to properties");
+
+    auto settingsFile = userSettings->getFile();
+    if (settingsFile.existsAsFile())
+    {
+        const auto text = settingsFile.loadFileAsString();
+        expect (! text.contains ("secret-openai-key"),
+                "Expected settings file not to contain OpenAI API key");
+        expect (! text.contains ("secret-anthropic-key"),
+                "Expected settings file not to contain Anthropic API key");
+        (void) settingsFile.deleteFile();
+        (void) settingsFile.getParentDirectory().deleteRecursively();
+    }
+
+    std::cout << "runAiSettingsDoNotPersistApiKeysRegression: PASS" << std::endl;
 }
 
 void runUiPhase5BuiltInToolsRegression()
@@ -3930,6 +4021,8 @@ int main()
     RUN_TEST_SAFELY(runChatApprovalBarLifecycleRegression);
     RUN_TEST_SAFELY(runProjectScopedChatHistoryRegression);
     RUN_TEST_SAFELY(runProjectScopedChatHistorySaveAsRegression);
+    RUN_TEST_SAFELY(runUnsavedProjectsUseIsolatedChatHistoryRegression);
+    RUN_TEST_SAFELY(runAiSettingsDoNotPersistApiKeysRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);
     RUN_TEST_SAFELY(runUiPhase3TransportAndWorkflowTests);

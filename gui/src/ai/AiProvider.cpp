@@ -402,7 +402,7 @@ AiResponse GeminiProvider::sendRequest (const juce::String& apiKey,
             contentObj->setProperty ("role", "user");
             auto* frPart = new juce::DynamicObject();
             auto* frObj = new juce::DynamicObject();
-            frObj->setProperty ("name", msg.toolCallId);
+            frObj->setProperty ("name", msg.toolName);
             auto* respObj = new juce::DynamicObject();
             respObj->setProperty ("result", msg.content);
             frObj->setProperty ("response", juce::var (respObj));
@@ -455,13 +455,14 @@ AiResponse GeminiProvider::sendRequest (const juce::String& apiKey,
     auto body = toJson (juce::var (reqObj));
 
     juce::String urlStr = "https://generativelanguage.googleapis.com/v1beta/models/"
-                          + model + ":generateContent?key=" + apiKey;
+                          + model + ":generateContent";
 
     juce::URL url (urlStr);
     url = url.withPOSTData (body);
 
-    auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inAddress)
-                       .withExtraHeaders ("Content-Type: application/json")
+    auto options = juce::URL::InputStreamOptions (juce::URL::ParameterHandling::inPostData)
+                       .withExtraHeaders ("Content-Type: application/json"
+                                          "\r\nx-goog-api-key: " + apiKey)
                        .withConnectionTimeoutMs (60000)
                        .withNumRedirectsToFollow (5);
 

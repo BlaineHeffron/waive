@@ -316,7 +316,8 @@ void ChatPanelComponent::showSettingsDialog()
 
     // Add a note about persistence
     auto* note = new juce::Label();
-    note->setText ("Keys are saved in application settings.", juce::dontSendNotification);
+    note->setText ("Keys stay in memory only. Use environment variables for persistent setup.",
+                   juce::dontSendNotification);
     note->setFont (waive::Fonts::caption());
     note->setBounds (10, y + 10, 380, 20);
     note->setColour (juce::Label::textColourId, getMutedTextColour (*this));

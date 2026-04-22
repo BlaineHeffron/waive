@@ -47,6 +47,7 @@ public:
 private:
     void autoSave();
     static juce::String providerKey (AiProviderType type);
+    static juce::String getEnvironmentApiKey (AiProviderType type);
     AiProviderConfig& getMutableConfig (AiProviderType provider);
 
     std::vector<AiProviderConfig> providers;

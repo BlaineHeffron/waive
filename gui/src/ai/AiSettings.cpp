@@ -3,6 +3,17 @@
 namespace waive
 {
 
+namespace
+{
+juce::String getEnvironmentValue (const char* key)
+{
+    if (const auto* value = std::getenv (key))
+        return juce::String (value).trim();
+
+    return {};
+}
+}
+
 AiSettings::AiSettings()
 {
     providers.push_back ({ AiProviderType::anthropic, "Anthropic", {}, "claude-sonnet-4-0",
@@ -86,6 +97,43 @@ juce::String AiSettings::providerKey (AiProviderType type)
     return "anthropic";
 }
 
+juce::String AiSettings::getEnvironmentApiKey (AiProviderType type)
+{
+    switch (type)
+    {
+        case AiProviderType::anthropic:
+        {
+            auto value = getEnvironmentValue ("ANTHROPIC_API_KEY");
+            if (value.isNotEmpty())
+                return value;
+
+            return getEnvironmentValue ("WAIVE_ANTHROPIC_API_KEY");
+        }
+        case AiProviderType::openai:
+        {
+            auto value = getEnvironmentValue ("OPENAI_API_KEY");
+            if (value.isNotEmpty())
+                return value;
+
+            return getEnvironmentValue ("WAIVE_OPENAI_API_KEY");
+        }
+        case AiProviderType::google:
+        {
+            auto value = getEnvironmentValue ("GEMINI_API_KEY");
+            if (value.isNotEmpty())
+                return value;
+
+            value = getEnvironmentValue ("GOOGLE_API_KEY");
+            if (value.isNotEmpty())
+                return value;
+
+            return getEnvironmentValue ("WAIVE_GOOGLE_API_KEY");
+        }
+    }
+
+    return {};
+}
+
 void AiSettings::loadFromProperties (juce::ApplicationProperties& props)
 {
     boundProperties = &props;
@@ -97,11 +145,14 @@ void AiSettings::loadFromProperties (juce::ApplicationProperties& props)
     for (auto& p : providers)
     {
         auto key = providerKey (p.type);
-        p.apiKey = settings->getValue ("ai_" + key + "_key", "");
+        p.apiKey = getEnvironmentApiKey (p.type);
+        settings->removeValue ("ai_" + key + "_key");
         auto model = settings->getValue ("ai_" + key + "_model", "");
         if (model.isNotEmpty() && p.availableModels.contains (model))
             p.selectedModel = model;
     }
+
+    settings->saveIfNeeded();
 
     auto activeStr = settings->getValue ("ai_active_provider", "anthropic");
     if (activeStr == "openai")        activeProvider = AiProviderType::openai;
@@ -120,7 +171,7 @@ void AiSettings::saveToProperties (juce::ApplicationProperties& props) const
     for (auto& p : providers)
     {
         auto key = providerKey (p.type);
-        settings->setValue ("ai_" + key + "_key", p.apiKey);
+        settings->removeValue ("ai_" + key + "_key");
         settings->setValue ("ai_" + key + "_model", p.selectedModel);
     }
 

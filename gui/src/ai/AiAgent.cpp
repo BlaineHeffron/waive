@@ -242,6 +242,7 @@ void AiAgent::runConversationLoop()
                 ChatMessage toolResultMsg;
                 toolResultMsg.role = ChatMessage::Role::toolResult;
                 toolResultMsg.toolCallId = tc.id;
+                toolResultMsg.toolName = tc.name;
                 toolResultMsg.content = resultStr;
                 conversation.push_back (std::move (toolResultMsg));
             }

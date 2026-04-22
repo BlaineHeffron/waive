@@ -53,6 +53,9 @@ juce::var conversationToJson (const std::vector<ChatMessage>& messages)
         if (msg.toolCallId.isNotEmpty())
             obj->setProperty ("toolCallId", msg.toolCallId);
 
+        if (msg.toolName.isNotEmpty())
+            obj->setProperty ("toolName", msg.toolName);
+
         arr.add (juce::var (obj));
     }
 
@@ -112,6 +115,9 @@ std::vector<ChatMessage> conversationFromJson (const juce::var& json)
 
         if (obj->hasProperty ("toolCallId"))
             msg.toolCallId = obj->getProperty ("toolCallId").toString();
+
+        if (obj->hasProperty ("toolName"))
+            msg.toolName = obj->getProperty ("toolName").toString();
 
         messages.push_back (std::move (msg));
     }

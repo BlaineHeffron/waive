@@ -9,7 +9,9 @@ ProjectChatHistoryController::ProjectChatHistoryController (AiAgent& agent,
                                                             ProjectManager& manager)
     : aiAgent (agent),
       projectManager (manager),
-      currentHistoryFile (getHistoryFileForProject (manager.getCurrentFile()))
+      currentHistoryFile (manager.getCurrentFile() != juce::File()
+                            ? getHistoryFileForProject (manager.getCurrentFile())
+                            : getUnsavedHistoryFile (unsavedSessionId))
 {
     projectManager.addListener (this);
 }
@@ -21,7 +23,10 @@ ProjectChatHistoryController::~ProjectChatHistoryController()
 
 void ProjectChatHistoryController::loadCurrentConversation()
 {
-    loadConversationFromFile (getHistoryFileForProject (projectManager.getCurrentFile()));
+    if (projectManager.getCurrentFile() != juce::File())
+        loadConversationFromFile (getHistoryFileForProject (projectManager.getCurrentFile()));
+    else
+        loadConversationFromFile (getUnsavedHistoryFile (unsavedSessionId));
 }
 
 void ProjectChatHistoryController::saveCurrentConversation() const
@@ -36,7 +41,7 @@ juce::File ProjectChatHistoryController::getCurrentHistoryFile() const
 
 juce::File ProjectChatHistoryController::getHistoryFileForProject (const juce::File& projectFile)
 {
-    if (projectFile.existsAsFile())
+    if (projectFile != juce::File())
     {
         auto projectDir = projectFile.getParentDirectory();
         auto chatDir = projectDir.getChildFile (".waive_chat");
@@ -48,9 +53,15 @@ juce::File ProjectChatHistoryController::getHistoryFileForProject (const juce::F
 
 juce::File ProjectChatHistoryController::getUnsavedHistoryFile()
 {
+    return getUnsavedHistoryFile ("default");
+}
+
+juce::File ProjectChatHistoryController::getUnsavedHistoryFile (const juce::String& sessionId)
+{
     return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
                .getChildFile ("Waive")
-               .getChildFile ("chat_history.json");
+               .getChildFile ("chat_history")
+               .getChildFile ("unsaved_" + (sessionId.isNotEmpty() ? sessionId : "default") + ".json");
 }
 
 void ProjectChatHistoryController::loadConversationFromFile (const juce::File& historyFile)
@@ -64,8 +75,17 @@ void ProjectChatHistoryController::projectFileChanged (const juce::File& previou
                                                        const juce::File& currentProjectFile,
                                                        ProjectManager::FileChangeKind changeKind)
 {
-    const auto previousHistoryFile = getHistoryFileForProject (previousProjectFile);
-    const auto nextHistoryFile = getHistoryFileForProject (currentProjectFile);
+    if (currentProjectFile == juce::File()
+        && changeKind != ProjectManager::FileChangeKind::save
+        && changeKind != ProjectManager::FileChangeKind::saveAs)
+        unsavedSessionId = juce::Uuid().toString();
+
+    const auto previousHistoryFile = previousProjectFile != juce::File()
+                                       ? getHistoryFileForProject (previousProjectFile)
+                                       : currentHistoryFile;
+    const auto nextHistoryFile = currentProjectFile != juce::File()
+                                   ? getHistoryFileForProject (currentProjectFile)
+                                   : getUnsavedHistoryFile (unsavedSessionId);
 
     aiAgent.saveConversation (previousHistoryFile);
 
@@ -78,6 +98,8 @@ void ProjectChatHistoryController::projectFileChanged (const juce::File& previou
     if (changeKind == ProjectManager::FileChangeKind::saveAs)
     {
         aiAgent.saveConversation (nextHistoryFile);
+        if (previousProjectFile == juce::File())
+            (void) previousHistoryFile.deleteFile();
         currentHistoryFile = nextHistoryFile;
         return;
     }

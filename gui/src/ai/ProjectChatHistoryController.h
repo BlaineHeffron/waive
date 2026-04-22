@@ -21,6 +21,7 @@ public:
     juce::File getCurrentHistoryFile() const;
     static juce::File getHistoryFileForProject (const juce::File& projectFile);
     static juce::File getUnsavedHistoryFile();
+    static juce::File getUnsavedHistoryFile (const juce::String& sessionId);
 
 private:
     void loadConversationFromFile (const juce::File& historyFile);
@@ -31,6 +32,7 @@ private:
 
     AiAgent& aiAgent;
     ProjectManager& projectManager;
+    juce::String unsavedSessionId = juce::Uuid().toString();
     juce::File currentHistoryFile;
 };
 
