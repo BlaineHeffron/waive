@@ -378,6 +378,17 @@ bool CommandHandler::requireStringProperty (const juce::var& params,
     return true;
 }
 
+bool CommandHandler::requireOptionalStringProperty (const juce::var& params,
+                                                    const char* propertyName,
+                                                    juce::String& valueOut,
+                                                    juce::var& errorResult)
+{
+    if (! params.hasProperty (propertyName))
+        return true;
+
+    return requireStringProperty (params, propertyName, valueOut, errorResult);
+}
+
 bool CommandHandler::requireAnyStringProperty (const juce::var& params,
                                                std::initializer_list<const char*> propertyNames,
                                                juce::String& valueOut,
@@ -970,9 +981,12 @@ juce::var CommandHandler::handleArmTrack (const juce::var& params)
         return makeError ("Audio track not found: " + juce::String (trackId));
 
     // If input_device specified, assign it first
+    juce::String inputDeviceName;
+    if (! requireOptionalStringProperty (params, "input_device", inputDeviceName, errorResult))
+        return errorResult;
+
     if (params.hasProperty ("input_device"))
     {
-        auto inputDeviceName = params["input_device"].toString();
         auto& dm = edit.engine.getDeviceManager();
         auto waveInputs = dm.getWaveInputDevices();
 
@@ -2684,14 +2698,15 @@ juce::var CommandHandler::handleRemoveUnusedMedia()
 
 juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
 {
-    if (! params.hasProperty ("file_path"))
-        return makeError ("Missing required parameter: file_path");
+    juce::var errorResult;
+    juce::String outputPath;
+    if (! requireStringProperty (params, "file_path", outputPath, errorResult))
+        return errorResult;
 
     auto projectFile = resolveProjectFile();
     if (projectFile == juce::File())
         return makeError ("Edit file not saved - cannot package project");
 
-    auto outputPath = params["file_path"].toString();
     juce::File outputZip (outputPath);
 
     if (! isOutputPathAllowed (outputPath, outputZip, allowedMediaDirectories))

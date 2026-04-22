@@ -2004,10 +2004,13 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     const auto originalGainDb = clip->state.getProperty ("gainDb", 0.0);
     const auto originalFadeIn = dynamic_cast<te::WaveAudioClip*> (clip)->getFadeIn().inSeconds();
     const auto originalFadeOut = dynamic_cast<te::WaveAudioClip*> (clip)->getFadeOut().inSeconds();
+    const auto originalAssignedInputCount = edit->getEditInputDevices().getDevicesForTargetTrack (*track).size();
     auto rootFolder = edit->insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
     expect (rootFolder != nullptr, "Expected folder track fixture for malformed-command test");
     rootFolder->setName ("Malformed Folder");
     const auto originalParentFolder = track->getParentFolderTrack();
+    const auto coercedPackagePath = juce::File::getCurrentWorkingDirectory().getChildFile ("1");
+    (void) coercedPackagePath.deleteFile();
 
     CommandHandler handler (*edit);
 
@@ -2093,6 +2096,19 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     })");
     expect (armTrackMalformedResponse["status"].toString() == "error",
             "Expected arm_track with non-boolean enabled alias to fail");
+    expect (edit->getEditInputDevices().getDevicesForTargetTrack (*track).size() == originalAssignedInputCount,
+            "Expected malformed arm_track enabled alias request not to change input assignments");
+
+    auto armTrackInputDeviceMalformedResponse = runJsonCommand (handler, R"({
+        "action":"arm_track",
+        "track_id":0,
+        "enabled":true,
+        "input_device":1
+    })");
+    expect (armTrackInputDeviceMalformedResponse["status"].toString() == "error",
+            "Expected arm_track with non-string input_device to fail");
+    expect (edit->getEditInputDevices().getDevicesForTargetTrack (*track).size() == originalAssignedInputCount,
+            "Expected malformed arm_track input_device request not to change input assignments");
 
     auto splitMalformedResponse = runJsonCommand (handler, R"({
         "action":"split_clip",
@@ -2351,6 +2367,15 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected export_mixdown with non-numeric start to fail");
     expect (! exportOutput.existsAsFile(),
             "Expected malformed export_mixdown request not to create an output file");
+
+    auto packageAsZipMalformedResponse = runJsonCommand (handler, R"({
+        "action":"package_as_zip",
+        "file_path":1
+    })");
+    expect (packageAsZipMalformedResponse["status"].toString() == "error",
+            "Expected package_as_zip with non-string file_path to fail");
+    expect (! coercedPackagePath.exists(),
+            "Expected malformed package_as_zip request not to create a coerced output path");
 
     auto exportStemsResponse = runJsonCommand (handler, juce::String::formatted (R"({
         "action":"export_stems",
