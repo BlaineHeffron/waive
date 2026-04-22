@@ -2036,6 +2036,17 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     expect (track->getClips().size() == originalClipCount,
             "Expected malformed insert_audio_clip request not to insert on track 0");
 
+    auto insertAudioStartMalformedResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"insert_audio_clip",
+        "track_id":0,
+        "file_path":"%s",
+        "start_time":"oops"
+    })", audioFixture.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (insertAudioStartMalformedResponse["status"].toString() == "error",
+            "Expected insert_audio_clip with non-numeric start_time to fail");
+    expect (track->getClips().size() == originalClipCount,
+            "Expected malformed insert_audio_clip start_time not to insert a clip");
+
     auto insertMidiResponse = runJsonCommand (handler, juce::String::formatted (R"({
         "action":"insert_midi_clip",
         "file_path":"%s"
@@ -2044,6 +2055,17 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected insert_midi_clip without track_id to fail");
     expect (track->getClips().size() == originalClipCount,
             "Expected malformed insert_midi_clip request not to insert on track 0");
+
+    auto insertMidiStartMalformedResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"insert_midi_clip",
+        "track_id":0,
+        "file_path":"%s",
+        "start_time":"oops"
+    })", midiFixture.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (insertMidiStartMalformedResponse["status"].toString() == "error",
+            "Expected insert_midi_clip with non-numeric start_time to fail");
+    expect (track->getClips().size() == originalClipCount,
+            "Expected malformed insert_midi_clip start_time not to insert a clip");
 
     auto armTrackMalformedResponse = runJsonCommand (handler, R"({
         "action":"arm_track",
@@ -2285,6 +2307,21 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected malformed set_loop_region request not to change loop start");
     expect (std::abs (edit->getTransport().getLoopRange().getEnd().inSeconds() - 1.5) < 0.0001,
             "Expected malformed set_loop_region request not to change loop end");
+
+    auto loopRangeMalformedResponse = runJsonCommand (handler, R"({
+        "action":"set_loop_region",
+        "enabled":true,
+        "start":"oops",
+        "end":2.0
+    })");
+    expect (loopRangeMalformedResponse["status"].toString() == "error",
+            "Expected set_loop_region with non-numeric start to fail");
+    expect (edit->getTransport().looping.get(),
+            "Expected malformed loop range request not to change looping state");
+    expect (std::abs (edit->getTransport().getLoopRange().getStart().inSeconds() - 0.5) < 0.0001,
+            "Expected malformed loop range request not to change loop start");
+    expect (std::abs (edit->getTransport().getLoopRange().getEnd().inSeconds() - 1.5) < 0.0001,
+            "Expected malformed loop range request not to change loop end");
 
     auto exportMixdownResponse = runJsonCommand (handler, juce::String::formatted (R"({
         "action":"export_mixdown",

@@ -659,7 +659,9 @@ juce::var CommandHandler::handleInsertAudioClip (const juce::var& params)
         || ! requireStringProperty (params, "file_path", filePath, errorResult))
         return errorResult;
 
-    double startTime = params.hasProperty ("start_time") ? (double) params["start_time"] : 0.0;
+    double startTime = 0.0;
+    if (! requireOptionalDoubleProperty (params, "start_time", startTime, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -726,7 +728,9 @@ juce::var CommandHandler::handleInsertMidiClip (const juce::var& params)
         || ! requireStringProperty (params, "file_path", filePath, errorResult))
         return errorResult;
 
-    double startTime = params.hasProperty ("start_time") ? (double) params["start_time"] : 0.0;
+    double startTime = 0.0;
+    if (! requireOptionalDoubleProperty (params, "start_time", startTime, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -1561,10 +1565,16 @@ juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
     if (! requireBoolProperty (params, "enabled", enabled, errorResult))
         return errorResult;
 
+    double startSec = 0.0;
+    double endSec = 0.0;
+    const bool hasStart = params.hasProperty ("start");
+    const bool hasEnd = params.hasProperty ("end");
+    if (! requireOptionalDoubleProperty (params, "start", startSec, errorResult)
+        || ! requireOptionalDoubleProperty (params, "end", endSec, errorResult))
+        return errorResult;
+
     if (enabled && params.hasProperty ("start") && params.hasProperty ("end"))
     {
-        double startSec = params["start"];
-        double endSec = params["end"];
         if (startSec >= endSec)
             return makeError ("Loop start must be less than end");
     }
@@ -1573,10 +1583,8 @@ juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
     auto* undoManager = &edit.getUndoManager();
     transport.looping.setValue (enabled, undoManager);
 
-    if (enabled && params.hasProperty ("start") && params.hasProperty ("end"))
+    if (enabled && hasStart && hasEnd)
     {
-        double startSec = params["start"];
-        double endSec = params["end"];
         setLoopRangeWithUndo (edit,
                               te::TimePosition::fromSeconds (startSec),
                               te::TimePosition::fromSeconds (endSec),
