@@ -23,6 +23,8 @@ target_sources(WaiveCoreTests PRIVATE
     ../gui/src/tools/AudioAnalysisCache.cpp
     ../gui/src/tools/AudioAnalysis.h
     ../gui/src/tools/AudioAnalysis.cpp
+    ../gui/src/ai/AiToolSchema.h
+    ../gui/src/ai/AiToolSchema.cpp
     ../shared/src/PluginPresetManager.h
     ../shared/src/PluginPresetManager.cpp
     ../shared/src/PathSanitizer.h
@@ -40,6 +42,7 @@ find_package(CURL REQUIRED)
 target_include_directories(WaiveCoreTests PRIVATE
     ../engine/src
     ../shared/src
+    ../gui/src/ai
     ../gui/src/edit
     ../gui/src/ui
     ../gui/src/tools

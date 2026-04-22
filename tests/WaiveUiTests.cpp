@@ -1766,6 +1766,12 @@ void runUiPhase3TimeAutomationLoopPunchRegression()
             "Expected Set Loop Out to move only the loop end");
 
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo command to execute for loop-out setup");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo command to execute for loop-in setup");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo command to execute for loop-range setup");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
             "Expected undo command to execute for automation move redo");
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
             "Expected undo command to execute for automation add");
@@ -1776,6 +1782,12 @@ void runUiPhase3TimeAutomationLoopPunchRegression()
             "Expected redo command to execute for automation add");
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
             "Expected redo command to execute for automation move");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo command to execute for loop-range setup");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo command to execute for loop-in setup");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo command to execute for loop-out setup");
     expect (findPointNearTime (1.5, 0.06) >= 0,
             "Expected automation point near 1.5s after redo chain");
 

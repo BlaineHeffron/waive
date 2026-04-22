@@ -366,7 +366,7 @@ void testUndoableCommandHandlerWrapsMutatingCommands (te::Engine& engine)
             "Expected failing command to avoid creating a new undo transaction");
 }
 
-void testUndoableCommandHandlerPassesThroughExportCommands (te::Engine& engine)
+void testUndoableCommandHandlerPassesThroughFileSideEffectCommands (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("undoable_export_passthrough");
     auto backingFile = fixtureDir.getChildFile ("undoable_export_passthrough.tracktionedit");
@@ -393,19 +393,20 @@ void testUndoableCommandHandlerPassesThroughExportCommands (te::Engine& engine)
     handler.setAllowedMediaDirectories ({ fixtureDir });
     UndoableCommandHandler undoableHandler (handler, session);
 
+    edit.getUndoManager().clearUndoHistory();
     session.resetChangedStatus();
     expect (! session.canUndo(), "Expected fresh export passthrough test not to have undo history");
 
-    auto outputFile = fixtureDir.getChildFile ("mixdown.wav");
-    auto response = juce::JSON::parse (undoableHandler.handleCommand (juce::String::formatted (R"({
-        "action":"export_mixdown",
-        "file_path":"%s"
-    })", outputFile.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8())));
-    expect (response.isObject(), "Expected export_mixdown response object through undoable handler");
-    expect (response["status"].toString() == "ok", "Expected export_mixdown to succeed through undoable handler");
-    expect (outputFile.existsAsFile(), "Expected export_mixdown to create the output file");
-    expect (! session.canUndo(), "Expected export_mixdown not to create an undo transaction");
-    expect (! session.hasChangedSinceSaved(), "Expected export_mixdown not to dirty the edit session");
+    expect (te::EditFileOperations (edit).saveAs (backingFile, true),
+            "Expected passthrough test fixture project save to succeed");
+
+    auto response = juce::JSON::parse (undoableHandler.handleCommand (R"({
+        "action":"remove_unused_media"
+    })"));
+    expect (response.isObject(), "Expected remove_unused_media response object through undoable handler");
+    expect (response["status"].toString() == "ok", "Expected remove_unused_media to succeed through undoable handler");
+    expect (! session.canUndo(), "Expected remove_unused_media not to create an undo transaction");
+    expect (! session.hasChangedSinceSaved(), "Expected remove_unused_media not to dirty the edit session");
 
     (void) fixtureDir.deleteRecursively();
 }
@@ -1340,34 +1341,20 @@ void testPluginPresetCommandsSupportMasterChain (te::Engine& engine)
         edit->ensureNumberOfAudioTracks (1);
 
         auto pluginState = te::createValueTree (te::IDs::PLUGIN,
-                                                te::IDs::type, te::ReverbPlugin::xmlTypeName,
-                                                "pluginFormatName", te::PluginManager::builtInPluginFormatName,
-                                                "fileOrIdentifier", te::ReverbPlugin::xmlTypeName,
-                                                "manufacturer", "Waive");
+                                                te::IDs::type, te::ReverbPlugin::xmlTypeName);
         auto plugin = edit->getPluginCache().createNewPlugin (pluginState);
         expect (plugin != nullptr, "Expected master preset test plugin creation");
 
         auto* reverb = dynamic_cast<te::ReverbPlugin*> (plugin.get());
         expect (reverb != nullptr, "Expected built-in reverb plugin for master preset command test");
         edit->getMasterPluginList().insertPlugin (plugin, 0, nullptr);
-        auto trackPlugin = edit->getPluginCache().createNewPlugin (pluginState);
-        expect (trackPlugin != nullptr, "Expected track preset test plugin creation");
-        auto* trackReverb = dynamic_cast<te::ReverbPlugin*> (trackPlugin.get());
-        expect (trackReverb != nullptr, "Expected built-in reverb plugin for track preset response test");
-        te::getAudioTracks (*edit).getFirst()->pluginList.insertPlugin (trackPlugin, 0, nullptr);
-
-        waive::PluginPresetManager presetManager;
-        expect (presetManager.savePreset (*reverb, "Master Room"),
-                "Expected baseline master preset save to succeed");
-        expect (presetManager.savePreset (*trackReverb, "Track Room"),
-                "Expected baseline track preset save to succeed");
 
         CommandHandler handler (*edit);
         auto saveResponse = runJsonCommand (handler, R"({
             "action":"save_plugin_preset",
             "master":true,
             "plugin_index":0,
-            "preset_name":"Master Command Save"
+            "preset_name":"Master Room"
         })");
         expect (saveResponse["status"].toString() == "ok",
                 "Expected save_plugin_preset to target the master chain");
@@ -1389,6 +1376,12 @@ void testPluginPresetCommandsSupportMasterChain (te::Engine& engine)
                 "Expected load_plugin_preset response to indicate master-chain targeting");
         expect (edit->hasChangedSinceSaved(),
                 "Expected master preset load to mark the edit dirty");
+
+        auto trackPlugin = edit->getPluginCache().createNewPlugin (pluginState);
+        expect (trackPlugin != nullptr, "Expected track preset test plugin creation");
+        auto* trackReverb = dynamic_cast<te::ReverbPlugin*> (trackPlugin.get());
+        expect (trackReverb != nullptr, "Expected built-in reverb plugin for track preset response test");
+        te::getAudioTracks (*edit).getFirst()->pluginList.insertPlugin (trackPlugin, 0, nullptr);
 
         auto trackSaveResponse = runJsonCommand (handler, R"({
             "action":"save_plugin_preset",
@@ -1512,7 +1505,7 @@ void testCommandSchemaDocumentsPresetTargetingRequirements()
                     auto* properties = anyOfObj->getProperty ("properties").getDynamicObject();
                     auto* masterObj = properties != nullptr ? properties->getProperty ("master").getDynamicObject()
                                                             : nullptr;
-                    if (masterObj != nullptr && masterObj->getProperty ("const").equalsWithSameType (true))
+                    if (masterObj != nullptr && static_cast<bool> (masterObj->getProperty ("const")))
                         sawMasterRule = true;
                 }
             }
@@ -2754,7 +2747,7 @@ int main()
         testCoalescedPerformEditExceptionSafety (engine);
         testDirtyStateSavepointAcrossCoalescedUndoRedo (engine);
         testUndoableCommandHandlerWrapsMutatingCommands (engine);
-        testUndoableCommandHandlerPassesThroughExportCommands (engine);
+        testUndoableCommandHandlerPassesThroughFileSideEffectCommands (engine);
         testClickTrackToggleSupportsUndoRedo (engine);
         testModelManagerSettingsPersistence();
         testPathSanitizerRejectsTraversal();

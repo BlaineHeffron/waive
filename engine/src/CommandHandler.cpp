@@ -2091,7 +2091,7 @@ juce::var CommandHandler::handleAddAutomationPoint (const juce::var& params)
     auto* param = allParams[paramIndex];
     auto& curve = param->getCurve();
     auto tp = te::TimePosition::fromSeconds (timeSec);
-    curve.addPoint (tp, value, curveVal, nullptr);
+    curve.addPoint (tp, value, curveVal, &edit.getUndoManager());
 
     auto* result = new juce::DynamicObject();
     result->setProperty ("status", "ok");
@@ -2128,7 +2128,7 @@ juce::var CommandHandler::handleRemoveAutomationPoint (const juce::var& params)
     if (pointIndex < 0 || pointIndex >= curve.getNumPoints())
         return makeError ("Point index out of range: " + juce::String (pointIndex));
 
-    curve.removePoint (pointIndex, nullptr);
+    curve.removePoint (pointIndex, &edit.getUndoManager());
 
     auto* result = new juce::DynamicObject();
     result->setProperty ("status", "ok");
@@ -2155,7 +2155,7 @@ juce::var CommandHandler::handleClearAutomation (const juce::var& params)
 
     auto* param = allParams[paramIndex];
     auto& curve = param->getCurve();
-    curve.clear (nullptr);
+    curve.clear (&edit.getUndoManager());
 
     return makeOk();
 }

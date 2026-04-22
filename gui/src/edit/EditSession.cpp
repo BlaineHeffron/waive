@@ -36,6 +36,8 @@ te::Edit& EditSession::getEdit()
 //==============================================================================
 void EditSession::replaceEdit (std::unique_ptr<te::Edit> newEdit)
 {
+    constexpr size_t maxRetiredEditsToKeep = 2;
+
     auto previousEdit = std::move (edit);
     listeners.call (&Listener::editAboutToChange);
 
@@ -54,10 +56,16 @@ void EditSession::replaceEdit (std::unique_ptr<te::Edit> newEdit)
     listeners.call (&Listener::editChanged);
 
     // Tracktion objects such as clips can be retained briefly outside the owning
-    // Edit during UI-driven swaps. Keep retired edits alive for the session
-    // lifetime so those external references can unwind safely.
+    // Edit during UI-driven swaps. Keep only a small bounded tail so those
+    // external references can unwind safely without retaining every prior edit.
     if (previousEdit != nullptr)
+    {
         retiredEdits.push_back (std::move (previousEdit));
+
+        if (retiredEdits.size() > maxRetiredEditsToKeep)
+            retiredEdits.erase (retiredEdits.begin(),
+                                retiredEdits.begin() + (int) (retiredEdits.size() - maxRetiredEditsToKeep));
+    }
 }
 
 void EditSession::loadFromFile (const juce::File& file)
