@@ -136,6 +136,42 @@ bool isWithinAllowedDirectories (const juce::String& originalPath,
     return false;
 }
 
+bool areCanonicalPathsEquivalent (const juce::File& lhs, const juce::File& rhs)
+{
+    std::error_code ec;
+    const auto canonicalLhs = std::filesystem::weakly_canonical (std::filesystem::path (lhs.getFullPathName().toStdString()), ec);
+    if (ec)
+        return false;
+
+    const auto canonicalRhs = std::filesystem::weakly_canonical (std::filesystem::path (rhs.getFullPathName().toStdString()), ec);
+    if (ec)
+        return false;
+
+    return canonicalLhs == canonicalRhs;
+}
+
+bool copyTrackPlugins (te::Edit& edit, te::AudioTrack& sourceTrack, te::AudioTrack& destinationTrack)
+{
+    for (auto* sourcePlugin : getAddressablePlugins (sourceTrack.pluginList))
+    {
+        if (sourcePlugin == nullptr)
+            return false;
+
+        auto sourceState = sourcePlugin->state.createCopy();
+        edit.createNewItemID().writeID (sourceState, nullptr);
+        te::assignNewIDsToAutomationCurveModifiers (edit, sourceState);
+
+        auto destinationPlugin = edit.getPluginCache().createNewPlugin (sourceState);
+        if (destinationPlugin == nullptr)
+            return false;
+
+        destinationPlugin->restorePluginStateFromValueTree (sourcePlugin->state);
+        destinationTrack.pluginList.insertPlugin (destinationPlugin, destinationTrack.pluginList.size(), nullptr);
+    }
+
+    return true;
+}
+
 bool isOutputPathAllowed (const juce::String& originalPath,
                           const juce::File& outputPath,
                           const juce::Array<juce::File>& allowedDirectories)
@@ -1545,6 +1581,8 @@ juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
         return makeError ("Failed to create new track");
 
     newTrack->setName (sourceTrack->getName() + " copy");
+    newTrack->setMute (sourceTrack->isMuted (false));
+    newTrack->setSolo (sourceTrack->isSolo (false));
 
     // Copy volume and pan
     auto srcVolPlugins = sourceTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
@@ -1557,13 +1595,23 @@ juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
             srcVolPlugins.getFirst()->panParam->getCurrentValue(), juce::dontSendNotification);
     }
 
+    if (! copyTrackPlugins (edit, *sourceTrack, *newTrack))
+    {
+        edit.deleteTrack (newTrack);
+        return makeError ("Failed to duplicate one or more track plugins");
+    }
+
     // Copy all clips from source to new track
     for (auto* clip : sourceTrack->getClips())
     {
         auto clipState = clip->state.createCopy();
         edit.createNewItemID().writeID (clipState, nullptr);
         te::assignNewIDsToAutomationCurveModifiers (edit, clipState);
-        newTrack->insertClipWithState (clipState);
+        if (newTrack->insertClipWithState (clipState) == nullptr)
+        {
+            edit.deleteTrack (newTrack);
+            return makeError ("Failed to duplicate one or more clips on the track");
+        }
     }
 
     auto result = makeOk();
@@ -1873,19 +1921,26 @@ juce::var CommandHandler::handleBounceTrack (const juce::var& params)
     if (! ok || ! bounceFile.existsAsFile())
         return makeError ("Bounce render failed");
 
-    // Remove all existing clips from the track (reverse iteration to avoid invalidation)
-    for (int j = track->getClips().size(); --j >= 0;)
-        track->getClips().getUnchecked (j)->removeFromParent();
-
-    // Insert the bounced audio as a single clip
-    te::AudioFile audioFile (edit.engine, bounceFile);
-    track->insertWaveClip (
+    auto bouncedClip = track->insertWaveClip (
         track->getName() + " (bounced)",
         bounceFile,
         { { te::TimePosition::fromSeconds (startSec),
             te::TimePosition::fromSeconds (endSec) },
           te::TimeDuration() },
         false);
+    if (bouncedClip == nullptr)
+    {
+        (void) bounceFile.deleteFile();
+        return makeError ("Bounce render succeeded but failed to insert bounced clip");
+    }
+
+    // Remove all original clips once the bounced clip is safely in the edit.
+    for (int j = track->getClips().size(); --j >= 0;)
+    {
+        auto* existingClip = track->getClips().getUnchecked (j);
+        if (existingClip != nullptr && existingClip != bouncedClip.get())
+            existingClip->removeFromParent();
+    }
 
     auto result = makeOk();
     if (auto* obj = result.getDynamicObject())
@@ -2776,7 +2831,8 @@ juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
         return makeError ("Output path is outside allowed directories: " + outputPath);
 
     auto projectDir = projectFile.getParentDirectory();
-    if (outputZip == projectFile || outputZip.isAChildOf (projectDir))
+    if (areCanonicalPathsEquivalent (outputZip, projectFile)
+        || waive::ProjectPackager::isWithinProjectDirectory (outputZip, projectDir))
         return makeError ("Output zip must be outside the project directory");
 
     auto collectResult = waive::ProjectPackager::collectAndSave (edit, projectDir, projectFile);

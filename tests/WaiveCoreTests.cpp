@@ -1001,13 +1001,16 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
     auto fixtureDir = getFixtureDir ("package_zip");
     auto projectDir = fixtureDir.getChildFile ("project");
     auto audioDir = projectDir.getChildFile ("Audio");
+    auto nestedAudioDir = audioDir.getChildFile ("Stems");
     projectDir.createDirectory();
     audioDir.createDirectory();
+    nestedAudioDir.createDirectory();
 
     auto projectFile = createSavedProjectFixture (engine, projectDir.getChildFile ("main_project.tracktionedit"));
     auto backupProjectFile = projectDir.getChildFile ("backup.tracktionedit");
     auto autoSaveFile = projectDir.getChildFile (".waive-autosave-main_project.tracktionedit");
     auto audioFile = writeTestWav (audioDir.getChildFile ("packaged.wav"));
+    auto nestedAudioFile = writeTestWav (nestedAudioDir.getChildFile ("nested.wav"));
     auto outputZip = fixtureDir.getChildFile ("portable.zip");
 
     expect (backupProjectFile.replaceWithText ("backup"), "Expected backup fixture project file");
@@ -1027,6 +1030,8 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
             "Expected zip to include the current project file");
     expect (entries.contains ("Audio/" + audioFile.getFileName()),
             "Expected zip to include project audio");
+    expect (entries.contains ("Audio/Stems/" + nestedAudioFile.getFileName()),
+            "Expected zip to include nested project audio");
     expect (entries.contains (autoSaveFile.getFileName()),
             "Expected zip to include autosave snapshot when present");
     expect (! entries.contains (backupProjectFile.getFileName()),
@@ -1064,6 +1069,51 @@ void testPackageAsZipRejectsOutputInsideProjectDirectory (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testPackageAsZipRejectsSymlinkedOutputInsideProjectDirectory (te::Engine& engine)
+{
+#if JUCE_WINDOWS
+    juce::ignoreUnused (engine);
+#else
+    auto fixtureDir = getFixtureDir ("package_zip_inside_project_symlink");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto linksDir = fixtureDir.getChildFile ("links");
+    auto projectAudioDir = projectDir.getChildFile ("Audio");
+    projectDir.createDirectory();
+    linksDir.createDirectory();
+    projectAudioDir.createDirectory();
+
+    auto projectFile = createSavedProjectFixture (engine, projectDir.getChildFile ("main_project.tracktionedit"));
+    auto edit = te::loadEditFromFile (engine, projectFile);
+    expect (edit != nullptr, "Expected saved project edit for package_as_zip symlink test");
+
+    auto linkedAudioDir = linksDir.getChildFile ("linked_audio");
+    const bool aliasCreated = projectAudioDir.createSymbolicLink (linkedAudioDir, true);
+    if (! aliasCreated)
+    {
+        (void) fixtureDir.deleteRecursively();
+        return;
+    }
+
+    auto outputZip = linkedAudioDir.getChildFile ("portable.zip");
+
+    CommandHandler handler (*edit);
+    handler.setProjectFile (projectFile);
+    handler.setAllowedMediaDirectories ({ fixtureDir });
+
+    auto response = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"package_as_zip",
+        "file_path":"%s"
+    })", outputZip.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+
+    expect (response["status"].toString() == "error",
+            "Expected package_as_zip to reject symlinked output paths that resolve inside the project directory");
+    expect (! outputZip.existsAsFile(),
+            "Expected rejected symlinked package_as_zip request not to create an archive inside the project directory");
+
+    (void) fixtureDir.deleteRecursively();
+#endif
+}
+
 void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("track_command_public_indices");
@@ -1074,6 +1124,29 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     auto folderTrack = edit->insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
     expect (folderTrack != nullptr, "Expected folder track for public-index command test");
     folderTrack->setName ("Folder");
+
+    auto* sourceTrack = te::getAudioTracks (*edit).getFirst();
+    expect (sourceTrack != nullptr, "Expected source track for duplicate-track command test");
+    sourceTrack->setMute (true);
+    sourceTrack->setSolo (true);
+
+    auto pluginState = te::createValueTree (te::IDs::PLUGIN,
+                                            te::IDs::type, te::ReverbPlugin::xmlTypeName,
+                                            "pluginFormatName", te::PluginManager::builtInPluginFormatName,
+                                            "fileOrIdentifier", te::ReverbPlugin::xmlTypeName,
+                                            "manufacturer", "Waive");
+    auto plugin = edit->getPluginCache().createNewPlugin (pluginState);
+    expect (plugin != nullptr, "Expected built-in plugin creation for duplicate-track command test");
+    auto* reverb = dynamic_cast<te::ReverbPlugin*> (plugin.get());
+    expect (reverb != nullptr, "Expected reverb plugin instance for duplicate-track command test");
+    sourceTrack->pluginList.insertPlugin (plugin, 0, nullptr);
+
+    auto reverbParams = reverb->getAutomatableParameters();
+    expect (! reverbParams.isEmpty(), "Expected reverb to expose automatable parameters for duplicate-track test");
+    auto* firstPluginParam = reverbParams.getFirst();
+    expect (firstPluginParam != nullptr, "Expected first reverb parameter for duplicate-track test");
+    firstPluginParam->setParameter (0.73f, juce::dontSendNotification);
+    const auto expectedPluginCount = sourceTrack->pluginList.size();
 
     CommandHandler handler (*edit);
 
@@ -1104,6 +1177,23 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     expect (duplicateTrackResponse["status"].toString() == "ok", "Expected duplicate_track to succeed");
     expect ((int) duplicateTrackResponse["new_track_index"] == 3,
             "Expected duplicate_track to return the public track index including folders");
+
+    auto* duplicatedTrack = te::getAudioTracks (*edit).getLast();
+    expect (duplicatedTrack != nullptr && duplicatedTrack != sourceTrack,
+            "Expected duplicate_track to create a distinct destination track");
+    expect (duplicatedTrack->pluginList.size() == expectedPluginCount,
+            "Expected duplicate_track to preserve the source plugin chain size");
+    expect (duplicatedTrack->isMuted (false), "Expected duplicate_track to preserve mute state");
+    expect (duplicatedTrack->isSolo (false), "Expected duplicate_track to preserve solo state");
+
+    auto duplicatedReverbs = duplicatedTrack->pluginList.getPluginsOfType<te::ReverbPlugin>();
+    expect (! duplicatedReverbs.isEmpty(), "Expected duplicate_track to copy user plugins");
+    auto* duplicatedReverb = duplicatedReverbs.getFirst();
+    expect (duplicatedReverb != nullptr, "Expected duplicated reverb plugin instance");
+    auto duplicatedParams = duplicatedReverb->getAutomatableParameters();
+    expect (! duplicatedParams.isEmpty(), "Expected duplicated reverb to expose parameters");
+    expect (std::abs (duplicatedParams.getFirst()->getCurrentValue() - firstPluginParam->getCurrentValue()) < 0.0001f,
+            "Expected duplicate_track to preserve plugin parameter state");
 
     (void) fixtureDir.deleteRecursively();
 }
@@ -2991,6 +3081,7 @@ int main()
         testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
         testPackageAsZipRejectsOutputInsideProjectDirectory (engine);
+        testPackageAsZipRejectsSymlinkedOutputInsideProjectDirectory (engine);
         testCollectAndSaveCommandReturnsErrorOnPackagingFailure (engine);
         testCollectAndSaveRollsBackOnPartialCopyFailure (engine);
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);

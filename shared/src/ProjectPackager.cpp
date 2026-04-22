@@ -299,7 +299,7 @@ juce::Array<juce::File> ProjectPackager::findUnusedMedia (te::Edit& edit, const 
 
     auto referencedFiles = getAllReferencedFiles (edit);
 
-    for (const auto& iter : juce::RangedDirectoryIterator (audioDir, false, "*", juce::File::findFiles))
+    for (const auto& iter : juce::RangedDirectoryIterator (audioDir, true, "*", juce::File::findFiles))
     {
         auto file = iter.getFile();
         if (isAudioFile (file) && ! fileArrayContainsCanonical (referencedFiles, file))
@@ -381,13 +381,13 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
 
     auto audioDir = projectDir.getChildFile ("Audio");
     if (audioDir.exists())
-        for (const auto& iter : juce::RangedDirectoryIterator (audioDir, false, "*", juce::File::findFiles))
+        for (const auto& iter : juce::RangedDirectoryIterator (audioDir, true, "*", juce::File::findFiles))
         {
             const auto audioFile = iter.getFile();
             if (canonicalisePath (audioFile) == canonicalisePath (outputZip))
                 continue;
 
-            builder.addFile (audioFile, 9, "Audio/" + audioFile.getFileName());
+            builder.addFile (audioFile, 9, audioFile.getRelativePathFrom (projectDir));
         }
 
     return builder.writeToStream (outputStream, nullptr);
