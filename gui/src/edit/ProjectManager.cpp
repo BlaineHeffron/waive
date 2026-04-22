@@ -74,6 +74,7 @@ ProjectManager::~ProjectManager()
 bool ProjectManager::newProject()
 {
     const bool hadUnsavedChanges = isDirty();
+    const auto previousFile = currentFile;
     if (! confirmSaveIfDirty())
         return false;
 
@@ -82,7 +83,8 @@ bool ProjectManager::newProject()
 
     editSession.createNew();
     currentFile = juce::File();
-    listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
+    listeners.call ([&] (Listener& listener)
+                    { listener.projectFileChanged (previousFile, currentFile, FileChangeKind::newProject); });
     checkDirtyState();
     return true;
 }
@@ -166,6 +168,7 @@ bool ProjectManager::openProjectInternal (const juce::File& fileToLoad,
                                          bool discardCurrentAutoSaveOnDiscard,
                                          bool prepareCurrentProject)
 {
+    const auto previousFile = currentFile;
     if (prepareCurrentProject && ! prepareForProjectTransition (discardCurrentAutoSaveOnDiscard))
         return false;
 
@@ -180,7 +183,10 @@ bool ProjectManager::openProjectInternal (const juce::File& fileToLoad,
     else
         editSession.resetChangedStatus();
 
-    listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
+    const auto changeKind = markChangedAfterLoad ? FileChangeKind::recoverProject
+                                                 : FileChangeKind::openProject;
+    listeners.call ([&] (Listener& listener)
+                    { listener.projectFileChanged (previousFile, currentFile, changeKind); });
     addToRecentFiles (currentFile);
     checkDirtyState();
     return true;
@@ -208,6 +214,7 @@ bool ProjectManager::save()
     if (currentFile == juce::File())
         return saveAs();
 
+    const auto previousFile = currentFile;
     auto fileOps = te::EditFileOperations (editSession.getEdit());
     auto backingFile = fileOps.getEditFile();
 
@@ -229,7 +236,8 @@ bool ProjectManager::save()
     deleteTransientBackingFileIfNeeded (backingFile, currentFile);
     editSession.resetChangedStatus();
     AutoSaveManager::deleteAutoSave (currentFile);
-    listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
+    listeners.call ([&] (Listener& listener)
+                    { listener.projectFileChanged (previousFile, currentFile, FileChangeKind::save); });
     checkDirtyState();
     return true;
 }
@@ -257,6 +265,10 @@ bool ProjectManager::saveAs (const juce::File& file)
     if (targetFile.getFileExtension().isEmpty())
         targetFile = targetFile.withFileExtension ("tracktionedit");
 
+    const auto parentDirectory = targetFile.getParentDirectory();
+    if (parentDirectory == juce::File() || ! parentDirectory.exists())
+        return false;
+
     auto fileOps = te::EditFileOperations (editSession.getEdit());
     auto backingFile = fileOps.getEditFile();
     const auto previousFile = currentFile;
@@ -277,7 +289,8 @@ bool ProjectManager::saveAs (const juce::File& file)
     currentFile = targetFile;
     editSession.resetChangedStatus();
     AutoSaveManager::deleteAutoSave (currentFile);
-    listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
+    listeners.call ([&] (Listener& listener)
+                    { listener.projectFileChanged (previousFile, currentFile, FileChangeKind::saveAs); });
     addToRecentFiles (targetFile);
     checkDirtyState();
     return true;

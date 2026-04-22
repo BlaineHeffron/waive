@@ -5,6 +5,8 @@
 #include "ChatPanelComponent.h"
 #include "AiAgent.h"
 #include "AiSettings.h"
+#include "ChatHistorySerializer.h"
+#include "ProjectChatHistoryController.h"
 #include "SessionComponent.h"
 #include "TimelineComponent.h"
 #include "TimeRulerComponent.h"
@@ -2101,6 +2103,121 @@ void runToolSidebarEditSwapClearsPendingPlanRegression()
     std::cout << "runToolSidebarEditSwapClearsPendingPlanRegression: PASS" << std::endl;
 }
 
+void runProjectScopedChatHistoryRegression()
+{
+    te::Engine engine ("WaiveUiProjectScopedChatHistory");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+    waive::ToolRegistry toolRegistry;
+    waive::JobQueue jobQueue;
+    waive::AiSettings aiSettings;
+    ProjectManager projectManager (session);
+    waive::AiAgent agent (aiSettings, undoableHandler, toolRegistry, jobQueue);
+    waive::ProjectChatHistoryController chatHistoryController (agent, projectManager);
+
+    auto projectA = createLifecycleFixtureProject (engine);
+    auto projectB = createLifecycleFixtureProject (engine);
+
+    auto makeConversation = [] (const juce::String& text)
+    {
+        std::vector<waive::ChatMessage> messages;
+        waive::ChatMessage message;
+        message.role = waive::ChatMessage::Role::assistant;
+        message.content = text;
+        messages.push_back (std::move (message));
+        return messages;
+    };
+
+    const auto chatFileA = waive::ProjectChatHistoryController::getHistoryFileForProject (projectA);
+    const auto chatFileB = waive::ProjectChatHistoryController::getHistoryFileForProject (projectB);
+    expect (waive::ChatHistorySerializer::saveChatHistory (makeConversation ("Project A chat"), chatFileA),
+            "Expected project A chat history save to succeed");
+    expect (waive::ChatHistorySerializer::saveChatHistory (makeConversation ("Project B chat"), chatFileB),
+            "Expected project B chat history save to succeed");
+
+    expect (projectManager.openProject (projectA), "Expected project A to open");
+    auto conversation = agent.getConversation();
+    expect (conversation.size() == 1, "Expected project A conversation to load one message");
+    expect (conversation[0].content == "Project A chat",
+            "Expected opening project A to load its chat history");
+
+    expect (projectManager.openProject (projectB), "Expected project B to open");
+    conversation = agent.getConversation();
+    expect (conversation.size() == 1, "Expected project B conversation to load one message");
+    expect (conversation[0].content == "Project B chat",
+            "Expected switching projects to load the destination project chat history");
+
+    std::cout << "runProjectScopedChatHistoryRegression: PASS" << std::endl;
+}
+
+void runProjectScopedChatHistorySaveAsRegression()
+{
+    te::Engine engine ("WaiveUiProjectScopedChatHistorySaveAs");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+    waive::ToolRegistry toolRegistry;
+    waive::JobQueue jobQueue;
+    waive::AiSettings aiSettings;
+    ProjectManager projectManager (session);
+    waive::AiAgent agent (aiSettings, undoableHandler, toolRegistry, jobQueue);
+    waive::ProjectChatHistoryController chatHistoryController (agent, projectManager);
+
+    auto makeConversation = [] (const juce::String& text)
+    {
+        std::vector<waive::ChatMessage> messages;
+        waive::ChatMessage message;
+        message.role = waive::ChatMessage::Role::assistant;
+        message.content = text;
+        messages.push_back (std::move (message));
+        return messages;
+    };
+
+    const auto unsavedHistoryFile = waive::ProjectChatHistoryController::getUnsavedHistoryFile();
+    (void) unsavedHistoryFile.deleteFile();
+    expect (waive::ChatHistorySerializer::saveChatHistory (makeConversation ("Unsaved project chat"),
+                                                           unsavedHistoryFile),
+            "Expected unsaved chat history save to succeed");
+
+    chatHistoryController.loadCurrentConversation();
+    auto conversation = agent.getConversation();
+    expect (conversation.size() == 1, "Expected unsaved conversation to load one message");
+    expect (conversation[0].content == "Unsaved project chat",
+            "Expected controller to load the unsaved-project chat history");
+
+    auto saveAsDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                         .getNonexistentChildFile ("waive_chat_save_as_", "", true);
+    expect (saveAsDir.createDirectory(), "Expected save-as directory creation");
+    auto saveAsProjectFile = saveAsDir.getChildFile ("chat_save_as.tracktionedit");
+    const auto saveAsHistoryFile = waive::ProjectChatHistoryController::getHistoryFileForProject (saveAsProjectFile);
+    (void) saveAsHistoryFile.deleteFile();
+
+    expect (projectManager.saveAs (saveAsProjectFile), "Expected Save As to succeed for chat history migration");
+
+    conversation = agent.getConversation();
+    expect (conversation.size() == 1, "Expected Save As to preserve the live conversation");
+    expect (conversation[0].content == "Unsaved project chat",
+            "Expected Save As to keep the unsaved-project conversation in memory");
+
+    auto savedConversation = waive::ChatHistorySerializer::loadChatHistory (saveAsHistoryFile);
+    expect (savedConversation.size() == 1, "Expected Save As to persist one chat message for the new project");
+    expect (savedConversation[0].content == "Unsaved project chat",
+            "Expected Save As to persist the conversation into the new project history file");
+
+    (void) unsavedHistoryFile.deleteFile();
+    (void) saveAsProjectFile.deleteFile();
+    (void) saveAsHistoryFile.deleteFile();
+    (void) saveAsHistoryFile.getParentDirectory().deleteRecursively();
+    (void) saveAsDir.deleteRecursively();
+
+    std::cout << "runProjectScopedChatHistorySaveAsRegression: PASS" << std::endl;
+}
+
 void runUiPhase5BuiltInToolsRegression()
 {
     if (const auto* disabled = std::getenv ("WAIVE_DISABLE_ASYNC_DIALOGS"))
@@ -3659,7 +3776,7 @@ void runChatApprovalBarLifecycleRegression()
 {
     te::Engine engine ("WaiveUiChatApprovalLifecycle");
     EditSession session (engine);
-    CommandHandler commandHandler (session);
+    CommandHandler commandHandler (session.getEdit());
     UndoableCommandHandler undoableHandler (commandHandler, session);
     waive::ToolRegistry toolRegistry;
     waive::JobQueue jobQueue;
@@ -3669,8 +3786,8 @@ void runChatApprovalBarLifecycleRegression()
     chatPanel.setSize (640, 480);
     chatPanel.resized();
 
-    std::vector<ChatMessage::ToolCall> pendingCalls;
-    ChatMessage::ToolCall toolCall;
+    std::vector<waive::ChatMessage::ToolCall> pendingCalls;
+    waive::ChatMessage::ToolCall toolCall;
     toolCall.id = "call_1";
     toolCall.name = "cmd_play";
     pendingCalls.push_back (toolCall);
@@ -3753,6 +3870,8 @@ int main()
     RUN_TEST_SAFELY(runUndoRedoDirtyStateNotificationRegression);
     RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
     RUN_TEST_SAFELY(runChatApprovalBarLifecycleRegression);
+    RUN_TEST_SAFELY(runProjectScopedChatHistoryRegression);
+    RUN_TEST_SAFELY(runProjectScopedChatHistorySaveAsRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);
     RUN_TEST_SAFELY(runUiPhase3TransportAndWorkflowTests);

@@ -60,7 +60,7 @@ static juce::var withTrackOrMasterTargeting (juce::var schema)
     masterRule->setProperty ("properties", juce::var (masterProperties));
     anyOfRule->add (juce::var (masterRule));
 
-    schemaObj->setProperty ("anyOf", juce::var (anyOfRule));
+    schemaObj->setProperty ("anyOf", juce::var (*anyOfRule));
     return schema;
 }
 
@@ -83,7 +83,7 @@ static juce::var withAnyOfRequired (juce::var schema,
         anyOfRule->add (juce::var (rule));
     }
 
-    schemaObj->setProperty ("anyOf", juce::var (anyOfRule));
+    schemaObj->setProperty ("anyOf", juce::var (*anyOfRule));
     return schema;
 }
 

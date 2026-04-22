@@ -130,6 +130,8 @@ target_sources(WaiveUiTests PRIVATE
     ../gui/src/ai/AiToolSchema.cpp
     ../gui/src/ai/ChatHistorySerializer.h
     ../gui/src/ai/ChatHistorySerializer.cpp
+    ../gui/src/ai/ProjectChatHistoryController.h
+    ../gui/src/ai/ProjectChatHistoryController.cpp
     ../gui/src/edit/EditSession.h
     ../gui/src/edit/EditSession.cpp
     ../gui/src/edit/UndoableCommandHandler.h
@@ -324,6 +326,8 @@ target_sources(WaiveToolTests PRIVATE
     ../gui/src/ai/AiToolSchema.cpp
     ../gui/src/ai/ChatHistorySerializer.h
     ../gui/src/ai/ChatHistorySerializer.cpp
+    ../gui/src/ai/ProjectChatHistoryController.h
+    ../gui/src/ai/ProjectChatHistoryController.cpp
     ../gui/src/ui/LibraryComponent.h
     ../gui/src/ui/LibraryComponent.cpp
     ../gui/src/ui/PluginBrowserComponent.h

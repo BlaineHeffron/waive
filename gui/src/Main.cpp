@@ -13,6 +13,7 @@
 #include "WaiveLookAndFeel.h"
 #include "AiSettings.h"
 #include "AiAgent.h"
+#include "ProjectChatHistoryController.h"
 #include "Tool.h"
 #include "ScreenshotCapture.h"
 
@@ -47,8 +48,6 @@ juce::Array<juce::File> makeAllowedMediaDirectories (ProjectManager* projectMana
 
     return directories;
 }
-
-class MainComponent;
 
 MainComponent* getMainComponentFromWindow (juce::DocumentWindow* window)
 {
@@ -233,9 +232,12 @@ public:
                                   engine->getPluginManager().initialise();
                           });
 
-        // Restore chat history for the initial (unsaved) project
-        if (aiAgent)
-            aiAgent->loadConversation (getChatHistoryFile());
+        if (aiAgent && projectManager)
+        {
+            projectChatHistory = std::make_unique<waive::ProjectChatHistoryController> (*aiAgent,
+                                                                                        *projectManager);
+            projectChatHistory->loadCurrentConversation();
+        }
 
         // Screenshot mode: defer capture then exit
         if (screenshotMode)
@@ -279,13 +281,14 @@ public:
         if (aiSettings && appProperties)
             aiSettings->saveToProperties (*appProperties);
 
-        if (aiAgent)
-            aiAgent->saveConversation (getChatHistoryFile());
+        if (projectChatHistory)
+            projectChatHistory->saveCurrentConversation();
 
         if (projectManager)
             projectManager->removeListener (this);
         if (editSession)
             editSession->removeListener (this);
+        projectChatHistory.reset();
         mainWindow.reset();
         aiAgent.reset();
         externalToolRunner.reset();
@@ -323,12 +326,6 @@ public:
         undoableHandler->setCommandHandler (*commandHandler);
 
         updateWindowTitle();
-
-        if (aiAgent)
-        {
-            aiAgent->clearConversation();
-            aiAgent->loadConversation (getChatHistoryFile());
-        }
     }
 
     void editStateChanged() override
@@ -344,7 +341,9 @@ public:
         updateWindowTitle();
     }
 
-    void projectFileChanged (const juce::File& projectFile) override
+    void projectFileChanged (const juce::File&,
+                             const juce::File& projectFile,
+                             ProjectManager::FileChangeKind) override
     {
         if (commandHandler != nullptr)
         {
@@ -375,21 +374,6 @@ private:
 
         // Set a reasonable tempo
         edit.tempoSequence.getTempo (0)->setBpm (120.0);
-    }
-
-    juce::File getChatHistoryFile() const
-    {
-        if (projectManager && projectManager->getCurrentFile().existsAsFile())
-        {
-            auto projectDir = projectManager->getCurrentFile().getParentDirectory();
-            auto chatDir = projectDir.getChildFile (".waive_chat");
-            return chatDir.getChildFile (projectManager->getProjectName() + ".chat.json");
-        }
-
-        // Unsaved project — use app data directory
-        return juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                   .getChildFile ("Waive")
-                   .getChildFile ("chat_history.json");
     }
 
     juce::String getWindowTitle() const
@@ -424,6 +408,7 @@ private:
     std::unique_ptr<waive::ToolRegistry> toolRegistry;
     std::unique_ptr<waive::ExternalToolRunner> externalToolRunner;
     std::unique_ptr<waive::AiAgent> aiAgent;
+    std::unique_ptr<waive::ProjectChatHistoryController> projectChatHistory;
 
     std::unique_ptr<waive::WaiveLookAndFeel> lookAndFeel;
     std::unique_ptr<MainWindow> mainWindow;

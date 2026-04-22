@@ -10,12 +10,26 @@ class AutoSaveManager;
 class ProjectManager
 {
 public:
+    enum class FileChangeKind
+    {
+        newProject,
+        openProject,
+        recoverProject,
+        save,
+        saveAs
+    };
+
     /** Listener interface for project state changes. */
     struct Listener
     {
         virtual ~Listener() = default;
         virtual void projectDirtyChanged() = 0;
-        virtual void projectFileChanged (const juce::File&) {}
+        virtual void projectFileChanged (const juce::File& previousProjectFile,
+                                         const juce::File& currentProjectFile,
+                                         FileChangeKind changeKind)
+        {
+            juce::ignoreUnused (previousProjectFile, currentProjectFile, changeKind);
+        }
     };
 
     explicit ProjectManager (EditSession& session);

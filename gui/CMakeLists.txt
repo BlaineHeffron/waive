@@ -119,6 +119,8 @@ target_sources(Waive PRIVATE
     src/ai/AiAgent.cpp
     src/ai/ChatHistorySerializer.h
     src/ai/ChatHistorySerializer.cpp
+    src/ai/ProjectChatHistoryController.h
+    src/ai/ProjectChatHistoryController.cpp
     src/ai/ChatPanelComponent.h
     src/ai/ChatPanelComponent.cpp
 
