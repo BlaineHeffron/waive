@@ -2,6 +2,9 @@
 #include <tracktion_engine/tracktion_engine.h>
 
 #include "MainComponent.h"
+#include "ChatPanelComponent.h"
+#include "AiAgent.h"
+#include "AiSettings.h"
 #include "SessionComponent.h"
 #include "TimelineComponent.h"
 #include "TimeRulerComponent.h"
@@ -17,6 +20,7 @@
 #include "UndoableCommandHandler.h"
 #include "JobQueue.h"
 #include "CommandHandler.h"
+#include "ToolRegistry.h"
 #include "ClipTrackIndexMap.h"
 #include "AudioAnalysis.h"
 #include "AudioAnalysisCache.h"
@@ -91,6 +95,16 @@ bool containsFile (const juce::Array<juce::File>& files, const juce::File& targe
             return true;
 
     return false;
+}
+
+juce::TextButton* findButtonWithText (juce::Component& parent, const juce::String& text)
+{
+    for (int i = 0; i < parent.getNumChildComponents(); ++i)
+        if (auto* button = dynamic_cast<juce::TextButton*> (parent.getChildComponent (i)))
+            if (button->getButtonText() == text)
+                return button;
+
+    return nullptr;
 }
 
 te::Clip* findClipAtStart (te::AudioTrack& track, double startSeconds)
@@ -3498,6 +3512,52 @@ void runPluginIndexCommandConsistencyRegression()
     std::cout << "runPluginIndexCommandConsistencyRegression: PASS" << std::endl;
 }
 
+void runChatApprovalBarLifecycleRegression()
+{
+    te::Engine engine ("WaiveUiChatApprovalLifecycle");
+    EditSession session (engine);
+    CommandHandler commandHandler (session);
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+    waive::ToolRegistry toolRegistry;
+    waive::JobQueue jobQueue;
+    waive::AiSettings aiSettings;
+    waive::AiAgent agent (aiSettings, undoableHandler, toolRegistry, jobQueue);
+    waive::ChatPanelComponent chatPanel (agent, aiSettings);
+    chatPanel.setSize (640, 480);
+    chatPanel.resized();
+
+    std::vector<ChatMessage::ToolCall> pendingCalls;
+    ChatMessage::ToolCall toolCall;
+    toolCall.id = "call_1";
+    toolCall.name = "cmd_play";
+    pendingCalls.push_back (toolCall);
+
+    auto* approveButton = findButtonWithText (chatPanel, "Approve");
+    auto* rejectButton = findButtonWithText (chatPanel, "Reject");
+    expect (approveButton != nullptr, "Expected chat panel to expose approval button");
+    expect (rejectButton != nullptr, "Expected chat panel to expose rejection button");
+    expect (! approveButton->isVisible() && ! rejectButton->isVisible(),
+            "Expected approval controls to start hidden");
+
+    chatPanel.toolCallsPendingApproval (pendingCalls);
+    expect (approveButton->isVisible() && rejectButton->isVisible(),
+            "Expected pending AI tool calls to show approval controls");
+
+    chatPanel.processingStateChanged (false);
+    expect (! approveButton->isVisible() && ! rejectButton->isVisible(),
+            "Expected processing completion to hide stale approval controls");
+
+    chatPanel.toolCallsPendingApproval (pendingCalls);
+    expect (approveButton->isVisible() && rejectButton->isVisible(),
+            "Expected approval controls to reappear for a new pending request");
+
+    chatPanel.conversationUpdated();
+    expect (! approveButton->isVisible() && ! rejectButton->isVisible(),
+            "Expected clearing the conversation to hide stale approval controls");
+
+    std::cout << "runChatApprovalBarLifecycleRegression: PASS" << std::endl;
+}
+
 } // namespace
 
 int main()
@@ -3549,6 +3609,7 @@ int main()
     RUN_TEST_SAFELY(runSaveAsFailurePreservesCurrentProjectStateRegression);
     RUN_TEST_SAFELY(runUndoRedoDirtyStateNotificationRegression);
     RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
+    RUN_TEST_SAFELY(runChatApprovalBarLifecycleRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);
     RUN_TEST_SAFELY(runUiPhase3TransportAndWorkflowTests);

@@ -381,6 +381,12 @@ void ChatPanelComponent::updateModelCombo()
 void ChatPanelComponent::conversationUpdated()
 {
     refreshMessageDisplay();
+
+    if (showApprovalBar && agent.getConversation().empty())
+    {
+        showApprovalBar = false;
+        resized();
+    }
 }
 
 void ChatPanelComponent::toolCallsPendingApproval (const std::vector<ChatMessage::ToolCall>& calls)
@@ -403,6 +409,12 @@ void ChatPanelComponent::processingStateChanged (bool isProcessing)
     statusLabel.setText (isProcessing ? "Thinking..." : "Ready", juce::dontSendNotification);
     sendButton.setEnabled (! isProcessing);
     inputField.setEnabled (! isProcessing);
+
+    if (! isProcessing && showApprovalBar)
+    {
+        showApprovalBar = false;
+        resized();
+    }
 }
 
 void ChatPanelComponent::aiErrorOccurred (const juce::String& error)
