@@ -301,6 +301,28 @@ bool CommandHandler::requireDoubleProperty (const juce::var& params,
     return true;
 }
 
+bool CommandHandler::requireBoolProperty (const juce::var& params,
+                                          const char* propertyName,
+                                          bool& valueOut,
+                                          juce::var& errorResult)
+{
+    if (! params.hasProperty (propertyName))
+    {
+        errorResult = makeError ("Missing required parameter: " + juce::String (propertyName));
+        return false;
+    }
+
+    const auto& value = params[propertyName];
+    if (! value.isBool())
+    {
+        errorResult = makeError ("Parameter must be boolean: " + juce::String (propertyName));
+        return false;
+    }
+
+    valueOut = static_cast<bool> (value);
+    return true;
+}
+
 bool CommandHandler::requireStringProperty (const juce::var& params,
                                             const char* propertyName,
                                             juce::String& valueOut,
@@ -1249,11 +1271,12 @@ juce::var CommandHandler::handleRenameTrack (const juce::var& params)
 
 juce::var CommandHandler::handleSoloTrack (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("solo"))
-        return makeError ("Missing required parameters: track_id, solo");
-
-    int trackId = params["track_id"];
-    bool solo = params["solo"];
+    juce::var errorResult;
+    int trackId = 0;
+    bool solo = false;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireBoolProperty (params, "solo", solo, errorResult))
+        return errorResult;
 
     // Find track in all tracks (including folders)
     te::Track* track = nullptr;
@@ -1295,11 +1318,12 @@ juce::var CommandHandler::handleSoloTrack (const juce::var& params)
 
 juce::var CommandHandler::handleMuteTrack (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("mute"))
-        return makeError ("Missing required parameters: track_id, mute");
-
-    int trackId = params["track_id"];
-    bool mute = params["mute"];
+    juce::var errorResult;
+    int trackId = 0;
+    bool mute = false;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireBoolProperty (params, "mute", mute, errorResult))
+        return errorResult;
 
     // Find track in all tracks (including folders)
     te::Track* track = nullptr;
@@ -1458,10 +1482,10 @@ juce::var CommandHandler::handleSetTempo (const juce::var& params)
 
 juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
 {
-    if (! params.hasProperty ("enabled"))
-        return makeError ("Missing required parameter: enabled");
-
-    bool enabled = params["enabled"];
+    juce::var errorResult;
+    bool enabled = false;
+    if (! requireBoolProperty (params, "enabled", enabled, errorResult))
+        return errorResult;
 
     if (enabled && params.hasProperty ("start") && params.hasProperty ("end"))
     {

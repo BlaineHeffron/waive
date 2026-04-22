@@ -1934,6 +1934,8 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     auto* secondTrack = te::getAudioTracks (*edit)[1];
     expect (secondTrack != nullptr, "Expected second audio track for malformed-command test");
     expect (secondTrack->getClips().isEmpty(), "Expected second track to start empty for malformed-command test");
+    track->setSolo (true);
+    track->setMute (true);
 
     auto clip = track->insertMIDIClip (
         "source",
@@ -1953,6 +1955,9 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     const auto originalPanValue = volumePlugin->panParam->getCurrentValue();
 
     edit->getTransport().setPosition (te::TimePosition::fromSeconds (1.25));
+    edit->getTransport().looping = true;
+    edit->getTransport().loopPoint1 = te::TimePosition::fromSeconds (0.5);
+    edit->getTransport().loopPoint2 = te::TimePosition::fromSeconds (1.5);
 
     auto pluginState = te::createValueTree (te::IDs::PLUGIN,
                                             te::IDs::type, te::ReverbPlugin::xmlTypeName,
@@ -2053,6 +2058,39 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected set_parameter without track_id to fail");
     expect (std::abs ((double) firstPluginParam->getCurrentValue() - (double) originalPluginParamValue) < 0.0001,
             "Expected malformed set_parameter request not to mutate the plugin parameter");
+
+    auto soloResponse = runJsonCommand (handler, R"({
+        "action":"solo_track",
+        "track_id":0,
+        "solo":0
+    })");
+    expect (soloResponse["status"].toString() == "error",
+            "Expected solo_track with numeric solo value to fail");
+    expect (track->isSolo (false),
+            "Expected malformed solo_track request not to change solo state");
+
+    auto muteResponse = runJsonCommand (handler, R"({
+        "action":"mute_track",
+        "track_id":0,
+        "mute":0
+    })");
+    expect (muteResponse["status"].toString() == "error",
+            "Expected mute_track with numeric mute value to fail");
+    expect (track->isMuted (false),
+            "Expected malformed mute_track request not to change mute state");
+
+    auto loopResponse = runJsonCommand (handler, R"({
+        "action":"set_loop_region",
+        "enabled":0
+    })");
+    expect (loopResponse["status"].toString() == "error",
+            "Expected set_loop_region with numeric enabled value to fail");
+    expect (edit->getTransport().looping.get(),
+            "Expected malformed set_loop_region request not to change looping state");
+    expect (std::abs (edit->getTransport().getLoopRange().getStart().inSeconds() - 0.5) < 0.0001,
+            "Expected malformed set_loop_region request not to change loop start");
+    expect (std::abs (edit->getTransport().getLoopRange().getEnd().inSeconds() - 1.5) < 0.0001,
+            "Expected malformed set_loop_region request not to change loop end");
 
     auto moveResponse = runJsonCommand (handler, R"({
         "action":"move_clip",

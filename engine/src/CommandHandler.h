@@ -102,6 +102,10 @@ private:
                                 const char* propertyName,
                                 double& valueOut,
                                 juce::var& errorResult);
+    bool requireBoolProperty (const juce::var& params,
+                              const char* propertyName,
+                              bool& valueOut,
+                              juce::var& errorResult);
     bool requireStringProperty (const juce::var& params,
                                 const char* propertyName,
                                 juce::String& valueOut,
