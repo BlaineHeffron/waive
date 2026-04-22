@@ -1325,6 +1325,52 @@ void testPluginPresetCommandsSupportMasterChain (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testPluginPresetCommandsRejectMissingPluginIndex (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("preset_command_validation");
+    auto homeDir = fixtureDir.getChildFile ("home");
+    expect (homeDir.createDirectory().wasOk(), "Expected preset validation fixture home directory");
+    auto backingFile = fixtureDir.getChildFile ("preset_validation_fixture.tracktionedit");
+    {
+        ScopedWorkingDirectory scopedWorkingDirectory (fixtureDir);
+        expect (scopedWorkingDirectory.wasChanged(),
+                "Expected preset validation fixture directory to become current working directory");
+        setenv ("HOME", homeDir.getFullPathName().toRawUTF8(), 1);
+
+        auto edit = te::createEmptyEdit (engine, backingFile);
+        edit->ensureNumberOfAudioTracks (1);
+
+        auto pluginState = te::createValueTree (te::IDs::PLUGIN,
+                                                te::IDs::type, te::ReverbPlugin::xmlTypeName,
+                                                "pluginFormatName", te::PluginManager::builtInPluginFormatName,
+                                                "fileOrIdentifier", te::ReverbPlugin::xmlTypeName,
+                                                "manufacturer", "Waive");
+        auto plugin = edit->getPluginCache().createNewPlugin (pluginState);
+        expect (plugin != nullptr, "Expected preset validation test plugin creation");
+        edit->getMasterPluginList().insertPlugin (plugin, 0, nullptr);
+
+        CommandHandler handler (*edit);
+
+        auto saveResponse = runJsonCommand (handler, R"({
+            "action":"save_plugin_preset",
+            "master":true,
+            "preset_name":"Missing Plugin Index"
+        })");
+        expect (saveResponse["status"].toString() == "error",
+                "Expected save_plugin_preset without plugin_index to fail");
+
+        auto loadResponse = runJsonCommand (handler, R"({
+            "action":"load_plugin_preset",
+            "master":true,
+            "preset_name":"Missing Plugin Index"
+        })");
+        expect (loadResponse["status"].toString() == "error",
+                "Expected load_plugin_preset without plugin_index to fail");
+    }
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testCommandSchemaDocumentsPresetTargetingRequirements()
 {
     auto schemaFile = juce::File::getCurrentWorkingDirectory()
@@ -1947,6 +1993,7 @@ int main()
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testPluginPresetCommandsSupportMasterChain (engine);
+        testPluginPresetCommandsRejectMissingPluginIndex (engine);
         testCommandSchemaDocumentsPresetTargetingRequirements();
         testSetParameterAcceptsStablePluginIdentifier (engine);
         testTrackCommandsReturnPublicIndicesWithFolderTracks (engine);

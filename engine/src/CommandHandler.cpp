@@ -2235,8 +2235,12 @@ juce::var CommandHandler::handleReorderTrack (const juce::var& params)
 
 juce::var CommandHandler::handleSavePluginPreset (const juce::var& params)
 {
-    const auto pluginIndex = static_cast<int> (params["plugin_index"]);
-    const auto presetName = params["preset_name"].toString();
+    juce::var errorResult;
+    int pluginIndex = 0;
+    juce::String presetName;
+    if (! requireIntProperty (params, "plugin_index", pluginIndex, errorResult)
+        || ! requireStringProperty (params, "preset_name", presetName, errorResult))
+        return errorResult;
 
     if (presetName.isEmpty())
         return makeError ("preset_name is required");
@@ -2272,8 +2276,12 @@ juce::var CommandHandler::handleSavePluginPreset (const juce::var& params)
 
 juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
 {
-    const auto pluginIndex = static_cast<int> (params["plugin_index"]);
-    const auto presetName = params["preset_name"].toString();
+    juce::var errorResult;
+    int pluginIndex = 0;
+    juce::String presetName;
+    if (! requireIntProperty (params, "plugin_index", pluginIndex, errorResult)
+        || ! requireStringProperty (params, "preset_name", presetName, errorResult))
+        return errorResult;
 
     if (presetName.isEmpty())
         return makeError ("preset_name is required");
