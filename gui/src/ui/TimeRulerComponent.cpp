@@ -130,63 +130,13 @@ void TimeRulerComponent::paint (juce::Graphics& g)
 
 void TimeRulerComponent::mouseDown (const juce::MouseEvent& e)
 {
-    auto& transport = editSession.getEdit().getTransport();
-
-    // Check if clicking near loop markers
-    if (transport.looping)
-    {
-        auto loopRange = transport.getLoopRange();
-        const int x1 = timeline.timeToX (loopRange.getStart().inSeconds());
-        const int x2 = timeline.timeToX (loopRange.getEnd().inSeconds());
-        constexpr int threshold = 8;
-
-        if (std::abs (e.x - x1) <= threshold)
-        {
-            loopDragMode = DraggingStart;
-            return;
-        }
-        if (std::abs (e.x - x2) <= threshold)
-        {
-            loopDragMode = DraggingEnd;
-            return;
-        }
-    }
-
-    // Normal seek behavior
-    double time = timeline.xToTime (e.x);
-    if (time >= 0.0)
-        transport.setPosition (te::TimePosition::fromSeconds (time));
+    if (! beginLoopMarkerDragAtX (e.x))
+        seekToX (e.x);
 }
 
 void TimeRulerComponent::mouseDrag (const juce::MouseEvent& e)
 {
-    if (loopDragMode == None)
-        return;
-
-    auto& transport = editSession.getEdit().getTransport();
-    auto loopRange = transport.getLoopRange();
-    double newTime = juce::jmax (0.0, timeline.xToTime (e.x));
-
-    if (loopDragMode == DraggingStart)
-    {
-        newTime = timeline.snapTimeToGrid (newTime);
-        newTime = juce::jmin (newTime, loopRange.getEnd().inSeconds() - 0.1);
-        editSession.performEdit ("Adjust Loop Start", true, [newTime, loopRange] (te::Edit& edit)
-        {
-            setLoopRangeWithUndo (edit, te::TimePosition::fromSeconds (newTime), loopRange.getEnd());
-        });
-    }
-    else if (loopDragMode == DraggingEnd)
-    {
-        newTime = timeline.snapTimeToGrid (newTime);
-        newTime = juce::jmax (newTime, loopRange.getStart().inSeconds() + 0.1);
-        editSession.performEdit ("Adjust Loop End", true, [newTime, loopRange] (te::Edit& edit)
-        {
-            setLoopRangeWithUndo (edit, loopRange.getStart(), te::TimePosition::fromSeconds (newTime));
-        });
-    }
-
-    repaint();
+    dragActiveLoopMarkerToX (e.x);
 }
 
 void TimeRulerComponent::mouseUp (const juce::MouseEvent&)
@@ -216,4 +166,100 @@ void TimeRulerComponent::mouseMove (const juce::MouseEvent& e)
     }
 
     setMouseCursor (juce::MouseCursor::NormalCursor);
+}
+
+bool TimeRulerComponent::beginLoopStartDragForTesting()
+{
+    auto& transport = editSession.getEdit().getTransport();
+    if (! transport.looping)
+        return false;
+
+    const auto loopRange = transport.getLoopRange();
+    return beginLoopMarkerDragAtX (timeline.timeToX (loopRange.getStart().inSeconds()));
+}
+
+bool TimeRulerComponent::beginLoopEndDragForTesting()
+{
+    auto& transport = editSession.getEdit().getTransport();
+    if (! transport.looping)
+        return false;
+
+    const auto loopRange = transport.getLoopRange();
+    return beginLoopMarkerDragAtX (timeline.timeToX (loopRange.getEnd().inSeconds()));
+}
+
+void TimeRulerComponent::dragActiveLoopMarkerToTimeForTesting (double seconds)
+{
+    dragActiveLoopMarkerToX (timeline.timeToX (seconds));
+}
+
+void TimeRulerComponent::endLoopMarkerDragForTesting()
+{
+    if (loopDragMode != None)
+        editSession.endCoalescedTransaction();
+
+    loopDragMode = None;
+}
+
+bool TimeRulerComponent::beginLoopMarkerDragAtX (int x)
+{
+    auto& transport = editSession.getEdit().getTransport();
+    if (! transport.looping)
+        return false;
+
+    const auto loopRange = transport.getLoopRange();
+    const int x1 = timeline.timeToX (loopRange.getStart().inSeconds());
+    const int x2 = timeline.timeToX (loopRange.getEnd().inSeconds());
+
+    if (std::abs (x - x1) <= loopMarkerHitThreshold)
+    {
+        loopDragMode = DraggingStart;
+        return true;
+    }
+
+    if (std::abs (x - x2) <= loopMarkerHitThreshold)
+    {
+        loopDragMode = DraggingEnd;
+        return true;
+    }
+
+    return false;
+}
+
+void TimeRulerComponent::dragActiveLoopMarkerToX (int x)
+{
+    if (loopDragMode == None)
+        return;
+
+    auto& transport = editSession.getEdit().getTransport();
+    const auto loopRange = transport.getLoopRange();
+    double newTime = juce::jmax (0.0, timeline.xToTime (x));
+
+    if (loopDragMode == DraggingStart)
+    {
+        newTime = timeline.snapTimeToGrid (newTime);
+        newTime = juce::jmin (newTime, loopRange.getEnd().inSeconds() - 0.1);
+        editSession.performEdit ("Adjust Loop Start", true, [newTime, loopRange] (te::Edit& edit)
+        {
+            setLoopRangeWithUndo (edit, te::TimePosition::fromSeconds (newTime), loopRange.getEnd());
+        });
+    }
+    else if (loopDragMode == DraggingEnd)
+    {
+        newTime = timeline.snapTimeToGrid (newTime);
+        newTime = juce::jmax (newTime, loopRange.getStart().inSeconds() + 0.1);
+        editSession.performEdit ("Adjust Loop End", true, [newTime, loopRange] (te::Edit& edit)
+        {
+            setLoopRangeWithUndo (edit, loopRange.getStart(), te::TimePosition::fromSeconds (newTime));
+        });
+    }
+
+    repaint();
+}
+
+void TimeRulerComponent::seekToX (int x)
+{
+    const double time = timeline.xToTime (x);
+    if (time >= 0.0)
+        editSession.getEdit().getTransport().setPosition (te::TimePosition::fromSeconds (time));
 }

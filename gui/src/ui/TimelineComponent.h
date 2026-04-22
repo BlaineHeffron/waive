@@ -94,6 +94,7 @@ public:
     void clearPreviewSelection();
 
     std::vector<TrackLaneComponent*> getTrackLaneComponentsForTesting() const;
+    TimeRulerComponent& getTimeRulerForTesting() const;
     bool isFolderCollapsed (te::EditItemID trackID) const;
     void toggleFolderCollapsed (te::EditItemID trackID);
 

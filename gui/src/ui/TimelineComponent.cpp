@@ -615,6 +615,12 @@ std::vector<TrackLaneComponent*> TimelineComponent::getTrackLaneComponentsForTes
     return result;
 }
 
+TimeRulerComponent& TimelineComponent::getTimeRulerForTesting() const
+{
+    jassert (ruler != nullptr);
+    return *ruler;
+}
+
 bool TimelineComponent::isFolderCollapsed (te::EditItemID trackID) const
 {
     return collapsedFolderTrackIDs.count (trackID) > 0;

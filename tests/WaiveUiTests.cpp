@@ -4,6 +4,7 @@
 #include "MainComponent.h"
 #include "SessionComponent.h"
 #include "TimelineComponent.h"
+#include "TimeRulerComponent.h"
 #include "TrackLaneComponent.h"
 #include "ToolSidebarComponent.h"
 #include "LibraryComponent.h"
@@ -194,6 +195,38 @@ juce::File createLifecycleFixtureProject (te::Engine& engine)
         (void) backingFile.deleteFile();
 
     return projectFile;
+}
+
+juce::File createNewerAutoSaveForProject (te::Engine& engine,
+                                          const juce::File& projectFile,
+                                          const juce::String& clipName,
+                                          int noteNumber)
+{
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
+    (void) autoSaveFile.deleteFile();
+
+    auto recoveryEdit = te::loadEditFromFile (engine, projectFile);
+    auto* recoveryTrack = getFirstTrack (*recoveryEdit);
+    expect (recoveryTrack != nullptr, "Expected autosave fixture track");
+
+    auto recoveryClip = recoveryTrack->insertMIDIClip (
+        clipName,
+        te::TimeRange (te::TimePosition::fromSeconds (2.0),
+                       te::TimePosition::fromSeconds (3.0)),
+        nullptr);
+    expect (recoveryClip != nullptr, "Expected autosave fixture clip insertion");
+    recoveryClip->getSequence().addNote (noteNumber, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &recoveryEdit->getUndoManager());
+    recoveryEdit->markAsChanged();
+
+    expect (te::EditFileOperations (*recoveryEdit).saveAs (autoSaveFile),
+            "Expected autosave fixture save to succeed");
+    expect (autoSaveFile.setLastModificationTime (juce::Time::getCurrentTime()
+                                                  + juce::RelativeTime::seconds (5.0)),
+            "Expected autosave fixture timestamp override to succeed");
+
+    return autoSaveFile;
 }
 
 juce::File createPhase4FixtureAudioFile()
@@ -713,8 +746,8 @@ void runAutoSaveDiscardOnOpenRegression()
     auto replacementProjectFile = createLifecycleFixtureProject (engine);
     expect (projectManager.openProject (originalProjectFile), "Expected discard-on-open source project to open");
 
-    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (originalProjectFile);
-    (void) autoSaveFile.deleteFile();
+    auto originalAutoSaveFile = AutoSaveManager::getAutoSaveFileForProject (originalProjectFile);
+    (void) originalAutoSaveFile.deleteFile();
 
     expect (session.performEdit ("Autosave Discard Open Add Clip", [&] (te::Edit& edit)
     {
@@ -738,12 +771,88 @@ void runAutoSaveDiscardOnOpenRegression()
         autoSaveManager.triggerAutoSaveForTesting();
     }
 
-    expect (autoSaveFile.existsAsFile(), "Expected autosave file before discard-on-open");
+    expect (originalAutoSaveFile.existsAsFile(), "Expected autosave file before discard-on-open");
+
+    auto replacementAutoSaveFile = createNewerAutoSaveForProject (engine, replacementProjectFile,
+                                                                  "autosave_replacement_clip", 79);
+
     expect (projectManager.openProject (replacementProjectFile),
-            "Expected dirty openProject to discard unsaved changes in headless mode");
-    expect (! autoSaveFile.existsAsFile(), "Expected openProject discard path to clear previous autosave file");
+            "Expected dirty openProject to discard unsaved changes while recovering newer destination autosave");
+    expect (! originalAutoSaveFile.existsAsFile(),
+            "Expected openProject recovery path to clear previous autosave file");
     expect (projectManager.getCurrentFile() == replacementProjectFile,
             "Expected openProject to switch to replacement project after discard");
+    expect (projectManager.isDirty(),
+            "Expected recovered destination project to remain dirty until explicitly saved");
+
+    auto* replacementTrack = getFirstTrack (session.getEdit());
+    expect (replacementTrack != nullptr, "Expected replacement project track after recovery");
+    expect (getClipCount (*replacementTrack) == 2,
+            "Expected replacement project to include newer autosaved clip");
+    expect (replacementAutoSaveFile.existsAsFile(),
+            "Expected destination autosave to remain available after recovery load");
+
+    (void) originalProjectFile.deleteFile();
+    (void) replacementProjectFile.deleteFile();
+}
+
+void runAutoSaveDiscardOnRecoverRegression()
+{
+    te::Engine engine ("WaiveUiAutoSaveDiscardOnRecoverTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto originalProjectFile = createLifecycleFixtureProject (engine);
+    auto replacementProjectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (originalProjectFile), "Expected discard-on-recover source project to open");
+
+    auto originalAutoSaveFile = AutoSaveManager::getAutoSaveFileForProject (originalProjectFile);
+    (void) originalAutoSaveFile.deleteFile();
+
+    expect (session.performEdit ("Autosave Discard Recover Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "autosave_discard_recover_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (80, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected discard-on-recover mutation to succeed");
+
+    {
+        AutoSaveManager autoSaveManager (session, projectManager, 1);
+        autoSaveManager.triggerAutoSaveForTesting();
+    }
+
+    expect (originalAutoSaveFile.existsAsFile(), "Expected source autosave file before recover");
+
+    auto replacementAutoSaveFile = createNewerAutoSaveForProject (engine, replacementProjectFile,
+                                                                  "autosave_recover_target_clip", 81);
+
+    expect (projectManager.recoverProjectFromAutoSave (replacementAutoSaveFile, replacementProjectFile),
+            "Expected explicit recoverProjectFromAutoSave to succeed after discarding source project");
+    expect (! originalAutoSaveFile.existsAsFile(),
+            "Expected recoverProjectFromAutoSave to clear previous autosave file");
+    expect (projectManager.getCurrentFile() == replacementProjectFile,
+            "Expected explicit recoverProjectFromAutoSave to switch current project");
+    expect (projectManager.isDirty(),
+            "Expected explicit recovery to keep destination project dirty until saved");
+
+    auto* replacementTrack = getFirstTrack (session.getEdit());
+    expect (replacementTrack != nullptr, "Expected recovered project track");
+    expect (getClipCount (*replacementTrack) == 2,
+            "Expected explicit recovery to include newer autosaved clip");
+    expect (replacementAutoSaveFile.existsAsFile(),
+            "Expected replacement autosave file to remain after explicit recovery");
 
     (void) originalProjectFile.deleteFile();
     (void) replacementProjectFile.deleteFile();
@@ -1429,6 +1538,56 @@ void runUiPhase3TimeAutomationLoopPunchRegression()
             "Expected redo command to execute for click toggle");
     expect (edit.clickTrackEnabled.get() == ! initialClickEnabled,
             "Expected redo to restore click toggle state");
+
+    auto& timeRuler = timeline.getTimeRulerForTesting();
+
+    sessionComponent.setLoopEnabledForTesting (true);
+    sessionComponent.setLoopRangeForTesting (0.5, 1.5);
+    loopRange = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 0.5) < 0.01,
+            "Expected setup loop start before TimeRuler drag");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 1.5) < 0.01,
+            "Expected setup loop end before TimeRuler drag");
+
+    expect (timeRuler.beginLoopStartDragForTesting(),
+            "Expected TimeRuler start-marker drag to begin");
+    timeRuler.dragActiveLoopMarkerToTimeForTesting (0.74);
+    timeRuler.dragActiveLoopMarkerToTimeForTesting (1.02);
+    timeRuler.endLoopMarkerDragForTesting();
+
+    loopRange = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 1.0) < 0.06,
+            "Expected TimeRuler start-marker drag to snap loop start to 1.0s");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 1.5) < 0.01,
+            "Expected TimeRuler start-marker drag to preserve loop end");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected one undo command to revert coalesced TimeRuler start drag");
+    loopRange = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 0.5) < 0.01,
+            "Expected single undo to restore pre-drag loop start");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 1.5) < 0.01,
+            "Expected single undo to restore pre-drag loop end");
+
+    expect (timeRuler.beginLoopEndDragForTesting(),
+            "Expected TimeRuler end-marker drag to begin");
+    timeRuler.dragActiveLoopMarkerToTimeForTesting (1.76);
+    timeRuler.dragActiveLoopMarkerToTimeForTesting (1.98);
+    timeRuler.endLoopMarkerDragForTesting();
+
+    loopRange = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 0.5) < 0.01,
+            "Expected TimeRuler end-marker drag to preserve loop start");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 2.0) < 0.06,
+            "Expected TimeRuler end-marker drag to snap loop end to 2.0s");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected one undo command to revert coalesced TimeRuler end drag");
+    loopRange = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 0.5) < 0.01,
+            "Expected undo after TimeRuler end drag to preserve original loop start");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 1.5) < 0.01,
+            "Expected undo after TimeRuler end drag to restore original loop end");
 }
 
 void runUiPhase4ToolFrameworkRegression()
@@ -3165,6 +3324,7 @@ int main()
     RUN_TEST_SAFELY(runMainComponentCleanShutdownRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnNewRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnOpenRegression);
+    RUN_TEST_SAFELY(runAutoSaveDiscardOnRecoverRegression);
     RUN_TEST_SAFELY(runAutoSaveSaveAsCleanupRegression);
     RUN_TEST_SAFELY(runUndoRedoDirtyStateNotificationRegression);
     RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
