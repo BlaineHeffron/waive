@@ -510,8 +510,14 @@ juce::var CommandHandler::handleAddTrack()
 
 juce::var CommandHandler::handleSetTrackVolume (const juce::var& params)
 {
-    int trackId = params["track_id"];
-    float valueDb = static_cast<float> (params["value_db"]);
+    juce::var errorResult;
+    int trackId = 0;
+    double valueDbDouble = 0.0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireDoubleProperty (params, "value_db", valueDbDouble, errorResult))
+        return errorResult;
+
+    auto valueDb = static_cast<float> (valueDbDouble);
 
     auto* track = getTrackById (trackId);
     if (track == nullptr)
@@ -536,8 +542,14 @@ juce::var CommandHandler::handleSetTrackVolume (const juce::var& params)
 
 juce::var CommandHandler::handleSetTrackPan (const juce::var& params)
 {
-    int trackId = params["track_id"];
-    float panValue = static_cast<float> (params["value"]);
+    juce::var errorResult;
+    int trackId = 0;
+    double panValueDouble = 0.0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireDoubleProperty (params, "value", panValueDouble, errorResult))
+        return errorResult;
+
+    auto panValue = static_cast<float> (panValueDouble);
 
     auto* track = getTrackById (trackId);
     if (track == nullptr)
@@ -783,7 +795,11 @@ juce::var CommandHandler::handleTransportStop()
 
 juce::var CommandHandler::handleTransportSeek (const juce::var& params)
 {
-    double position = params["position"];
+    juce::var errorResult;
+    double position = 0.0;
+    if (! requireDoubleProperty (params, "position", position, errorResult))
+        return errorResult;
+
     edit.getTransport().setPosition (te::TimePosition::fromSeconds (position));
 
     auto result = makeOk();

@@ -1922,7 +1922,45 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
         nullptr);
     expect (clip != nullptr, "Expected MIDI clip fixture for malformed-command test");
 
+    auto volumePlugins = track->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+    expect (! volumePlugins.isEmpty(), "Expected VolumeAndPanPlugin for malformed-command test");
+    auto* volumePlugin = volumePlugins.getFirst();
+    expect (volumePlugin != nullptr, "Expected non-null VolumeAndPanPlugin for malformed-command test");
+
+    volumePlugin->volParam->setParameter (te::decibelsToVolumeFaderPosition (-6.0f), juce::dontSendNotification);
+    volumePlugin->panParam->setParameter (0.25f, juce::dontSendNotification);
+    const auto originalVolumeValue = volumePlugin->volParam->getCurrentValue();
+    const auto originalPanValue = volumePlugin->panParam->getCurrentValue();
+
+    edit->getTransport().setPosition (te::TimePosition::fromSeconds (1.25));
+
     CommandHandler handler (*edit);
+
+    auto volumeResponse = runJsonCommand (handler, R"({
+        "action":"set_track_volume",
+        "value_db":-18.0
+    })");
+    expect (volumeResponse["status"].toString() == "error",
+            "Expected set_track_volume without track_id to fail");
+    expect (std::abs (volumePlugin->volParam->getCurrentValue() - originalVolumeValue) < 0.0001f,
+            "Expected malformed set_track_volume request not to mutate track volume");
+
+    auto panResponse = runJsonCommand (handler, R"({
+        "action":"set_track_pan",
+        "value":0.9
+    })");
+    expect (panResponse["status"].toString() == "error",
+            "Expected set_track_pan without track_id to fail");
+    expect (std::abs (volumePlugin->panParam->getCurrentValue() - originalPanValue) < 0.0001f,
+            "Expected malformed set_track_pan request not to mutate track pan");
+
+    auto seekResponse = runJsonCommand (handler, R"({
+        "action":"transport_seek"
+    })");
+    expect (seekResponse["status"].toString() == "error",
+            "Expected transport_seek without position to fail");
+    expect (std::abs (edit->getTransport().getPosition().inSeconds() - 1.25) < 0.0001,
+            "Expected malformed transport_seek request not to move the transport");
 
     auto moveResponse = runJsonCommand (handler, R"({
         "action":"move_clip",
