@@ -608,6 +608,68 @@ void runAutoSaveSnapshotRegression()
     (void) projectFile.deleteFile();
 }
 
+void runAutoSaveRecoverCurrentProjectRegression()
+{
+    te::Engine engine ("WaiveUiAutoSaveRecoverCurrentProjectTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto projectFile = createLifecycleFixtureProject (engine);
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
+    (void) autoSaveFile.deleteFile();
+    expect (projectManager.openProject (projectFile), "Expected recover-current-project fixture project to open");
+
+    expect (session.performEdit ("Autosave Recover Current Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "autosave_recover_current_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (74, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected recover-current-project mutation to succeed");
+
+    {
+        AutoSaveManager autoSaveManager (session, projectManager, 1);
+        autoSaveManager.triggerAutoSaveForTesting();
+    }
+
+    expect (autoSaveFile.existsAsFile(), "Expected autosave file before recover-current-project path");
+
+    auto verifyEngine = std::make_unique<te::Engine> ("WaiveUiRecoverCurrentVerify");
+    verifyEngine->getPluginManager().initialise();
+    auto autoSavedEdit = te::loadEditFromFile (*verifyEngine, autoSaveFile);
+    auto* autoSavedTrack = getFirstTrack (*autoSavedEdit);
+    expect (autoSavedTrack != nullptr, "Expected recover-current-project autosave track");
+    expect (getClipCount (*autoSavedTrack) == 2,
+            "Expected recover-current-project autosave to include unsaved clip");
+
+    expect (projectManager.recoverProjectFromAutoSave (autoSaveFile, projectFile),
+            "Expected explicit recoverProjectFromAutoSave to recover the current project's autosave");
+    expect (projectManager.getCurrentFile() == projectFile,
+            "Expected explicit same-project recovery to keep current project path");
+    expect (projectManager.isDirty(),
+            "Expected explicit same-project recovery to remain dirty until saved");
+    expect (autoSaveFile.existsAsFile(),
+            "Expected explicit same-project recovery to preserve autosave until explicit save");
+
+    auto* recoveredTrack = getFirstTrack (session.getEdit());
+    expect (recoveredTrack != nullptr, "Expected recovered track after explicit same-project recovery");
+    expect (getClipCount (*recoveredTrack) == 2,
+            "Expected explicit same-project recovery to load autosaved clip contents");
+
+    (void) projectFile.deleteFile();
+}
+
 void runAutoSaveShutdownCleanupRegression()
 {
     te::Engine engine ("WaiveUiAutoSaveShutdownTests");
@@ -3320,6 +3382,7 @@ int main()
     RUN_TEST_SAFELY(runUiCommandRoutingRegression);
     RUN_TEST_SAFELY(runUiProjectLifecycleRegression);
     RUN_TEST_SAFELY(runAutoSaveSnapshotRegression);
+    RUN_TEST_SAFELY(runAutoSaveRecoverCurrentProjectRegression);
     RUN_TEST_SAFELY(runAutoSaveShutdownCleanupRegression);
     RUN_TEST_SAFELY(runMainComponentCleanShutdownRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnNewRegression);

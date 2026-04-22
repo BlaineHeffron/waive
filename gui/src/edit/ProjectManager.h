@@ -45,7 +45,8 @@ public:
 private:
     void checkDirtyState();
     void discardUnsavedChanges();
-    bool prepareForProjectTransition (bool discardCurrentAutoSaveOnDiscard);
+    bool prepareForProjectTransition (bool discardCurrentAutoSaveOnDiscard,
+                                      const juce::File& preservedAutoSaveFile = juce::File());
     bool openProjectInternal (const juce::File& fileToLoad,
                               const juce::File& resultingProjectFile,
                               bool markChangedAfterLoad,

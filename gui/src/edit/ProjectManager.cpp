@@ -136,7 +136,7 @@ bool ProjectManager::openProject (const juce::File& file)
 
         if (shouldRecover)
         {
-            if (! prepareForProjectTransition (true))
+            if (! prepareForProjectTransition (true, autoSaveFile))
                 return false;
 
             return openProjectInternal (autoSaveFile, file, true, false, false);
@@ -154,14 +154,21 @@ bool ProjectManager::openProject (const juce::File& file)
     return true;
 }
 
-bool ProjectManager::prepareForProjectTransition (bool discardCurrentAutoSaveOnDiscard)
+bool ProjectManager::prepareForProjectTransition (bool discardCurrentAutoSaveOnDiscard,
+                                                  const juce::File& preservedAutoSaveFile)
 {
     const bool hadUnsavedChanges = isDirty();
     if (! confirmSaveIfDirty())
         return false;
 
     if (discardCurrentAutoSaveOnDiscard && hadUnsavedChanges && isDirty())
-        discardUnsavedChanges();
+    {
+        const auto currentAutoSaveFile = currentFile != juce::File()
+                                           ? AutoSaveManager::getAutoSaveFileForProject (currentFile)
+                                           : juce::File();
+        if (currentAutoSaveFile != preservedAutoSaveFile)
+            discardUnsavedChanges();
+    }
 
     return true;
 }
@@ -198,7 +205,7 @@ bool ProjectManager::recoverProjectFromAutoSave (const juce::File& autoSaveFile,
     if (! autoSaveFile.existsAsFile() || ! originalProjectFile.existsAsFile())
         return false;
 
-    if (! prepareForProjectTransition (true))
+    if (! prepareForProjectTransition (true, autoSaveFile))
         return false;
 
     auto recoveryFile = juce::File::createTempFile (".tracktionedit");
