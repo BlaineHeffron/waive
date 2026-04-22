@@ -1,5 +1,6 @@
 #include "ProjectPackager.h"
 #include <tracktion_engine/tracktion_engine.h>
+#include <filesystem>
 
 namespace te = tracktion;
 
@@ -49,8 +50,10 @@ juce::File ProjectPackager::canonicalisePath (const juce::File& file)
     if (file == juce::File())
         return {};
 
-    if (file.exists())
-        return file.getLinkedTarget();
+    std::error_code ec;
+    const auto canonicalPath = std::filesystem::weakly_canonical (std::filesystem::path (file.getFullPathName().toStdString()), ec);
+    if (! ec)
+        return juce::File (juce::String (canonicalPath.string()));
 
     return juce::File (file.getFullPathName());
 }

@@ -827,7 +827,7 @@ void testCollectAndSaveRollsBackWhenOneFileFails (te::Engine& engine)
 
     auto projectFile = projectDir.getChildFile ("partial.tracktionedit");
     auto copiedAudio = writeTestWav (externalDir.getChildFile ("copy_me.wav"));
-    auto missingAudio = externalDir.getChildFile ("missing.wav");
+    auto missingAudio = writeTestWav (externalDir.getChildFile ("missing.wav"), 0.1f);
     auto backingFile = fixtureDir.getChildFile ("partial_backing.tracktionedit");
 
     auto edit = te::createEmptyEdit (engine, backingFile);
@@ -853,10 +853,11 @@ void testCollectAndSaveRollsBackWhenOneFileFails (te::Engine& engine)
         false);
     expect (missingClip != nullptr, "Expected missing-file wave clip insertion");
     edit->markAsChanged();
+    expect (missingAudio.deleteFile(), "Expected missing-file fixture to be removed before collect/save");
 
     auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, projectFile);
     expect (result.filesCopied == 0, "Expected collect/save to roll back copied file count when another file fails");
-    expect (! result.errors.isEmpty(), "Expected collect/save to report the failed copy");
+    expect (! result.errors.isEmpty(), "Expected collect/save to report the missing referenced media");
     expect (! projectDir.getChildFile ("Audio").getChildFile ("copy_me.wav").existsAsFile(),
             "Expected partial collect/save to remove copied media after rollback");
     expect (! projectFile.existsAsFile(), "Expected partial collect/save rollback to avoid persisting the project file");
@@ -1306,7 +1307,7 @@ void testCollectAndSaveRollsBackOnPartialCopyFailure (te::Engine& engine)
 
     auto projectFile = projectDir.getChildFile ("partial_collect.tracktionedit");
     auto goodAudio = writeTestWav (externalDir.getChildFile ("good.wav"), 0.2f);
-    auto missingAudio = externalDir.getChildFile ("missing.wav");
+    auto missingAudio = writeTestWav (externalDir.getChildFile ("missing.wav"), 0.1f);
 
     auto edit = te::createEmptyEdit (engine, projectFile);
     edit->ensureNumberOfAudioTracks (1);
@@ -1328,6 +1329,7 @@ void testCollectAndSaveRollsBackOnPartialCopyFailure (te::Engine& engine)
                   te::TimeDuration() },
                 false) != nullptr,
             "Expected missing source clip insertion");
+    expect (missingAudio.deleteFile(), "Expected missing source fixture to be removed before collect/save");
 
     auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, projectFile);
     expect (! result.errors.isEmpty(), "Expected collect-and-save partial copy failure to report errors");
