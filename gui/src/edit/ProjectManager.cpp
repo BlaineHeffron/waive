@@ -273,21 +273,14 @@ bool ProjectManager::saveAs (const juce::File& file)
     auto fileOps = te::EditFileOperations (editSession.getEdit());
     auto backingFile = fileOps.getEditFile();
     const auto previousFile = currentFile;
+    editSession.flushState();
+    if (! fileOps.saveAs (targetFile, true))
+        return false;
 
-    if (backingFile != juce::File() && backingFile != targetFile)
-    {
-        if (! fileOps.save (false, true, false))
-            return false;
-
-        if (! replaceFileAtomically (backingFile, targetFile))
-            return false;
-    }
-    else
-    {
-        editSession.flushState();
-        if (! fileOps.saveAs (targetFile))
-            return false;
-    }
+    // Tracktion's saveAs can leave the live edit bound to its previous backing file.
+    // Reload the just-saved target so future saves write to the new project path.
+    if (te::EditFileOperations (editSession.getEdit()).getEditFile() != targetFile)
+        editSession.loadFromFile (targetFile);
 
     deleteTransientBackingFileIfNeeded (backingFile, targetFile);
 

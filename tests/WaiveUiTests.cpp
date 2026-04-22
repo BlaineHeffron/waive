@@ -958,7 +958,7 @@ void runAutoSaveSaveAsCleanupRegression()
 
     expect (originalAutoSaveFile.existsAsFile(), "Expected original autosave file before Save As");
 
-    auto saveAsDir = originalProjectFile.getParentDirectory().getChildFile ("save_as_output");
+    auto saveAsDir = originalProjectFile.getParentDirectory().getNonexistentChildFile ("save_as_output_", "", true);
     expect (saveAsDir.createDirectory(), "Expected save-as output directory creation");
     auto saveAsProjectFile = saveAsDir.getChildFile ("renamed_project.tracktionedit");
     auto saveAsAutoSaveFile = AutoSaveManager::getAutoSaveFileForProject (saveAsProjectFile);
@@ -972,6 +972,56 @@ void runAutoSaveSaveAsCleanupRegression()
     expect (! saveAsAutoSaveFile.existsAsFile(),
             "Expected Save As to leave no autosave file for the new project path");
     expect (saveAsProjectFile.existsAsFile(), "Expected Save As target file to exist");
+
+    auto liveBackingFile = te::EditFileOperations (session.getEdit()).getEditFile();
+    expect (liveBackingFile == saveAsProjectFile,
+            "Expected Save As to rebind the live edit backing file to the new target");
+
+    te::Engine verifyEngine ("WaiveUiSaveAsVerify");
+    verifyEngine.getPluginManager().initialise();
+    auto originalSavedEdit = te::loadEditFromFile (verifyEngine, originalProjectFile);
+    auto* originalSavedTrack = getFirstTrack (*originalSavedEdit);
+    expect (originalSavedTrack != nullptr, "Expected original project track after Save As");
+    expect (getClipCount (*originalSavedTrack) == 1,
+            "Expected Save As to preserve the original source project contents");
+
+    auto saveAsSavedEdit = te::loadEditFromFile (verifyEngine, saveAsProjectFile);
+    auto* saveAsSavedTrack = getFirstTrack (*saveAsSavedEdit);
+    expect (saveAsSavedTrack != nullptr, "Expected Save As target project track");
+    expect (getClipCount (*saveAsSavedTrack) == 2,
+            "Expected Save As target file to include the unsaved clip");
+
+    expect (session.performEdit ("Save As Follow-up Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "autosave_save_as_follow_up_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (2.0),
+                           te::TimePosition::fromSeconds (3.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (82, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected post-Save As mutation to succeed");
+    expect (projectManager.save(), "Expected save after Save As to succeed");
+
+    auto originalSavedEditAfterFollowUp = te::loadEditFromFile (verifyEngine, originalProjectFile);
+    auto* originalSavedTrackAfterFollowUp = getFirstTrack (*originalSavedEditAfterFollowUp);
+    expect (originalSavedTrackAfterFollowUp != nullptr,
+            "Expected original project track after post-Save As save");
+    expect (getClipCount (*originalSavedTrackAfterFollowUp) == 1,
+            "Expected later saves after Save As to leave the original project unchanged");
+
+    auto saveAsSavedEditAfterFollowUp = te::loadEditFromFile (verifyEngine, saveAsProjectFile);
+    auto* saveAsSavedTrackAfterFollowUp = getFirstTrack (*saveAsSavedEditAfterFollowUp);
+    expect (saveAsSavedTrackAfterFollowUp != nullptr,
+            "Expected Save As target track after follow-up save");
+    expect (getClipCount (*saveAsSavedTrackAfterFollowUp) == 3,
+            "Expected later saves after Save As to persist into the new target file");
 
     (void) originalProjectFile.deleteFile();
     (void) saveAsProjectFile.deleteFile();
