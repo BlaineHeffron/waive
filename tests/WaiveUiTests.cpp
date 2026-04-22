@@ -626,6 +626,37 @@ void runAutoSaveShutdownCleanupRegression()
     (void) projectFile.deleteFile();
 }
 
+void runMainComponentCleanShutdownRegression()
+{
+    te::Engine engine ("WaiveUiMainComponentShutdownTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto projectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (projectFile), "Expected main-component-shutdown fixture project to open");
+
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
+    (void) autoSaveFile.deleteFile();
+    expect (autoSaveFile.replaceWithText ("autosave"),
+            "Expected autosave fixture file before MainComponent clean shutdown");
+
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+    waive::JobQueue jobQueue;
+
+    {
+        MainComponent mainComponent (undoableHandler, session, jobQueue, projectManager);
+        mainComponent.markCleanShutdown();
+    }
+
+    expect (! autoSaveFile.existsAsFile(),
+            "Expected MainComponent clean shutdown to delete the autosave file");
+
+    (void) projectFile.deleteFile();
+}
+
 void runAutoSaveDiscardOnNewRegression()
 {
     te::Engine engine ("WaiveUiAutoSaveDiscardOnNewTests");
@@ -1326,6 +1357,7 @@ void runUiPhase3TimeAutomationLoopPunchRegression()
 
     edit.getTransport().setPosition (te::TimePosition::fromSeconds (0.5));
     sessionComponent.setLoopInAtPlayheadForTesting();
+    const auto loopRangeAfterLoopIn = edit.getTransport().getLoopRange();
     edit.getTransport().setPosition (te::TimePosition::fromSeconds (1.5));
     sessionComponent.setLoopOutAtPlayheadForTesting();
     sessionComponent.setLoopEnabledForTesting (false);
@@ -1360,7 +1392,9 @@ void runUiPhase3TimeAutomationLoopPunchRegression()
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
             "Expected undo command to execute for loop-out change");
     loopRange = edit.getTransport().getLoopRange();
-    expect (std::abs (loopRange.getEnd().inSeconds() - initialLoopRange.getEnd().inSeconds()) < 0.01,
+    expect (std::abs (loopRange.getStart().inSeconds() - loopRangeAfterLoopIn.getStart().inSeconds()) < 0.01,
+            "Expected undo to restore prior loop start after loop-out change");
+    expect (std::abs (loopRange.getEnd().inSeconds() - loopRangeAfterLoopIn.getEnd().inSeconds()) < 0.01,
             "Expected undo to restore prior loop out point");
 
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
@@ -3128,6 +3162,7 @@ int main()
     RUN_TEST_SAFELY(runUiProjectLifecycleRegression);
     RUN_TEST_SAFELY(runAutoSaveSnapshotRegression);
     RUN_TEST_SAFELY(runAutoSaveShutdownCleanupRegression);
+    RUN_TEST_SAFELY(runMainComponentCleanShutdownRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnNewRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnOpenRegression);
     RUN_TEST_SAFELY(runAutoSaveSaveAsCleanupRegression);

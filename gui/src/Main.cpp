@@ -267,6 +267,7 @@ public:
                     DBG ("Screenshot mode: captured " + juce::String (captured) + " images to "
                          + outputDir.getFullPathName());
 
+                    safeMainComponent->markCleanShutdown();
                     quitCurrentWaiveApplication();
                 });
             });

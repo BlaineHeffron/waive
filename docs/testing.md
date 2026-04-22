@@ -34,6 +34,7 @@ Waive has three native C++ regression test executables integrated with CTest.
       - command-routed `Save` and `New`
       - dirty-state clearing on save
       - reopen persistence and recent-files updates
+      - autosave snapshot/recovery/cleanup regressions, including `MainComponent` clean-shutdown cleanup used by screenshot-mode exit
     - Phase 3 automation/time/transport coverage:
       - tempo and time-signature control updates + marker insertion at playhead
       - bars/beats grid snap behavior via `SessionComponent`/`TimelineComponent` test helpers (including non-`x/4` bar snap like `6/8`)
