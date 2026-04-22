@@ -2276,6 +2276,71 @@ void runProjectScopedChatHistorySaveAsRegression()
     std::cout << "runProjectScopedChatHistorySaveAsRegression: PASS" << std::endl;
 }
 
+void runProjectScopedChatHistoryFirstSaveRegression()
+{
+    te::Engine engine ("WaiveUiProjectScopedChatHistoryFirstSave");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+    waive::ToolRegistry toolRegistry;
+    waive::JobQueue jobQueue;
+    waive::AiSettings aiSettings;
+    ProjectManager projectManager (session);
+    waive::AiAgent agent (aiSettings, undoableHandler, toolRegistry, jobQueue);
+    waive::ProjectChatHistoryController chatHistoryController (agent, projectManager);
+
+    auto makeConversation = [] (const juce::String& text)
+    {
+        std::vector<waive::ChatMessage> messages;
+        waive::ChatMessage message;
+        message.role = waive::ChatMessage::Role::assistant;
+        message.content = text;
+        messages.push_back (std::move (message));
+        return messages;
+    };
+
+    const auto unsavedHistoryFile = chatHistoryController.getCurrentHistoryFile();
+    (void) unsavedHistoryFile.deleteFile();
+    expect (waive::ChatHistorySerializer::saveChatHistory (makeConversation ("Unsaved project chat"),
+                                                           unsavedHistoryFile),
+            "Expected unsaved chat history save to succeed");
+
+    chatHistoryController.loadCurrentConversation();
+    auto conversation = agent.getConversation();
+    expect (conversation.size() == 1, "Expected unsaved conversation to load one message");
+    expect (conversation[0].content == "Unsaved project chat",
+            "Expected controller to load the unsaved-project chat history before first save");
+
+    auto saveDir = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                       .getNonexistentChildFile ("waive_chat_first_save_", "", true);
+    expect (saveDir.createDirectory(), "Expected first-save directory creation");
+    auto projectFile = saveDir.getChildFile ("chat_first_save.tracktionedit");
+    const auto projectHistoryFile = waive::ProjectChatHistoryController::getHistoryFileForProject (projectFile);
+    (void) projectHistoryFile.deleteFile();
+
+    chatHistoryController.handleProjectFileChangeForTesting (juce::File(), projectFile,
+                                                             ProjectManager::FileChangeKind::save);
+
+    expect (chatHistoryController.getCurrentHistoryFile() == projectHistoryFile,
+            "Expected first save to switch the active chat history file to the project-scoped path");
+
+    auto savedConversation = waive::ChatHistorySerializer::loadChatHistory (projectHistoryFile);
+    expect (savedConversation.size() == 1, "Expected first save to persist one chat message");
+    expect (savedConversation[0].content == "Unsaved project chat",
+            "Expected first save to persist the unsaved conversation into the project history file");
+    expect (! unsavedHistoryFile.existsAsFile(),
+            "Expected first save to remove the old unsaved chat history file");
+
+    (void) unsavedHistoryFile.deleteFile();
+    (void) projectHistoryFile.deleteFile();
+    (void) projectHistoryFile.getParentDirectory().deleteRecursively();
+    (void) saveDir.deleteRecursively();
+
+    std::cout << "runProjectScopedChatHistoryFirstSaveRegression: PASS" << std::endl;
+}
+
 void runUnsavedProjectsUseIsolatedChatHistoryRegression()
 {
     te::Engine engine ("WaiveUiUnsavedChatIsolation");
@@ -4021,6 +4086,7 @@ int main()
     RUN_TEST_SAFELY(runChatApprovalBarLifecycleRegression);
     RUN_TEST_SAFELY(runProjectScopedChatHistoryRegression);
     RUN_TEST_SAFELY(runProjectScopedChatHistorySaveAsRegression);
+    RUN_TEST_SAFELY(runProjectScopedChatHistoryFirstSaveRegression);
     RUN_TEST_SAFELY(runUnsavedProjectsUseIsolatedChatHistoryRegression);
     RUN_TEST_SAFELY(runAiSettingsDoNotPersistApiKeysRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);

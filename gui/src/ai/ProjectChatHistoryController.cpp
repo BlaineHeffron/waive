@@ -34,6 +34,13 @@ void ProjectChatHistoryController::saveCurrentConversation() const
     aiAgent.saveConversation (currentHistoryFile);
 }
 
+void ProjectChatHistoryController::handleProjectFileChangeForTesting (const juce::File& previousProjectFile,
+                                                                      const juce::File& currentProjectFile,
+                                                                      ProjectManager::FileChangeKind changeKind)
+{
+    projectFileChanged (previousProjectFile, currentProjectFile, changeKind);
+}
+
 juce::File ProjectChatHistoryController::getCurrentHistoryFile() const
 {
     return currentHistoryFile;
@@ -91,6 +98,13 @@ void ProjectChatHistoryController::projectFileChanged (const juce::File& previou
 
     if (changeKind == ProjectManager::FileChangeKind::save)
     {
+        if (previousHistoryFile != nextHistoryFile)
+        {
+            aiAgent.saveConversation (nextHistoryFile);
+            if (previousProjectFile == juce::File())
+                (void) previousHistoryFile.deleteFile();
+        }
+
         currentHistoryFile = nextHistoryFile;
         return;
     }

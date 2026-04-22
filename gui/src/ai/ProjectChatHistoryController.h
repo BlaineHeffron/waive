@@ -23,6 +23,10 @@ public:
     static juce::File getUnsavedHistoryFile();
     static juce::File getUnsavedHistoryFile (const juce::String& sessionId);
 
+    void handleProjectFileChangeForTesting (const juce::File& previousProjectFile,
+                                            const juce::File& currentProjectFile,
+                                            ProjectManager::FileChangeKind changeKind);
+
 private:
     void loadConversationFromFile (const juce::File& historyFile);
     void projectDirtyChanged() override {}
