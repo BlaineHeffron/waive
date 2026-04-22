@@ -353,8 +353,30 @@ bool CommandHandler::requireStringProperty (const juce::var& params,
         return false;
     }
 
-    valueOut = params[propertyName].toString();
+    const auto& value = params[propertyName];
+    if (! value.isString())
+    {
+        errorResult = makeError ("Parameter must be string: " + juce::String (propertyName));
+        return false;
+    }
+
+    valueOut = value.toString();
     return true;
+}
+
+bool CommandHandler::requireAnyStringProperty (const juce::var& params,
+                                               std::initializer_list<const char*> propertyNames,
+                                               juce::String& valueOut,
+                                               juce::var& errorResult)
+{
+    for (auto* propertyName : propertyNames)
+    {
+        if (params.hasProperty (propertyName))
+            return requireStringProperty (params, propertyName, valueOut, errorResult);
+    }
+
+    errorResult = makeError ("Missing required parameter: " + juce::String (*propertyNames.begin()));
+    return false;
 }
 
 //==============================================================================
@@ -1033,13 +1055,15 @@ juce::var CommandHandler::handleRecordFromMic()
 
 juce::var CommandHandler::handleSplitClip (const juce::var& params)
 {
+    juce::var errorResult;
+    int trackId = 0;
+    int clipIdx = 0;
     double position = 0.0;
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index")
-        || ! tryGetDoubleProperty (params, { "position", "time" }, position))
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult))
+        return errorResult;
+    if (! tryGetDoubleProperty (params, { "position", "time" }, position))
         return makeError ("Missing required parameters: track_id, clip_index, position");
-
-    int trackId = params["track_id"];
-    int clipIdx = params["clip_index"];
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1068,11 +1092,12 @@ juce::var CommandHandler::handleSplitClip (const juce::var& params)
 
 juce::var CommandHandler::handleDeleteClip (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index"))
-        return makeError ("Missing required parameters: track_id, clip_index");
-
-    int trackId = params["track_id"];
-    int clipIdx = params["clip_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int clipIdx = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult))
+        return errorResult;
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1130,11 +1155,12 @@ juce::var CommandHandler::handleMoveClip (const juce::var& params)
 
 juce::var CommandHandler::handleDuplicateClip (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index"))
-        return makeError ("Missing required parameters: track_id, clip_index");
-
-    int trackId = params["track_id"];
-    int clipIdx = params["clip_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int clipIdx = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult))
+        return errorResult;
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1175,16 +1201,17 @@ juce::var CommandHandler::handleDuplicateClip (const juce::var& params)
 
 juce::var CommandHandler::handleTrimClip (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index"))
-        return makeError ("Missing required parameters: track_id, clip_index");
+    juce::var errorResult;
+    int trackId = 0;
+    int clipIdx = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult))
+        return errorResult;
 
     bool hasNewStart = params.hasProperty ("new_start");
     bool hasNewEnd = params.hasProperty ("new_end");
     if (! hasNewStart && ! hasNewEnd)
         return makeError ("At least one of new_start or new_end must be provided");
-
-    int trackId = params["track_id"];
-    int clipIdx = params["clip_index"];
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1192,13 +1219,17 @@ juce::var CommandHandler::handleTrimClip (const juce::var& params)
 
     if (hasNewStart)
     {
-        double newStart = params["new_start"];
+        double newStart = 0.0;
+        if (! requireOptionalDoubleProperty (params, "new_start", newStart, errorResult))
+            return errorResult;
         clip->setStart (te::TimePosition::fromSeconds (newStart), false, true);
     }
 
     if (hasNewEnd)
     {
-        double newEnd = params["new_end"];
+        double newEnd = 0.0;
+        if (! requireOptionalDoubleProperty (params, "new_end", newEnd, errorResult))
+            return errorResult;
         clip->setEnd (te::TimePosition::fromSeconds (newEnd), true);
     }
 
@@ -1216,12 +1247,14 @@ juce::var CommandHandler::handleTrimClip (const juce::var& params)
 
 juce::var CommandHandler::handleSetClipGain (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index") || ! params.hasProperty ("gain_db"))
-        return makeError ("Missing required parameters: track_id, clip_index, gain_db");
-
-    int trackId = params["track_id"];
-    int clipIdx = params["clip_index"];
-    double gainDb = params["gain_db"];
+    juce::var errorResult;
+    int trackId = 0;
+    int clipIdx = 0;
+    double gainDb = 0.0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult)
+        || ! requireDoubleProperty (params, "gain_db", gainDb, errorResult))
+        return errorResult;
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1245,13 +1278,14 @@ juce::var CommandHandler::handleSetClipGain (const juce::var& params)
 
 juce::var CommandHandler::handleRenameClip (const juce::var& params)
 {
+    juce::var errorResult;
+    int trackId = 0;
+    int clipIdx = 0;
     juce::String newName;
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("clip_index")
-        || ! tryGetStringProperty (params, { "name", "new_name" }, newName))
-        return makeError ("Missing required parameters: track_id, clip_index, name");
-
-    int trackId = params["track_id"];
-    int clipIdx = params["clip_index"];
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult)
+        || ! requireAnyStringProperty (params, { "name", "new_name" }, newName, errorResult))
+        return errorResult;
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1271,11 +1305,12 @@ juce::var CommandHandler::handleRenameClip (const juce::var& params)
 
 juce::var CommandHandler::handleRenameTrack (const juce::var& params)
 {
+    juce::var errorResult;
+    int trackId = 0;
     juce::String newName;
-    if (! params.hasProperty ("track_id") || ! tryGetStringProperty (params, { "name", "new_name" }, newName))
-        return makeError ("Missing required parameters: track_id, name");
-
-    int trackId = params["track_id"];
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireAnyStringProperty (params, { "name", "new_name" }, newName, errorResult))
+        return errorResult;
 
     auto* track = getTrackById (trackId);
     if (track == nullptr)

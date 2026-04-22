@@ -1929,6 +1929,9 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     auto edit = te::createEmptyEdit (engine, backingFile);
     edit->ensureNumberOfAudioTracks (2);
 
+    auto audioFixture = writeTestWav (fixtureDir.getChildFile ("malformed_source.wav"));
+    expect (audioFixture.existsAsFile(), "Expected audio fixture for malformed-command test");
+
     auto* track = te::getAudioTracks (*edit).getFirst();
     expect (track != nullptr, "Expected audio track for malformed-command test");
     auto* secondTrack = te::getAudioTracks (*edit)[1];
@@ -1937,12 +1940,15 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     track->setSolo (true);
     track->setMute (true);
 
-    auto clip = track->insertMIDIClip (
+    auto clipRef = track->insertWaveClip (
         "source",
-        te::TimeRange (te::TimePosition::fromSeconds (0.0),
-                       te::TimePosition::fromSeconds (1.0)),
-        nullptr);
-    expect (clip != nullptr, "Expected MIDI clip fixture for malformed-command test");
+        audioFixture,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (0.5) },
+          te::TimeDuration() },
+        false);
+    auto* clip = clipRef.get();
+    expect (clip != nullptr, "Expected audio clip fixture for malformed-command test");
 
     auto volumePlugins = track->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
     expect (! volumePlugins.isEmpty(), "Expected VolumeAndPanPlugin for malformed-command test");
@@ -1983,8 +1989,6 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     const auto originalPluginParamValue = firstPluginParam->getCurrentValue();
     const auto stableIdentifier = waive::PluginPresetManager::getPluginIdentifier (*reverb);
 
-    auto audioFixture = writeTestWav (fixtureDir.getChildFile ("malformed_source.wav"));
-    expect (audioFixture.existsAsFile(), "Expected audio fixture for malformed-command test");
     auto midiFixture = writeTestMidi (fixtureDir.getChildFile ("malformed_source.mid"));
     expect (midiFixture.existsAsFile(), "Expected MIDI fixture for malformed-command test");
     auto exportOutput = fixtureDir.getChildFile ("malformed_mixdown.wav");
@@ -1993,6 +1997,11 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     const auto originalTrackCount = getAudioTrackCount (*edit);
     const auto originalClipCount = track->getClips().size();
     const auto originalPluginCount = track->pluginList.size();
+    const auto originalClipStart = clip->getPosition().getStart().inSeconds();
+    const auto originalClipEnd = clip->getPosition().getEnd().inSeconds();
+    const auto originalClipName = clip->getName();
+    const auto originalTrackName = track->getName();
+    const auto originalGainDb = clip->state.getProperty ("gainDb", 0.0);
 
     CommandHandler handler (*edit);
 
@@ -2029,6 +2038,82 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected insert_midi_clip without track_id to fail");
     expect (track->getClips().size() == originalClipCount,
             "Expected malformed insert_midi_clip request not to insert on track 0");
+
+    auto splitMalformedResponse = runJsonCommand (handler, R"({
+        "action":"split_clip",
+        "track_id":"oops",
+        "clip_index":0,
+        "position":0.25
+    })");
+    expect (splitMalformedResponse["status"].toString() == "error",
+            "Expected split_clip with non-integer track_id to fail");
+    expect (track->getClips().size() == originalClipCount,
+            "Expected malformed split_clip request not to split the clip");
+
+    auto deleteMalformedResponse = runJsonCommand (handler, R"({
+        "action":"delete_clip",
+        "track_id":"oops",
+        "clip_index":0
+    })");
+    expect (deleteMalformedResponse["status"].toString() == "error",
+            "Expected delete_clip with non-integer track_id to fail");
+    expect (track->getClips().size() == originalClipCount,
+            "Expected malformed delete_clip request not to delete the clip");
+
+    auto duplicateMalformedResponse = runJsonCommand (handler, R"({
+        "action":"duplicate_clip",
+        "track_id":"oops",
+        "clip_index":0
+    })");
+    expect (duplicateMalformedResponse["status"].toString() == "error",
+            "Expected duplicate_clip with non-integer track_id to fail");
+    expect (track->getClips().size() == originalClipCount,
+            "Expected malformed duplicate_clip request not to duplicate the clip");
+
+    auto trimMalformedResponse = runJsonCommand (handler, R"({
+        "action":"trim_clip",
+        "track_id":"oops",
+        "clip_index":0,
+        "new_start":0.1
+    })");
+    expect (trimMalformedResponse["status"].toString() == "error",
+            "Expected trim_clip with non-integer track_id to fail");
+    expect (std::abs (clip->getPosition().getStart().inSeconds() - originalClipStart) < 0.0001,
+            "Expected malformed trim_clip request not to change clip start");
+    expect (std::abs (clip->getPosition().getEnd().inSeconds() - originalClipEnd) < 0.0001,
+            "Expected malformed trim_clip request not to change clip end");
+
+    auto gainMalformedResponse = runJsonCommand (handler, R"({
+        "action":"set_clip_gain",
+        "track_id":0,
+        "clip_index":"oops",
+        "gain_db":-12.0
+    })");
+    expect (gainMalformedResponse["status"].toString() == "error",
+            "Expected set_clip_gain with non-integer clip_index to fail");
+    expect (clip->state.getProperty ("gainDb", 0.0) == originalGainDb,
+            "Expected malformed set_clip_gain request not to change clip gain");
+
+    auto renameClipMalformedResponse = runJsonCommand (handler, R"({
+        "action":"rename_clip",
+        "track_id":"oops",
+        "clip_index":0,
+        "name":"renamed_by_bug"
+    })");
+    expect (renameClipMalformedResponse["status"].toString() == "error",
+            "Expected rename_clip with non-integer track_id to fail");
+    expect (clip->getName() == originalClipName,
+            "Expected malformed rename_clip request not to rename the clip");
+
+    auto renameTrackMalformedResponse = runJsonCommand (handler, R"({
+        "action":"rename_track",
+        "track_id":"oops",
+        "name":"renamed_track_by_bug"
+    })");
+    expect (renameTrackMalformedResponse["status"].toString() == "error",
+            "Expected rename_track with non-integer track_id to fail");
+    expect (track->getName() == originalTrackName,
+            "Expected malformed rename_track request not to rename the track");
 
     auto volumeResponse = runJsonCommand (handler, R"({
         "action":"set_track_volume",
