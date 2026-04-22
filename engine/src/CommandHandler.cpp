@@ -379,6 +379,21 @@ bool CommandHandler::requireAnyStringProperty (const juce::var& params,
     return false;
 }
 
+bool CommandHandler::requireAnyBoolProperty (const juce::var& params,
+                                             std::initializer_list<const char*> propertyNames,
+                                             bool& valueOut,
+                                             juce::var& errorResult)
+{
+    for (auto* propertyName : propertyNames)
+    {
+        if (params.hasProperty (propertyName))
+            return requireBoolProperty (params, propertyName, valueOut, errorResult);
+    }
+
+    errorResult = makeError ("Missing required parameter: " + juce::String (*propertyNames.begin()));
+    return false;
+}
+
 //==============================================================================
 juce::String CommandHandler::handleCommand (const juce::String& jsonString)
 {
@@ -925,11 +940,12 @@ juce::var CommandHandler::handleListPlugins()
 
 juce::var CommandHandler::handleArmTrack (const juce::var& params)
 {
+    juce::var errorResult;
+    int trackId = 0;
     bool armed = false;
-    if (! params.hasProperty ("track_id") || ! tryGetBoolProperty (params, { "armed", "enabled" }, armed))
-        return makeError ("Missing required parameters: track_id, armed");
-
-    int trackId = params["track_id"];
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireAnyBoolProperty (params, { "armed", "enabled" }, armed, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -2104,14 +2120,20 @@ juce::var CommandHandler::handleSetClipFade (const juce::var& params)
 
     if (params.hasProperty ("fade_in"))
     {
-        auto fadeInSec = juce::jmax (0.0, (double) params["fade_in"]);
+        double fadeInSec = 0.0;
+        if (! requireOptionalDoubleProperty (params, "fade_in", fadeInSec, errorResult))
+            return errorResult;
+        fadeInSec = juce::jmax (0.0, fadeInSec);
         waveClip->setFadeIn (te::TimeDuration::fromSeconds (fadeInSec));
         changed = true;
     }
 
     if (params.hasProperty ("fade_out"))
     {
-        auto fadeOutSec = juce::jmax (0.0, (double) params["fade_out"]);
+        double fadeOutSec = 0.0;
+        if (! requireOptionalDoubleProperty (params, "fade_out", fadeOutSec, errorResult))
+            return errorResult;
+        fadeOutSec = juce::jmax (0.0, fadeOutSec);
         waveClip->setFadeOut (te::TimeDuration::fromSeconds (fadeOutSec));
         changed = true;
     }

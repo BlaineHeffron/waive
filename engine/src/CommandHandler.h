@@ -118,6 +118,10 @@ private:
                                    std::initializer_list<const char*> propertyNames,
                                    juce::String& valueOut,
                                    juce::var& errorResult);
+    bool requireAnyBoolProperty (const juce::var& params,
+                                 std::initializer_list<const char*> propertyNames,
+                                 bool& valueOut,
+                                 juce::var& errorResult);
     juce::File resolveProjectFile() const;
     te::Track* getTrackById (int trackIndex);
     te::AudioTrack* getAudioTrackById (int trackIndex);

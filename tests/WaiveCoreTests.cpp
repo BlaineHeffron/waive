@@ -2002,6 +2002,8 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     const auto originalClipName = clip->getName();
     const auto originalTrackName = track->getName();
     const auto originalGainDb = clip->state.getProperty ("gainDb", 0.0);
+    const auto originalFadeIn = dynamic_cast<te::WaveAudioClip*> (clip)->getFadeIn().inSeconds();
+    const auto originalFadeOut = dynamic_cast<te::WaveAudioClip*> (clip)->getFadeOut().inSeconds();
     auto rootFolder = edit->insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
     expect (rootFolder != nullptr, "Expected folder track fixture for malformed-command test");
     rootFolder->setName ("Malformed Folder");
@@ -2042,6 +2044,14 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected insert_midi_clip without track_id to fail");
     expect (track->getClips().size() == originalClipCount,
             "Expected malformed insert_midi_clip request not to insert on track 0");
+
+    auto armTrackMalformedResponse = runJsonCommand (handler, R"({
+        "action":"arm_track",
+        "track_id":0,
+        "enabled":"oops"
+    })");
+    expect (armTrackMalformedResponse["status"].toString() == "error",
+            "Expected arm_track with non-boolean enabled alias to fail");
 
     auto splitMalformedResponse = runJsonCommand (handler, R"({
         "action":"split_clip",
@@ -2118,6 +2128,21 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected rename_track with non-integer track_id to fail");
     expect (track->getName() == originalTrackName,
             "Expected malformed rename_track request not to rename the track");
+
+    auto setClipFadeMalformedResponse = runJsonCommand (handler, R"({
+        "action":"set_clip_fade",
+        "track_id":0,
+        "clip_index":0,
+        "fade_in":"oops"
+    })");
+    expect (setClipFadeMalformedResponse["status"].toString() == "error",
+            "Expected set_clip_fade with non-numeric fade value to fail");
+    auto* waveClip = dynamic_cast<te::WaveAudioClip*> (clip);
+    expect (waveClip != nullptr, "Expected wave clip fixture for malformed fade test");
+    expect (std::abs (waveClip->getFadeIn().inSeconds() - originalFadeIn) < 0.0001,
+            "Expected malformed set_clip_fade request not to change fade in");
+    expect (std::abs (waveClip->getFadeOut().inSeconds() - originalFadeOut) < 0.0001,
+            "Expected malformed set_clip_fade request not to change fade out");
 
     auto volumeResponse = runJsonCommand (handler, R"({
         "action":"set_track_volume",
