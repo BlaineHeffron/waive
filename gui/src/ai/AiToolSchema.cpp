@@ -64,6 +64,29 @@ static juce::var withTrackOrMasterTargeting (juce::var schema)
     return schema;
 }
 
+static juce::var withAnyOfRequired (juce::var schema,
+                                    std::initializer_list<std::initializer_list<const char*>> requirementSets)
+{
+    auto* schemaObj = schema.getDynamicObject();
+    if (schemaObj == nullptr)
+        return schema;
+
+    auto* anyOfRule = new juce::Array<juce::var>();
+
+    for (const auto& requirementSet : requirementSets)
+    {
+        auto* rule = new juce::DynamicObject();
+        juce::Array<juce::var> required;
+        for (auto* requirement : requirementSet)
+            required.add (juce::String (requirement));
+        rule->setProperty ("required", required);
+        anyOfRule->add (juce::var (rule));
+    }
+
+    schemaObj->setProperty ("anyOf", juce::var (anyOfRule));
+    return schema;
+}
+
 std::vector<AiToolDefinition> generateToolDefinitions (const ToolRegistry& registry)
 {
     std::vector<AiToolDefinition> defs;
@@ -214,11 +237,13 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
     // arm_track
     defs.push_back ({ "cmd_arm_track",
                       "Arm or disarm a track for recording, optionally assigning an input device.",
-                      makeSchema ("object",
-                                  { { "track_id", prop ("integer", "0-based track index") },
-                                    { "armed", prop ("boolean", "true to arm, false to disarm") },
-                                    { "input_device", prop ("string", "Optional: wave input device name to assign") } },
-                                  { "track_id", "armed" }),
+                      withAnyOfRequired (makeSchema ("object",
+                                                     { { "track_id", prop ("integer", "0-based track index") },
+                                                       { "armed", prop ("boolean", "true to arm, false to disarm") },
+                                                       { "enabled", prop ("boolean", "Alias for armed") },
+                                                       { "input_device", prop ("string", "Optional: wave input device name to assign") } },
+                                                     { "track_id" }),
+                                         { { "track_id", "armed" }, { "track_id", "enabled" } }),
                       "recording" });
 
     // record_from_mic
@@ -230,11 +255,14 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
     // split_clip
     defs.push_back ({ "cmd_split_clip",
                       "Split a clip at a specific time position, creating two clips.",
-                      makeSchema ("object",
-                                  { { "track_id", prop ("integer", "0-based track index") },
-                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
-                                    { "position", prop ("number", "Time position in seconds to split at (must be within clip bounds)") } },
-                                  { "track_id", "clip_index", "position" }),
+                      withAnyOfRequired (makeSchema ("object",
+                                                     { { "track_id", prop ("integer", "0-based track index") },
+                                                       { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                                       { "position", prop ("number", "Time position in seconds to split at (must be within clip bounds)") },
+                                                       { "time", prop ("number", "Alias for position") } },
+                                                     { "track_id", "clip_index" }),
+                                         { { "track_id", "clip_index", "position" },
+                                           { "track_id", "clip_index", "time" } }),
                       "clip" });
 
     // delete_clip
@@ -249,11 +277,14 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
     // move_clip
     defs.push_back ({ "cmd_move_clip",
                       "Move a clip to a new start position in seconds.",
-                      makeSchema ("object",
-                                  { { "track_id", prop ("integer", "0-based track index") },
-                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
-                                    { "new_start", prop ("number", "New start position in seconds") } },
-                                  { "track_id", "clip_index", "new_start" }),
+                      withAnyOfRequired (makeSchema ("object",
+                                                     { { "track_id", prop ("integer", "0-based track index") },
+                                                       { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                                       { "new_start", prop ("number", "New start position in seconds") },
+                                                       { "delta_seconds", prop ("number", "Alias: move the clip relative to its current start by this many seconds") } },
+                                                     { "track_id", "clip_index" }),
+                                         { { "track_id", "clip_index", "new_start" },
+                                           { "track_id", "clip_index", "delta_seconds" } }),
                       "clip" });
 
     // duplicate_clip
@@ -289,20 +320,25 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
     // rename_clip
     defs.push_back ({ "cmd_rename_clip",
                       "Rename a clip.",
-                      makeSchema ("object",
-                                  { { "track_id", prop ("integer", "0-based track index") },
-                                    { "clip_index", prop ("integer", "0-based clip index within the track") },
-                                    { "name", prop ("string", "New name for the clip") } },
-                                  { "track_id", "clip_index", "name" }),
+                      withAnyOfRequired (makeSchema ("object",
+                                                     { { "track_id", prop ("integer", "0-based track index") },
+                                                       { "clip_index", prop ("integer", "0-based clip index within the track") },
+                                                       { "name", prop ("string", "New name for the clip") },
+                                                       { "new_name", prop ("string", "Alias for name") } },
+                                                     { "track_id", "clip_index" }),
+                                         { { "track_id", "clip_index", "name" },
+                                           { "track_id", "clip_index", "new_name" } }),
                       "clip" });
 
     // rename_track
     defs.push_back ({ "cmd_rename_track",
                       "Rename an audio track.",
-                      makeSchema ("object",
-                                  { { "track_id", prop ("integer", "0-based track index") },
-                                    { "name", prop ("string", "New track name") } },
-                                  { "track_id", "name" }),
+                      withAnyOfRequired (makeSchema ("object",
+                                                     { { "track_id", prop ("integer", "0-based track index") },
+                                                       { "name", prop ("string", "New track name") },
+                                                       { "new_name", prop ("string", "Alias for name") } },
+                                                     { "track_id" }),
+                                         { { "track_id", "name" }, { "track_id", "new_name" } }),
                       "track" });
 
     // solo_track
@@ -340,9 +376,10 @@ std::vector<AiToolDefinition> generateCommandDefinitions()
     // set_tempo
     defs.push_back ({ "cmd_set_tempo",
                       "Set the project tempo in BPM.",
-                      makeSchema ("object",
-                                  { { "bpm", prop ("number", "Tempo in beats per minute (20-999)") } },
-                                  { "bpm" }),
+                      withAnyOfRequired (makeSchema ("object",
+                                                     { { "bpm", prop ("number", "Tempo in beats per minute (20-999)") },
+                                                       { "value", prop ("number", "Alias for bpm") } }),
+                                         { { "bpm" }, { "value" } }),
                       "transport" });
 
     // set_loop_region

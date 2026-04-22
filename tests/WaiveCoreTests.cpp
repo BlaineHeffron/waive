@@ -1586,6 +1586,154 @@ void testAiToolSchemaDocumentsPresetTargetingRequirements()
             "Expected AI tool schema for load_plugin_preset to require track_index or master=true");
 }
 
+void testCommandSchemaDocumentsAliases()
+{
+    auto schemaFile = juce::File::getCurrentWorkingDirectory()
+                          .getChildFile ("docs")
+                          .getChildFile ("command_schema.json");
+    expect (schemaFile.existsAsFile(), "Expected command schema file to exist for alias test");
+
+    auto parsed = juce::JSON::parse (schemaFile.loadFileAsString());
+    auto* schemaObject = parsed.getDynamicObject();
+    expect (schemaObject != nullptr, "Expected command schema JSON to parse as an object for alias test");
+
+    auto* rules = schemaObject->getProperty ("allOf").getArray();
+    expect (rules != nullptr, "Expected command schema allOf array for alias test");
+
+    const auto hasAliasRule = [&] (const juce::String& actionName,
+                                   std::initializer_list<const char*> firstRule,
+                                   std::initializer_list<const char*> secondRule)
+    {
+        for (const auto& ruleVar : *rules)
+        {
+            auto* ruleObj = ruleVar.getDynamicObject();
+            if (ruleObj == nullptr)
+                continue;
+
+            auto* ifObj = ruleObj->getProperty ("if").getDynamicObject();
+            auto* thenObj = ruleObj->getProperty ("then").getDynamicObject();
+            if (ifObj == nullptr || thenObj == nullptr)
+                continue;
+
+            auto* ifProperties = ifObj->getProperty ("properties").getDynamicObject();
+            auto* actionObj = ifProperties != nullptr ? ifProperties->getProperty ("action").getDynamicObject()
+                                                      : nullptr;
+            if (actionObj == nullptr || actionObj->getProperty ("const").toString() != actionName)
+                continue;
+
+            auto* anyOfRules = thenObj->getProperty ("anyOf").getArray();
+            if (anyOfRules == nullptr)
+                return false;
+
+            const auto matches = [] (const juce::var& ruleVar, std::initializer_list<const char*> requiredNames)
+            {
+                auto* ruleObj = ruleVar.getDynamicObject();
+                auto* requiredArray = ruleObj != nullptr ? ruleObj->getProperty ("required").getArray() : nullptr;
+                if (requiredArray == nullptr || requiredArray->size() != (int) requiredNames.size())
+                    return false;
+
+                for (auto* requiredName : requiredNames)
+                    if (! requiredArray->contains (juce::String (requiredName)))
+                        return false;
+
+                return true;
+            };
+
+            bool sawFirst = false;
+            bool sawSecond = false;
+            for (const auto& anyOfVar : *anyOfRules)
+            {
+                if (matches (anyOfVar, firstRule))
+                    sawFirst = true;
+                if (matches (anyOfVar, secondRule))
+                    sawSecond = true;
+            }
+
+            return sawFirst && sawSecond;
+        }
+
+        return false;
+    };
+
+    expect (hasAliasRule ("arm_track", { "armed" }, { "enabled" }),
+            "Expected command schema to document arm_track armed/enabled aliases");
+    expect (hasAliasRule ("split_clip", { "position" }, { "time" }),
+            "Expected command schema to document split_clip position/time aliases");
+    expect (hasAliasRule ("move_clip", { "new_start" }, { "delta_seconds" }),
+            "Expected command schema to document move_clip new_start/delta_seconds aliases");
+    expect (hasAliasRule ("rename_clip", { "name" }, { "new_name" }),
+            "Expected command schema to document rename_clip name/new_name aliases");
+    expect (hasAliasRule ("rename_track", { "name" }, { "new_name" }),
+            "Expected command schema to document rename_track name/new_name aliases");
+    expect (hasAliasRule ("set_tempo", { "bpm" }, { "value" }),
+            "Expected command schema to document set_tempo bpm/value aliases");
+}
+
+void testAiToolSchemaDocumentsAliases()
+{
+    auto defs = waive::generateCommandDefinitions();
+
+    const auto hasAliasRule = [&] (const juce::String& toolName,
+                                   std::initializer_list<const char*> firstRule,
+                                   std::initializer_list<const char*> secondRule)
+    {
+        for (const auto& def : defs)
+        {
+            if (def.name != toolName)
+                continue;
+
+            auto* schemaObj = def.inputSchema.getDynamicObject();
+            if (schemaObj == nullptr)
+                return false;
+
+            auto* anyOfRules = schemaObj->getProperty ("anyOf").getArray();
+            if (anyOfRules == nullptr)
+                return false;
+
+            const auto matches = [] (const juce::var& ruleVar, std::initializer_list<const char*> requiredNames)
+            {
+                auto* ruleObj = ruleVar.getDynamicObject();
+                auto* requiredArray = ruleObj != nullptr ? ruleObj->getProperty ("required").getArray() : nullptr;
+                if (requiredArray == nullptr || requiredArray->size() != (int) requiredNames.size())
+                    return false;
+
+                for (auto* requiredName : requiredNames)
+                    if (! requiredArray->contains (juce::String (requiredName)))
+                        return false;
+
+                return true;
+            };
+
+            bool sawFirst = false;
+            bool sawSecond = false;
+            for (const auto& anyOfVar : *anyOfRules)
+            {
+                if (matches (anyOfVar, firstRule))
+                    sawFirst = true;
+                if (matches (anyOfVar, secondRule))
+                    sawSecond = true;
+            }
+
+            return sawFirst && sawSecond;
+        }
+
+        return false;
+    };
+
+    expect (hasAliasRule ("cmd_arm_track", { "track_id", "armed" }, { "track_id", "enabled" }),
+            "Expected AI tool schema to document arm_track armed/enabled aliases");
+    expect (hasAliasRule ("cmd_split_clip", { "track_id", "clip_index", "position" }, { "track_id", "clip_index", "time" }),
+            "Expected AI tool schema to document split_clip position/time aliases");
+    expect (hasAliasRule ("cmd_move_clip", { "track_id", "clip_index", "new_start" }, { "track_id", "clip_index", "delta_seconds" }),
+            "Expected AI tool schema to document move_clip new_start/delta_seconds aliases");
+    expect (hasAliasRule ("cmd_rename_clip", { "track_id", "clip_index", "name" }, { "track_id", "clip_index", "new_name" }),
+            "Expected AI tool schema to document rename_clip name/new_name aliases");
+    expect (hasAliasRule ("cmd_rename_track", { "track_id", "name" }, { "track_id", "new_name" }),
+            "Expected AI tool schema to document rename_track name/new_name aliases");
+    expect (hasAliasRule ("cmd_set_tempo", { "bpm" }, { "value" }),
+            "Expected AI tool schema to document set_tempo bpm/value aliases");
+}
+
 void testSetParameterAcceptsStablePluginIdentifier (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("set_parameter_identifier");
@@ -2632,6 +2780,8 @@ int main()
         testPluginPresetCommandsRejectMissingPluginIndex (engine);
         testCommandSchemaDocumentsPresetTargetingRequirements();
         testAiToolSchemaDocumentsPresetTargetingRequirements();
+        testCommandSchemaDocumentsAliases();
+        testAiToolSchemaDocumentsAliases();
         testSetParameterAcceptsStablePluginIdentifier (engine);
         testTrackCommandsReturnPublicIndicesWithFolderTracks (engine);
         testReorderTrackUsesPublicIndicesAcrossFolderTracks (engine);

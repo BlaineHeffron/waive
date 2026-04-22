@@ -295,11 +295,23 @@
     },
     {
       "if": { "properties": { "action": { "const": "arm_track" } } },
-      "then": { "required": ["action", "track_id", "armed"] }
+      "then": {
+        "required": ["action", "track_id"],
+        "anyOf": [
+          { "required": ["armed"] },
+          { "required": ["enabled"] }
+        ]
+      }
     },
     {
       "if": { "properties": { "action": { "const": "split_clip" } } },
-      "then": { "required": ["action", "track_id", "clip_index", "position"] }
+      "then": {
+        "required": ["action", "track_id", "clip_index"],
+        "anyOf": [
+          { "required": ["position"] },
+          { "required": ["time"] }
+        ]
+      }
     },
     {
       "if": { "properties": { "action": { "const": "delete_clip" } } },
@@ -307,7 +319,13 @@
     },
     {
       "if": { "properties": { "action": { "const": "move_clip" } } },
-      "then": { "required": ["action", "track_id", "clip_index", "new_start"] }
+      "then": {
+        "required": ["action", "track_id", "clip_index"],
+        "anyOf": [
+          { "required": ["new_start"] },
+          { "required": ["delta_seconds"] }
+        ]
+      }
     },
     {
       "if": { "properties": { "action": { "const": "duplicate_clip" } } },
@@ -323,11 +341,23 @@
     },
     {
       "if": { "properties": { "action": { "const": "rename_clip" } } },
-      "then": { "required": ["action", "track_id", "clip_index", "name"] }
+      "then": {
+        "required": ["action", "track_id", "clip_index"],
+        "anyOf": [
+          { "required": ["name"] },
+          { "required": ["new_name"] }
+        ]
+      }
     },
     {
       "if": { "properties": { "action": { "const": "rename_track" } } },
-      "then": { "required": ["action", "track_id", "name"] }
+      "then": {
+        "required": ["action", "track_id"],
+        "anyOf": [
+          { "required": ["name"] },
+          { "required": ["new_name"] }
+        ]
+      }
     },
     {
       "if": { "properties": { "action": { "const": "solo_track" } } },
@@ -343,7 +373,13 @@
     },
     {
       "if": { "properties": { "action": { "const": "set_tempo" } } },
-      "then": { "required": ["action", "bpm"] }
+      "then": {
+        "required": ["action"],
+        "anyOf": [
+          { "required": ["bpm"] },
+          { "required": ["value"] }
+        ]
+      }
     },
     {
       "if": { "properties": { "action": { "const": "set_loop_region" } } },
