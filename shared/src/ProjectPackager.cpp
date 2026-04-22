@@ -390,7 +390,7 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
             if (canonicalisePath (audioFile) == canonicalisePath (outputZip))
                 continue;
 
-            builder.addFile (audioFile, 9, audioFile.getRelativePathFrom (projectDir));
+            builder.addFile (audioFile, 9, audioFile.getRelativePathFrom (projectDir).replaceCharacter ('\\', '/'));
         }
 
     return builder.writeToStream (outputStream, nullptr);

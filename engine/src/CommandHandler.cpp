@@ -172,6 +172,19 @@ bool copyTrackPlugins (te::Edit& edit, te::AudioTrack& sourceTrack, te::AudioTra
     return true;
 }
 
+void copyAutomationCurve (te::AutomatableParameter& sourceParam, te::AutomatableParameter& destinationParam)
+{
+    auto& sourceCurve = sourceParam.getCurve();
+    auto& destinationCurve = destinationParam.getCurve();
+
+    destinationCurve.clear (nullptr);
+    for (int i = 0; i < sourceCurve.getNumPoints(); ++i)
+        destinationCurve.addPoint (sourceCurve.getPointTime (i),
+                                   sourceCurve.getPointValue (i),
+                                   sourceCurve.getPointCurve (i),
+                                   nullptr);
+}
+
 bool isOutputPathAllowed (const juce::String& originalPath,
                           const juce::File& outputPath,
                           const juce::Array<juce::File>& allowedDirectories)
@@ -1593,6 +1606,8 @@ juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
             srcVolPlugins.getFirst()->volParam->getCurrentValue(), juce::dontSendNotification);
         dstVolPlugins.getFirst()->panParam->setParameter (
             srcVolPlugins.getFirst()->panParam->getCurrentValue(), juce::dontSendNotification);
+        copyAutomationCurve (*srcVolPlugins.getFirst()->volParam, *dstVolPlugins.getFirst()->volParam);
+        copyAutomationCurve (*srcVolPlugins.getFirst()->panParam, *dstVolPlugins.getFirst()->panParam);
     }
 
     if (! copyTrackPlugins (edit, *sourceTrack, *newTrack))

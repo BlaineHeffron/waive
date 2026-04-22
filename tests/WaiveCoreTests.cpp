@@ -115,6 +115,27 @@ juce::var runJsonCommand (CommandHandler& handler, const juce::String& payload)
     return response;
 }
 
+void expectAutomationCurveMatches (te::AutomatableParameter& actual,
+                                   te::AutomatableParameter& expected,
+                                   const std::string& messagePrefix)
+{
+    auto& actualCurve = actual.getCurve();
+    auto& expectedCurve = expected.getCurve();
+
+    expect (actualCurve.getNumPoints() == expectedCurve.getNumPoints(),
+            messagePrefix + ": expected matching automation point counts");
+
+    for (int i = 0; i < expectedCurve.getNumPoints(); ++i)
+    {
+        expect (std::abs (actualCurve.getPointTime (i).inSeconds() - expectedCurve.getPointTime (i).inSeconds()) < 0.0001,
+                messagePrefix + ": expected matching automation point times");
+        expect (std::abs (actualCurve.getPointValue (i) - expectedCurve.getPointValue (i)) < 0.0001f,
+                messagePrefix + ": expected matching automation point values");
+        expect (std::abs (actualCurve.getPointCurve (i) - expectedCurve.getPointCurve (i)) < 0.0001f,
+                messagePrefix + ": expected matching automation point curves");
+    }
+}
+
 class ScopedWorkingDirectory
 {
 public:
@@ -1033,6 +1054,8 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
             "Expected zip to include project audio");
     expect (entries.contains ("Audio/Stems/" + nestedAudioFile.getFileName()),
             "Expected zip to include nested project audio");
+    expect (! entries.contains ("Audio\\Stems\\" + nestedAudioFile.getFileName()),
+            "Expected zip entry paths to be normalised with forward slashes");
     expect (entries.contains (autoSaveFile.getFileName()),
             "Expected zip to include autosave snapshot when present");
     expect (! entries.contains (backupProjectFile.getFileName()),
@@ -1131,6 +1154,14 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     sourceTrack->setMute (true);
     sourceTrack->setSolo (true);
 
+    auto sourceVolPlugins = sourceTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+    expect (! sourceVolPlugins.isEmpty(), "Expected source volume plugin for duplicate-track command test");
+    sourceVolPlugins.getFirst()->volParam->setParameter (te::decibelsToVolumeFaderPosition (-9.0f), juce::dontSendNotification);
+    sourceVolPlugins.getFirst()->panParam->setParameter (0.8f, juce::dontSendNotification);
+    sourceVolPlugins.getFirst()->volParam->getCurve().addPoint (te::TimePosition::fromSeconds (0.25), 0.31f, -0.2f, nullptr);
+    sourceVolPlugins.getFirst()->volParam->getCurve().addPoint (te::TimePosition::fromSeconds (1.0), 0.64f, 0.15f, nullptr);
+    sourceVolPlugins.getFirst()->panParam->getCurve().addPoint (te::TimePosition::fromSeconds (0.5), 0.2f, 0.05f, nullptr);
+
     auto pluginState = te::createValueTree (te::IDs::PLUGIN,
                                             te::IDs::type, te::ReverbPlugin::xmlTypeName,
                                             "pluginFormatName", te::PluginManager::builtInPluginFormatName,
@@ -1195,6 +1226,15 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     expect (! duplicatedParams.isEmpty(), "Expected duplicated reverb to expose parameters");
     expect (std::abs (duplicatedParams.getFirst()->getCurrentValue() - firstPluginParam->getCurrentValue()) < 0.0001f,
             "Expected duplicate_track to preserve plugin parameter state");
+
+    auto duplicatedVolPlugins = duplicatedTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
+    expect (! duplicatedVolPlugins.isEmpty(), "Expected duplicated track volume plugin");
+    expectAutomationCurveMatches (*duplicatedVolPlugins.getFirst()->volParam,
+                                  *sourceVolPlugins.getFirst()->volParam,
+                                  "duplicate_track volume automation");
+    expectAutomationCurveMatches (*duplicatedVolPlugins.getFirst()->panParam,
+                                  *sourceVolPlugins.getFirst()->panParam,
+                                  "duplicate_track pan automation");
 
     (void) fixtureDir.deleteRecursively();
 }
