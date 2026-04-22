@@ -1305,10 +1305,17 @@ void testPluginPresetCommandsSupportMasterChain (te::Engine& engine)
         auto* reverb = dynamic_cast<te::ReverbPlugin*> (plugin.get());
         expect (reverb != nullptr, "Expected built-in reverb plugin for master preset command test");
         edit->getMasterPluginList().insertPlugin (plugin, 0, nullptr);
+        auto trackPlugin = edit->getPluginCache().createNewPlugin (pluginState);
+        expect (trackPlugin != nullptr, "Expected track preset test plugin creation");
+        auto* trackReverb = dynamic_cast<te::ReverbPlugin*> (trackPlugin.get());
+        expect (trackReverb != nullptr, "Expected built-in reverb plugin for track preset response test");
+        te::getAudioTracks (*edit).getFirst()->pluginList.insertPlugin (trackPlugin, 0, nullptr);
 
         waive::PluginPresetManager presetManager;
         expect (presetManager.savePreset (*reverb, "Master Room"),
                 "Expected baseline master preset save to succeed");
+        expect (presetManager.savePreset (*trackReverb, "Track Room"),
+                "Expected baseline track preset save to succeed");
 
         CommandHandler handler (*edit);
         auto saveResponse = runJsonCommand (handler, R"({
@@ -1337,6 +1344,20 @@ void testPluginPresetCommandsSupportMasterChain (te::Engine& engine)
                 "Expected load_plugin_preset response to indicate master-chain targeting");
         expect (edit->hasChangedSinceSaved(),
                 "Expected master preset load to mark the edit dirty");
+
+        auto trackSaveResponse = runJsonCommand (handler, R"({
+            "action":"save_plugin_preset",
+            "master":1,
+            "track_index":0,
+            "plugin_index":0,
+            "preset_name":"Track Command Save"
+        })");
+        expect (trackSaveResponse["status"].toString() == "ok",
+                "Expected save_plugin_preset with malformed master selector to still target the track");
+        expect (! trackSaveResponse.hasProperty ("master"),
+                "Expected malformed master selector not to misreport master targeting");
+        expect ((int) trackSaveResponse["track_index"] == 0,
+                "Expected save_plugin_preset response to report the validated track target");
     }
 
     (void) fixtureDir.deleteRecursively();
@@ -2021,6 +2042,23 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected remove_track without track_id to fail");
     expect (getAudioTrackCount (*edit) == originalTrackCount,
             "Expected malformed remove_track request not to delete any track");
+
+    auto missingActionResponse = runJsonCommand (handler, R"({
+        "track_id":0
+    })");
+    expect (missingActionResponse["status"].toString() == "error",
+            "Expected command without action to fail");
+    expect (getAudioTrackCount (*edit) == originalTrackCount,
+            "Expected missing action request not to change edit state");
+
+    auto malformedActionResponse = runJsonCommand (handler, R"({
+        "action":1,
+        "track_id":0
+    })");
+    expect (malformedActionResponse["status"].toString() == "error",
+            "Expected command with non-string action to fail");
+    expect (getAudioTrackCount (*edit) == originalTrackCount,
+            "Expected malformed action request not to change edit state");
 
     auto trackIdMalformedResponse = runJsonCommand (handler, R"({
         "action":"set_track_volume",

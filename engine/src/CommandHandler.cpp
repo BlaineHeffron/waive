@@ -427,7 +427,10 @@ juce::String CommandHandler::handleCommand (const juce::String& jsonString)
     if (! parsed.isObject())
         return juce::JSON::toString (makeError ("Invalid JSON"));
 
-    auto action = parsed["action"].toString();
+    juce::String action;
+    juce::var errorResult;
+    if (! requireStringProperty (parsed, "action", action, errorResult))
+        return juce::JSON::toString (errorResult);
 
     juce::var result;
 
@@ -2467,7 +2470,10 @@ juce::var CommandHandler::handleSavePluginPreset (const juce::var& params)
     auto* result = new juce::DynamicObject();
     result->setProperty ("status", "ok");
     result->setProperty ("preset_name", presetName);
-    if (params.hasProperty ("master") && static_cast<bool> (params["master"]))
+    const bool useMaster = params.hasProperty ("master")
+                             && params["master"].isBool()
+                             && static_cast<bool> (params["master"]);
+    if (useMaster)
         result->setProperty ("master", true);
     else if (params.hasProperty ("track_index"))
         result->setProperty ("track_index", static_cast<int> (params["track_index"]));
@@ -2510,7 +2516,10 @@ juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
     auto* result = new juce::DynamicObject();
     result->setProperty ("status", "ok");
     result->setProperty ("preset_name", presetName);
-    if (params.hasProperty ("master") && static_cast<bool> (params["master"]))
+    const bool useMaster = params.hasProperty ("master")
+                             && params["master"].isBool()
+                             && static_cast<bool> (params["master"]);
+    if (useMaster)
         result->setProperty ("master", true);
     else if (params.hasProperty ("track_index"))
         result->setProperty ("track_index", static_cast<int> (params["track_index"]));
