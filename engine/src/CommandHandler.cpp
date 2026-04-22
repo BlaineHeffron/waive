@@ -3,6 +3,7 @@
 #include "PluginPresetManager.h"
 #include "ProjectPackager.h"
 
+#include <cmath>
 #include <filesystem>
 
 namespace
@@ -173,6 +174,11 @@ juce::File buildManagedBounceOutputFile (te::Edit& edit,
         return {};
 
     return bounceDir.getNonexistentChildFile (safeName + "_bounced", ".wav", false);
+}
+
+bool isInvalidRenderRange (double startSec, double endSec)
+{
+    return ! std::isfinite (startSec) || ! std::isfinite (endSec) || endSec <= startSec;
 }
 
 void applyFolderSoloToSubtree (te::FolderTrack& folderTrack, bool solo)
@@ -1694,9 +1700,6 @@ juce::var CommandHandler::handleExportMixdown (const juce::var& params)
     if (! isOutputPathAllowed (filePath, outputFile, allowedMediaDirectories))
         return makeError ("Output path is outside allowed directories: " + filePath);
 
-    // Ensure parent directory exists
-    outputFile.getParentDirectory().createDirectory();
-
     // Determine render range
     double startSec = 0.0;
     double endSec = edit.getLength().inSeconds();
@@ -1704,8 +1707,11 @@ juce::var CommandHandler::handleExportMixdown (const juce::var& params)
         || ! requireOptionalDoubleProperty (params, "end", endSec, errorResult))
         return errorResult;
 
-    if (endSec <= startSec)
+    if (isInvalidRenderRange (startSec, endSec))
         return makeError ("End time must be greater than start time");
+
+    // Ensure parent directory exists only after validation succeeds.
+    outputFile.getParentDirectory().createDirectory();
 
     // Build track mask for all audio tracks
     juce::BigInteger tracksMask;
@@ -1723,7 +1729,7 @@ juce::var CommandHandler::handleExportMixdown (const juce::var& params)
         true,     // usePlugins
         true,     // useACID
         {},       // allowedClips (empty = all)
-        true);    // useThread
+        false);   // useThread
 
     if (! renderResult)
         return makeError ("Export failed");
@@ -1749,13 +1755,16 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
     if (! isWithinAllowedDirectories (outputDirPath, outputDir, allowedMediaDirectories))
         return makeError ("Output directory is outside allowed directories");
 
-    outputDir.createDirectory();
-
     double startSec = 0.0;
     double endSec = edit.getLength().inSeconds();
     if (! requireOptionalDoubleProperty (params, "start", startSec, errorResult)
         || ! requireOptionalDoubleProperty (params, "end", endSec, errorResult))
         return errorResult;
+
+    if (isInvalidRenderRange (startSec, endSec))
+        return makeError ("End time must be greater than start time");
+
+    outputDir.createDirectory();
 
     auto audioTracks = te::getAudioTracks (edit);
     juce::Array<juce::var> exportedFiles;
@@ -1784,7 +1793,7 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
             true,   // usePlugins
             true,   // useACID
             {},     // allowedClips
-            true);  // useThread
+            false); // useThread
 
         if (ok)
         {
@@ -1859,7 +1868,7 @@ juce::var CommandHandler::handleBounceTrack (const juce::var& params)
         true,  // usePlugins
         true,  // useACID
         {},    // allowedClips
-        true); // useThread
+        false); // useThread
 
     if (! ok || ! bounceFile.existsAsFile())
         return makeError ("Bounce render failed");
@@ -2767,6 +2776,9 @@ juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
         return makeError ("Output path is outside allowed directories: " + outputPath);
 
     auto projectDir = projectFile.getParentDirectory();
+    if (outputZip == projectFile || outputZip.isAChildOf (projectDir))
+        return makeError ("Output zip must be outside the project directory");
+
     auto collectResult = waive::ProjectPackager::collectAndSave (edit, projectDir, projectFile);
     if (! collectResult.errors.isEmpty())
         return makeError ("Failed to collect project media before packaging: "

@@ -1035,6 +1035,35 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testPackageAsZipRejectsOutputInsideProjectDirectory (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("package_zip_inside_project");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    projectDir.createDirectory();
+
+    auto projectFile = createSavedProjectFixture (engine, projectDir.getChildFile ("main_project.tracktionedit"));
+    auto edit = te::loadEditFromFile (engine, projectFile);
+    expect (edit != nullptr, "Expected saved project edit for package_as_zip inside-project test");
+
+    auto outputZip = projectDir.getChildFile ("Audio").getChildFile ("portable.zip");
+
+    CommandHandler handler (*edit);
+    handler.setProjectFile (projectFile);
+    handler.setAllowedMediaDirectories ({ fixtureDir });
+
+    auto response = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"package_as_zip",
+        "file_path":"%s"
+    })", outputZip.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+
+    expect (response["status"].toString() == "error",
+            "Expected package_as_zip to reject output paths inside the project directory");
+    expect (! outputZip.existsAsFile(),
+            "Expected rejected package_as_zip request not to create an archive inside the project directory");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("track_command_public_indices");
@@ -2107,6 +2136,47 @@ void testExportStemsAllowsNewOutputDirectoriesWithinAllowlist (te::Engine& engin
     (void) fixtureDir.deleteRecursively();
 }
 
+void testExportStemsRejectsInvalidBounds (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("export_stems_invalid_bounds");
+    auto backingFile = fixtureDir.getChildFile ("export_stems_invalid_bounds.tracktionedit");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+    edit->ensureNumberOfAudioTracks (1);
+
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected audio track for invalid export_stems bounds test");
+
+    auto audioFile = writeTestWav (fixtureDir.getChildFile ("source.wav"));
+    expect (audioFile.existsAsFile(), "Expected source WAV fixture for invalid export_stems bounds test");
+
+    auto clip = track->insertWaveClip (
+        "source",
+        audioFile,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (0.1) },
+          te::TimeDuration() },
+        false);
+    expect (clip != nullptr, "Expected clip insertion for invalid export_stems bounds test");
+
+    auto outputDir = fixtureDir.getChildFile ("stems");
+    CommandHandler handler (*edit);
+    handler.setAllowedMediaDirectories ({ fixtureDir });
+
+    auto response = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"export_stems",
+        "output_dir":"%s",
+        "start":1.0,
+        "end":0.5
+    })", outputDir.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+
+    expect (response["status"].toString() == "error",
+            "Expected export_stems to reject end times that do not exceed start times");
+    expect (! outputDir.exists(),
+            "Expected invalid export_stems bounds not to create the output directory");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testCommandHandlerRejectsSymlinkEscapesForOutputFiles (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("output_symlink_escape");
@@ -2920,6 +2990,7 @@ int main()
         testMediaManagementCanonicalisesSymlinkedReferences (engine);
         testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
+        testPackageAsZipRejectsOutputInsideProjectDirectory (engine);
         testCollectAndSaveCommandReturnsErrorOnPackagingFailure (engine);
         testCollectAndSaveRollsBackOnPartialCopyFailure (engine);
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
@@ -2939,6 +3010,7 @@ int main()
         testCommandHandlerAcceptsDocumentedAliases (engine);
         testExportStemsReportsRenderFailures (engine);
         testExportStemsAllowsNewOutputDirectoriesWithinAllowlist (engine);
+        testExportStemsRejectsInvalidBounds (engine);
         testCommandHandlerRejectsSymlinkEscapesForOutputFiles (engine);
         testBounceTrackWritesProjectManagedUniqueFiles (engine);
         testSetLoopRegionRejectsInvalidBoundsWithoutMutation (engine);

@@ -382,7 +382,13 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
     auto audioDir = projectDir.getChildFile ("Audio");
     if (audioDir.exists())
         for (const auto& iter : juce::RangedDirectoryIterator (audioDir, false, "*", juce::File::findFiles))
-            builder.addFile (iter.getFile(), 9, "Audio/" + iter.getFile().getFileName());
+        {
+            const auto audioFile = iter.getFile();
+            if (canonicalisePath (audioFile) == canonicalisePath (outputZip))
+                continue;
+
+            builder.addFile (audioFile, 9, "Audio/" + audioFile.getFileName());
+        }
 
     return builder.writeToStream (outputStream, nullptr);
 }
