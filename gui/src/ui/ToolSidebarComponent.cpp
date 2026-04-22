@@ -714,20 +714,22 @@ void ToolSidebarComponent::handlePlanCompletion (waive::JobStatus status, std::o
     {
         if (planResult.has_value())
         {
-            pendingPlan = std::move (planResult);
-            previewEditor.setText (waive::summariseToolPlan (*pendingPlan), false);
-            lastPlanArtifact = pendingPlan->artifactFile;
+            lastPlanArtifact = planResult->artifactFile;
 
-            if (! pendingPlan->changes.isEmpty())
+            if (! planResult->changes.isEmpty())
             {
+                pendingPlan = std::move (planResult);
+                previewEditor.setText (waive::summariseToolPlan (*pendingPlan), false);
                 sessionComponent.applyToolPreviewDiff (pendingPlan->changes);
                 setStatusText ("Plan ready");
             }
             else
             {
+                pendingPlan.reset();
+                previewEditor.clear();
                 sessionComponent.clearToolPreview();
-                setStatusText (pendingPlan->summary.isNotEmpty() ? pendingPlan->summary
-                                                                 : "Plan produced no changes");
+                setStatusText (planResult->summary.isNotEmpty() ? planResult->summary
+                                                                : "Plan produced no changes");
             }
         }
         else

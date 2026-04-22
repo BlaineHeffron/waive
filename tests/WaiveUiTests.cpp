@@ -21,6 +21,8 @@
 #include "JobQueue.h"
 #include "CommandHandler.h"
 #include "ToolRegistry.h"
+#include "ModelManager.h"
+#include "Tool.h"
 #include "ClipTrackIndexMap.h"
 #include "AudioAnalysis.h"
 #include "AudioAnalysisCache.h"
@@ -106,6 +108,44 @@ juce::TextButton* findButtonWithText (juce::Component& parent, const juce::Strin
 
     return nullptr;
 }
+
+class NoChangePlanTool final : public waive::Tool
+{
+public:
+    waive::ToolDescription describe() const override
+    {
+        return { "no_change_plan_tool",
+                 "No-Change Plan Tool",
+                 "1.0.0",
+                 "Test tool that produces a valid zero-change plan.",
+                 juce::var (new juce::DynamicObject()),
+                 juce::var (new juce::DynamicObject()),
+                 {} };
+    }
+
+    juce::Result preparePlan (const waive::ToolExecutionContext&, const juce::var& params,
+                              waive::ToolPlanTask& outTask) override
+    {
+        outTask.jobName = "Plan: No-Change Plan Tool";
+        outTask.run = [params] (waive::ProgressReporter&)
+        {
+            waive::ToolPlan plan;
+            plan.toolName = "no_change_plan_tool";
+            plan.toolVersion = "1.0.0";
+            plan.planID = juce::Uuid().toString();
+            plan.inputParams = params;
+            plan.summary = "No changes needed";
+            return plan;
+        };
+
+        return juce::Result::ok();
+    }
+
+    juce::Result apply (const waive::ToolExecutionContext&, const waive::ToolPlan&) override
+    {
+        return juce::Result::fail ("No changes should not be applicable");
+    }
+};
 
 te::Clip* findClipAtStart (te::AudioTrack& track, double startSeconds)
 {
@@ -1958,6 +1998,45 @@ void runUiPhase4ToolFrameworkRegression()
     (void) fixtureAudio.deleteFile();
 }
 
+void runToolSidebarNoChangePlanRegression()
+{
+    te::Engine engine ("WaiveUiNoChangePlan");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (session);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+    waive::ToolRegistry toolRegistry;
+    waive::ModelManager modelManager;
+    toolRegistry.registerTool (std::make_unique<NoChangePlanTool>());
+
+    MainComponent mainComponent (undoableHandler, session, jobQueue, projectManager,
+                                 toolRegistry, modelManager);
+    mainComponent.setBounds (0, 0, 1400, 900);
+    mainComponent.resized();
+
+    auto& sessionComponent = mainComponent.getSessionComponentForTesting();
+    auto& toolsComponent = mainComponent.getToolSidebarForTesting();
+
+    toolsComponent.selectToolForTesting ("no_change_plan_tool");
+    expect (toolsComponent.runPlanForTesting(), "Expected no-change tool plan start");
+    expect (toolsComponent.waitForIdleForTesting(), "Expected no-change tool plan completion");
+    expect (! toolsComponent.hasPendingPlanForTesting(),
+            "Expected zero-change plan to avoid leaving a pending apply state");
+    expect (toolsComponent.getPreviewTextForTesting().isEmpty(),
+            "Expected zero-change plan to leave no preview diff text");
+    expect (toolsComponent.getStatusTextForTesting().contains ("No changes needed"),
+            "Expected zero-change plan status to surface the tool summary");
+    expect (! toolsComponent.applyPlanForTesting(),
+            "Expected zero-change plan to keep apply unavailable");
+    expect (sessionComponent.getToolPreviewTracksForTesting().isEmpty(),
+            "Expected zero-change plan to leave no preview highlight state");
+
+    std::cout << "runToolSidebarNoChangePlanRegression: PASS" << std::endl;
+}
+
 void runUiPhase5BuiltInToolsRegression()
 {
     if (const auto* disabled = std::getenv ("WAIVE_DISABLE_ASYNC_DIALOGS"))
@@ -3613,6 +3692,7 @@ int main()
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);
     RUN_TEST_SAFELY(runUiPhase3TransportAndWorkflowTests);
+    RUN_TEST_SAFELY(runToolSidebarNoChangePlanRegression);
 
     if (automatedDialogHarness)
     {
