@@ -2018,6 +2018,7 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     const auto originalTrackCount = getAudioTrackCount (*edit);
     const auto originalClipCount = track->getClips().size();
     const auto originalPluginCount = track->pluginList.size();
+    const auto originalTempoBpm = edit->tempoSequence.getTempo (0)->getBpm();
     const auto originalClipStart = clip->getPosition().getStart().inSeconds();
     const auto originalClipEnd = clip->getPosition().getEnd().inSeconds();
     const auto originalClipName = clip->getName();
@@ -2158,6 +2159,17 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected split_clip with non-integer track_id to fail");
     expect (track->getClips().size() == originalClipCount,
             "Expected malformed split_clip request not to split the clip");
+
+    auto splitAliasMalformedResponse = runJsonCommand (handler, R"({
+        "action":"split_clip",
+        "track_id":0,
+        "clip_index":0,
+        "time":"oops"
+    })");
+    expect (splitAliasMalformedResponse["status"].toString() == "error",
+            "Expected split_clip with non-numeric time alias to fail");
+    expect (track->getClips().size() == originalClipCount,
+            "Expected malformed split_clip time alias request not to split the clip");
 
     auto deleteMalformedResponse = runJsonCommand (handler, R"({
         "action":"delete_clip",
@@ -2396,6 +2408,15 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     expect (std::abs (edit->getTransport().getLoopRange().getEnd().inSeconds() - 1.5) < 0.0001,
             "Expected malformed loop range request not to change loop end");
 
+    auto tempoAliasMalformedResponse = runJsonCommand (handler, R"({
+        "action":"set_tempo",
+        "value":"oops"
+    })");
+    expect (tempoAliasMalformedResponse["status"].toString() == "error",
+            "Expected set_tempo with non-numeric value alias to fail");
+    expect (std::abs (edit->tempoSequence.getTempo (0)->getBpm() - originalTempoBpm) < 0.0001,
+            "Expected malformed set_tempo alias request not to change tempo");
+
     auto exportMixdownResponse = runJsonCommand (handler, juce::String::formatted (R"({
         "action":"export_mixdown",
         "file_path":"%s",
@@ -2433,6 +2454,17 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected move_clip without track_id and clip_index to fail");
     expect (std::abs (clip->getPosition().getStart().inSeconds()) < 0.01,
             "Expected malformed move_clip request not to mutate the clip");
+
+    auto moveAliasMalformedResponse = runJsonCommand (handler, R"({
+        "action":"move_clip",
+        "track_id":0,
+        "clip_index":0,
+        "delta_seconds":"oops"
+    })");
+    expect (moveAliasMalformedResponse["status"].toString() == "error",
+            "Expected move_clip with non-numeric delta_seconds alias to fail");
+    expect (std::abs (clip->getPosition().getStart().inSeconds() - originalClipStart) < 0.0001,
+            "Expected malformed move_clip delta_seconds alias request not to move the clip");
 
     auto automationResponse = runJsonCommand (handler, R"({
         "action":"add_automation_point",

@@ -419,6 +419,26 @@ bool CommandHandler::requireAnyBoolProperty (const juce::var& params,
     return false;
 }
 
+bool CommandHandler::requireAnyDoubleProperty (const juce::var& params,
+                                               std::initializer_list<const char*> propertyNames,
+                                               double& valueOut,
+                                               juce::var& errorResult)
+{
+    for (auto* propertyName : propertyNames)
+    {
+        if (params.hasProperty (propertyName))
+        {
+            if (! requireOptionalDoubleProperty (params, propertyName, valueOut, errorResult))
+                return false;
+
+            return true;
+        }
+    }
+
+    errorResult = makeError ("Missing required parameter: " + juce::String (*propertyNames.begin()));
+    return false;
+}
+
 //==============================================================================
 juce::String CommandHandler::handleCommand (const juce::String& jsonString)
 {
@@ -1111,10 +1131,9 @@ juce::var CommandHandler::handleSplitClip (const juce::var& params)
     int clipIdx = 0;
     double position = 0.0;
     if (! requireIntProperty (params, "track_id", trackId, errorResult)
-        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult))
+        || ! requireIntProperty (params, "clip_index", clipIdx, errorResult)
+        || ! requireAnyDoubleProperty (params, { "position", "time" }, position, errorResult))
         return errorResult;
-    if (! tryGetDoubleProperty (params, { "position", "time" }, position))
-        return makeError ("Missing required parameters: track_id, clip_index, position");
 
     auto* clip = getClipByIndex (trackId, clipIdx);
     if (clip == nullptr)
@@ -1180,11 +1199,14 @@ juce::var CommandHandler::handleMoveClip (const juce::var& params)
         return makeError ("Clip not found: track " + juce::String (trackId) + " clip " + juce::String (clipIdx));
 
     double newStart = 0.0;
-    if (! tryGetDoubleProperty (params, { "new_start" }, newStart))
+    if (! requireOptionalDoubleProperty (params, "new_start", newStart, errorResult))
+        return errorResult;
+
+    if (! params.hasProperty ("new_start"))
     {
         double deltaSeconds = 0.0;
-        if (! tryGetDoubleProperty (params, { "delta_seconds" }, deltaSeconds))
-            return makeError ("Missing required parameters: track_id, clip_index, new_start");
+        if (! requireAnyDoubleProperty (params, { "delta_seconds" }, deltaSeconds, errorResult))
+            return errorResult;
 
         newStart = clip->getPosition().getStart().inSeconds() + deltaSeconds;
     }
@@ -1570,9 +1592,10 @@ juce::var CommandHandler::handleGetTransportState()
 
 juce::var CommandHandler::handleSetTempo (const juce::var& params)
 {
+    juce::var errorResult;
     double bpm = 0.0;
-    if (! tryGetDoubleProperty (params, { "bpm", "value" }, bpm))
-        return makeError ("Missing required parameter: bpm");
+    if (! requireAnyDoubleProperty (params, { "bpm", "value" }, bpm, errorResult))
+        return errorResult;
 
     if (bpm < 20.0 || bpm > 999.0)
         return makeError ("BPM must be between 20 and 999");
