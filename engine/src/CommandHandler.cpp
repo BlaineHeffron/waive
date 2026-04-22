@@ -178,6 +178,7 @@ void copyAutomationCurve (te::AutomatableParameter& sourceParam, te::Automatable
     auto& destinationCurve = destinationParam.getCurve();
 
     destinationCurve.clear (nullptr);
+    destinationCurve.bypass = sourceCurve.bypass.get();
     for (int i = 0; i < sourceCurve.getNumPoints(); ++i)
         destinationCurve.addPoint (sourceCurve.getPointTime (i),
                                    sourceCurve.getPointValue (i),

@@ -124,6 +124,11 @@ void expectAutomationCurveMatches (te::AutomatableParameter& actual,
 
     expect (actualCurve.getNumPoints() == expectedCurve.getNumPoints(),
             messagePrefix + ": expected matching automation point counts");
+    expect (actualCurve.bypass.get() == expectedCurve.bypass.get(),
+            messagePrefix + ": expected matching automation bypass state");
+
+    if (actualCurve.getNumPoints() != expectedCurve.getNumPoints())
+        return;
 
     for (int i = 0; i < expectedCurve.getNumPoints(); ++i)
     {
@@ -877,11 +882,13 @@ void testCollectAndSaveRollsBackWhenOneFileFails (te::Engine& engine)
     expect (missingAudio.deleteFile(), "Expected missing-file fixture to be removed before collect/save");
 
     auto result = waive::ProjectPackager::collectAndSave (*edit, projectDir, projectFile);
-    expect (result.filesCopied == 0, "Expected collect/save to roll back copied file count when another file fails");
+    expect (result.filesCopied == 0, "Expected collect/save to avoid copying files when referenced media validation fails");
     expect (! result.errors.isEmpty(), "Expected collect/save to report the missing referenced media");
+    expect (result.errors[0].contains ("Collect and save aborted because one or more referenced media files are missing or invalid"),
+            "Expected collect/save to fail during referenced media validation");
     expect (! projectDir.getChildFile ("Audio").getChildFile ("copy_me.wav").existsAsFile(),
-            "Expected partial collect/save to remove copied media after rollback");
-    expect (! projectFile.existsAsFile(), "Expected partial collect/save rollback to avoid persisting the project file");
+            "Expected collect/save validation failure to avoid copying media");
+    expect (! projectFile.existsAsFile(), "Expected collect/save validation failure to avoid persisting the project file");
 
     expect (tracks[0]->getClips().size() == 1, "Expected copied track clip to remain after rollback");
     expect (tracks[1]->getClips().size() == 1, "Expected missing track clip to remain after rollback");
@@ -1161,6 +1168,7 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     sourceVolPlugins.getFirst()->volParam->getCurve().addPoint (te::TimePosition::fromSeconds (0.25), 0.31f, -0.2f, nullptr);
     sourceVolPlugins.getFirst()->volParam->getCurve().addPoint (te::TimePosition::fromSeconds (1.0), 0.64f, 0.15f, nullptr);
     sourceVolPlugins.getFirst()->panParam->getCurve().addPoint (te::TimePosition::fromSeconds (0.5), 0.2f, 0.05f, nullptr);
+    sourceVolPlugins.getFirst()->volParam->getCurve().bypass = true;
 
     auto pluginState = te::createValueTree (te::IDs::PLUGIN,
                                             te::IDs::type, te::ReverbPlugin::xmlTypeName,
