@@ -8,6 +8,21 @@
 
 namespace te = tracktion;
 
+namespace
+{
+void setLoopRangeWithUndo (te::Edit& edit, te::TimePosition start, te::TimePosition end)
+{
+    auto& transport = edit.getTransport();
+    const auto maxEndTime = te::toPosition (edit.getLength() + te::Edit::getMaximumLength() * 0.75);
+    const auto clampedStart = juce::jlimit (te::TimePosition(), maxEndTime, start);
+    const auto clampedEnd = juce::jlimit (te::TimePosition(), maxEndTime, end);
+    auto& undoManager = edit.getUndoManager();
+
+    transport.loopPoint1.setValue (clampedStart, &undoManager);
+    transport.loopPoint2.setValue (clampedEnd, &undoManager);
+}
+}
+
 TimeRulerComponent::TimeRulerComponent (EditSession& session, TimelineComponent& tl)
     : editSession (session), timeline (tl)
 {
@@ -156,18 +171,18 @@ void TimeRulerComponent::mouseDrag (const juce::MouseEvent& e)
     {
         newTime = timeline.snapTimeToGrid (newTime);
         newTime = juce::jmin (newTime, loopRange.getEnd().inSeconds() - 0.1);
-        editSession.performEdit ("Adjust Loop Start", true, [&transport, newTime, loopRange] (te::Edit&)
+        editSession.performEdit ("Adjust Loop Start", true, [newTime, loopRange] (te::Edit& edit)
         {
-            transport.setLoopRange ({ te::TimePosition::fromSeconds (newTime), loopRange.getEnd() });
+            setLoopRangeWithUndo (edit, te::TimePosition::fromSeconds (newTime), loopRange.getEnd());
         });
     }
     else if (loopDragMode == DraggingEnd)
     {
         newTime = timeline.snapTimeToGrid (newTime);
         newTime = juce::jmax (newTime, loopRange.getStart().inSeconds() + 0.1);
-        editSession.performEdit ("Adjust Loop End", true, [&transport, newTime, loopRange] (te::Edit&)
+        editSession.performEdit ("Adjust Loop End", true, [newTime, loopRange] (te::Edit& edit)
         {
-            transport.setLoopRange ({ loopRange.getStart(), te::TimePosition::fromSeconds (newTime) });
+            setLoopRangeWithUndo (edit, loopRange.getStart(), te::TimePosition::fromSeconds (newTime));
         });
     }
 

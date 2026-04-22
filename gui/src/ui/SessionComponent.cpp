@@ -26,6 +26,53 @@ namespace te = tracktion;
 using waive::runCommand;
 using waive::makeAction;
 
+namespace
+{
+void setLoopRangeWithUndo (te::Edit& edit, te::TimePosition start, te::TimePosition end)
+{
+    auto& transport = edit.getTransport();
+    const auto maxEndTime = te::toPosition (edit.getLength() + te::Edit::getMaximumLength() * 0.75);
+    const auto clampedStart = juce::jlimit (te::TimePosition(), maxEndTime, start);
+    const auto clampedEnd = juce::jlimit (te::TimePosition(), maxEndTime, end);
+    auto& undoManager = edit.getUndoManager();
+
+    transport.loopPoint1.setValue (clampedStart, &undoManager);
+    transport.loopPoint2.setValue (clampedEnd, &undoManager);
+}
+
+void setLoopInWithUndo (te::Edit& edit, te::TimePosition loopIn)
+{
+    auto& transport = edit.getTransport();
+    const auto maxEndTime = te::toPosition (edit.getLength() + te::Edit::getMaximumLength() * 0.75);
+    const auto nonNegativeLoopIn = juce::jmax (te::TimePosition(), loopIn);
+    auto& undoManager = edit.getUndoManager();
+
+    transport.loopPoint1.setValue (juce::jlimit (te::TimePosition(), maxEndTime,
+                                                 std::max (std::max (transport.loopPoint1.get(),
+                                                                     transport.loopPoint2.get()),
+                                                           nonNegativeLoopIn)),
+                                   &undoManager);
+    transport.loopPoint2.setValue (juce::jlimit (te::TimePosition(), maxEndTime, nonNegativeLoopIn),
+                                   &undoManager);
+}
+
+void setLoopOutWithUndo (te::Edit& edit, te::TimePosition loopOut)
+{
+    auto& transport = edit.getTransport();
+    const auto maxEndTime = te::toPosition (edit.getLength() + te::Edit::getMaximumLength() * 0.75);
+    const auto nonNegativeLoopOut = juce::jmax (te::TimePosition(), loopOut);
+    auto& undoManager = edit.getUndoManager();
+
+    transport.loopPoint1.setValue (juce::jlimit (te::TimePosition(), maxEndTime,
+                                                 std::min (std::min (transport.loopPoint1.get(),
+                                                                     transport.loopPoint2.get()),
+                                                           nonNegativeLoopOut)),
+                                   &undoManager);
+    transport.loopPoint2.setValue (juce::jlimit (te::TimePosition(), maxEndTime, nonNegativeLoopOut),
+                                   &undoManager);
+}
+}
+
 //==============================================================================
 SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler& handler,
                                     waive::ToolRegistry* toolReg,
@@ -1335,13 +1382,12 @@ void SessionComponent::setLoopPointAtPlayhead (bool isLoopIn)
     editSession.performEdit (isLoopIn ? "Set Loop In" : "Set Loop Out",
                              [isLoopIn, loopPoint] (te::Edit& edit)
     {
-        auto& transport = edit.getTransport();
         if (isLoopIn)
-            transport.setLoopIn (loopPoint);
+            setLoopInWithUndo (edit, loopPoint);
         else
-            transport.setLoopOut (loopPoint);
+            setLoopOutWithUndo (edit, loopPoint);
 
-        transport.looping.setValue (true, &edit.getUndoManager());
+        edit.getTransport().looping.setValue (true, &edit.getUndoManager());
     });
 }
 
@@ -1352,7 +1398,7 @@ void SessionComponent::setLoopRange (double loopInSeconds, double loopOutSeconds
 
     editSession.performEdit ("Set Loop Range", [start, end] (te::Edit& edit)
     {
-        edit.getTransport().setLoopRange ({ start, end });
+        setLoopRangeWithUndo (edit, start, end);
     });
 }
 

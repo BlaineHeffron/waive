@@ -7,6 +7,18 @@
 
 namespace
 {
+void setLoopRangeWithUndo (te::Edit& edit, te::TimePosition start, te::TimePosition end,
+                           juce::UndoManager* undoManager)
+{
+    auto& transport = edit.getTransport();
+    const auto maxEndTime = te::toPosition (edit.getLength() + te::Edit::getMaximumLength() * 0.75);
+    const auto clampedStart = juce::jlimit (te::TimePosition(), maxEndTime, start);
+    const auto clampedEnd = juce::jlimit (te::TimePosition(), maxEndTime, end);
+
+    transport.loopPoint1.setValue (clampedStart, undoManager);
+    transport.loopPoint2.setValue (clampedEnd, undoManager);
+}
+
 juce::String getMicAccessHelpText()
 {
 #if JUCE_MAC
@@ -1423,14 +1435,17 @@ juce::var CommandHandler::handleSetLoopRegion (const juce::var& params)
     }
 
     auto& transport = edit.getTransport();
-    transport.looping.setValue (enabled, nullptr);
+    auto* undoManager = &edit.getUndoManager();
+    transport.looping.setValue (enabled, undoManager);
 
     if (enabled && params.hasProperty ("start") && params.hasProperty ("end"))
     {
         double startSec = params["start"];
         double endSec = params["end"];
-        transport.setLoopRange ({ te::TimePosition::fromSeconds (startSec),
-                                  te::TimePosition::fromSeconds (endSec) });
+        setLoopRangeWithUndo (edit,
+                              te::TimePosition::fromSeconds (startSec),
+                              te::TimePosition::fromSeconds (endSec),
+                              undoManager);
     }
 
     auto loopRange = transport.getLoopRange();

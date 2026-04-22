@@ -1739,6 +1739,52 @@ void testSetLoopRegionRejectsInvalidBoundsWithoutMutation (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testUndoableCommandHandlerSupportsLoopRegionUndoRedo (te::Engine& engine)
+{
+    EditSession session (engine);
+    CommandHandler handler (session.getEdit());
+    UndoableCommandHandler undoableHandler (handler, session);
+
+    auto& transport = session.getEdit().getTransport();
+    transport.looping.setValue (false, nullptr);
+    transport.setLoopRange ({ te::TimePosition::fromSeconds (1.0),
+                              te::TimePosition::fromSeconds (3.0) });
+
+    auto response = juce::JSON::parse (undoableHandler.handleCommand (R"({
+        "action":"set_loop_region",
+        "enabled":true,
+        "start":0.5,
+        "end":1.5
+    })"));
+
+    expect (response.isObject(), "Expected set_loop_region response object through undoable handler");
+    expect (response["status"].toString() == "ok", "Expected set_loop_region to succeed through undoable handler");
+    expect (transport.looping.get(), "Expected set_loop_region to enable looping");
+
+    auto loopRange = transport.getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 0.5) < 0.01,
+            "Expected set_loop_region to update loop start");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 1.5) < 0.01,
+            "Expected set_loop_region to update loop end");
+    expect (session.canUndo(), "Expected set_loop_region to create an undo entry");
+
+    session.undo();
+    expect (! transport.looping.get(), "Expected undo to restore original loop enabled state");
+    loopRange = transport.getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 1.0) < 0.01,
+            "Expected undo to restore prior loop start");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 3.0) < 0.01,
+            "Expected undo to restore prior loop end");
+
+    session.redo();
+    expect (transport.looping.get(), "Expected redo to restore enabled loop state");
+    loopRange = transport.getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 0.5) < 0.01,
+            "Expected redo to restore loop start");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 1.5) < 0.01,
+            "Expected redo to restore loop end");
+}
+
 void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("malformed_command_requests");
@@ -1836,6 +1882,7 @@ int main()
         testExportStemsReportsRenderFailures (engine);
         testExportStemsAllowsNewOutputDirectoriesWithinAllowlist (engine);
         testSetLoopRegionRejectsInvalidBoundsWithoutMutation (engine);
+        testUndoableCommandHandlerSupportsLoopRegionUndoRedo (engine);
         testCommandHandlerRejectsMalformedCommandRequests (engine);
 
         std::cout << "WaiveCoreTests: PASS" << std::endl;
