@@ -605,6 +605,22 @@ void runAutoSaveSnapshotRegression()
     expect (autoSaveFile.existsAsFile(),
             "Expected autosave file to remain available until an explicit save clears it");
 
+    auto recoveredBackingFile = te::EditFileOperations (session.getEdit()).getEditFile();
+    expect (recoveredBackingFile != juce::File(),
+            "Expected headless auto-recovery to load from a concrete backing file");
+    expect (recoveredBackingFile != projectFile,
+            "Expected headless auto-recovery backing file to differ from the explicit project path before save");
+    expect (recoveredBackingFile.existsAsFile(),
+            "Expected headless auto-recovery backing file to exist before explicit save");
+
+    expect (projectManager.save(), "Expected save after headless auto-recovery to succeed");
+    expect (! projectManager.isDirty(),
+            "Expected save after headless auto-recovery to clear dirty state");
+    expect (! autoSaveFile.existsAsFile(),
+            "Expected save after headless auto-recovery to clear the autosave file");
+    expect (! recoveredBackingFile.existsAsFile(),
+            "Expected save after headless auto-recovery to clean up the recovered backing file");
+
     (void) projectFile.deleteFile();
 }
 
@@ -964,6 +980,9 @@ void runAutoSaveSaveAsCleanupRegression()
     auto saveAsAutoSaveFile = AutoSaveManager::getAutoSaveFileForProject (saveAsProjectFile);
     (void) saveAsAutoSaveFile.deleteFile();
 
+    const auto staleBackingFile = te::EditFileOperations (session.getEdit()).getEditFile();
+    session.getEdit().editFileRetriever = [staleBackingFile] { return staleBackingFile; };
+
     expect (projectManager.saveAs (saveAsProjectFile), "Expected Save As to succeed");
     expect (projectManager.getCurrentFile() == saveAsProjectFile,
             "Expected Save As to update the current project path");
@@ -990,6 +1009,25 @@ void runAutoSaveSaveAsCleanupRegression()
     expect (saveAsSavedTrack != nullptr, "Expected Save As target project track");
     expect (getClipCount (*saveAsSavedTrack) == 2,
             "Expected Save As target file to include the unsaved clip");
+
+    expect (session.canUndo(),
+            "Expected Save As to preserve undo history for pre-save edits");
+    session.undo();
+
+    auto* trackAfterUndo = getFirstTrack (session.getEdit());
+    expect (trackAfterUndo != nullptr, "Expected track after undoing through Save As");
+    expect (getClipCount (*trackAfterUndo) == 1,
+            "Expected undo after Save As to restore the pre-edit clip count");
+    expect (projectManager.isDirty(),
+            "Expected undo after Save As to make the renamed project dirty");
+
+    session.redo();
+    auto* trackAfterRedo = getFirstTrack (session.getEdit());
+    expect (trackAfterRedo != nullptr, "Expected track after redoing through Save As");
+    expect (getClipCount (*trackAfterRedo) == 2,
+            "Expected redo after Save As to restore the saved clip count");
+    expect (! projectManager.isDirty(),
+            "Expected redo after Save As to return the renamed project to a clean state");
 
     expect (session.performEdit ("Save As Follow-up Add Clip", [&] (te::Edit& edit)
     {

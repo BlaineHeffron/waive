@@ -66,6 +66,11 @@ void deleteTransientBackingFileIfNeeded (const juce::File& backingFile,
         (void) backingFile.deleteFile();
 }
 
+void rebindEditBackingFile (te::Edit& edit, const juce::File& targetFile)
+{
+    edit.editFileRetriever = [targetFile] { return targetFile; };
+}
+
 }
 
 //==============================================================================
@@ -278,9 +283,9 @@ bool ProjectManager::saveAs (const juce::File& file)
         return false;
 
     // Tracktion's saveAs can leave the live edit bound to its previous backing file.
-    // Reload the just-saved target so future saves write to the new project path.
+    // Rebind the current Edit in place so undo history and edit-scoped UI state survive Save As.
     if (te::EditFileOperations (editSession.getEdit()).getEditFile() != targetFile)
-        editSession.loadFromFile (targetFile);
+        rebindEditBackingFile (editSession.getEdit(), targetFile);
 
     deleteTransientBackingFileIfNeeded (backingFile, targetFile);
 
