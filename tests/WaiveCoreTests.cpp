@@ -63,6 +63,23 @@ juce::File writeTestWav (const juce::File& file, float amplitude = 0.5f)
     return file;
 }
 
+juce::File writeTestMidi (const juce::File& file)
+{
+    juce::MidiMessageSequence sequence;
+    sequence.addEvent (juce::MidiMessage::noteOn (1, 60, (juce::uint8) 100), 0.0);
+    sequence.addEvent (juce::MidiMessage::noteOff (1, 60), 0.5);
+    sequence.updateMatchedPairs();
+
+    juce::MidiFile midiFile;
+    midiFile.setTicksPerQuarterNote (960);
+    midiFile.addTrack (sequence);
+
+    juce::FileOutputStream output (file);
+    expect (output.openedOk(), "Expected MIDI fixture output stream");
+    expect (midiFile.writeTo (output), "Expected MIDI fixture write to succeed");
+    return file;
+}
+
 juce::File createSavedProjectFixture (te::Engine& engine, const juce::File& projectFile)
 {
     auto backingFile = projectFile.getSiblingFile ("fixture_backing.tracktionedit");
@@ -1910,10 +1927,13 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     auto fixtureDir = getFixtureDir ("malformed_command_requests");
     auto backingFile = fixtureDir.getChildFile ("malformed_command_requests.tracktionedit");
     auto edit = te::createEmptyEdit (engine, backingFile);
-    edit->ensureNumberOfAudioTracks (1);
+    edit->ensureNumberOfAudioTracks (2);
 
     auto* track = te::getAudioTracks (*edit).getFirst();
     expect (track != nullptr, "Expected audio track for malformed-command test");
+    auto* secondTrack = te::getAudioTracks (*edit)[1];
+    expect (secondTrack != nullptr, "Expected second audio track for malformed-command test");
+    expect (secondTrack->getClips().isEmpty(), "Expected second track to start empty for malformed-command test");
 
     auto clip = track->insertMIDIClip (
         "source",
@@ -1934,7 +1954,66 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
 
     edit->getTransport().setPosition (te::TimePosition::fromSeconds (1.25));
 
+    auto pluginState = te::createValueTree (te::IDs::PLUGIN,
+                                            te::IDs::type, te::ReverbPlugin::xmlTypeName,
+                                            "pluginFormatName", te::PluginManager::builtInPluginFormatName,
+                                            "fileOrIdentifier", te::ReverbPlugin::xmlTypeName,
+                                            "manufacturer", "Waive");
+    auto plugin = edit->getPluginCache().createNewPlugin (pluginState);
+    expect (plugin != nullptr, "Expected built-in plugin creation for malformed-command test");
+    auto* reverb = dynamic_cast<te::ReverbPlugin*> (plugin.get());
+    expect (reverb != nullptr, "Expected reverb plugin instance for malformed-command test");
+    track->pluginList.insertPlugin (plugin, 0, nullptr);
+    auto reverbParams = reverb->getAutomatableParameters();
+    expect (! reverbParams.isEmpty(), "Expected reverb to expose automatable parameters");
+    auto* firstPluginParam = reverbParams.getFirst();
+    expect (firstPluginParam != nullptr, "Expected first reverb parameter for malformed-command test");
+    const auto originalPluginParamValue = firstPluginParam->getCurrentValue();
+    const auto stableIdentifier = waive::PluginPresetManager::getPluginIdentifier (*reverb);
+
+    auto audioFixture = writeTestWav (fixtureDir.getChildFile ("malformed_source.wav"));
+    expect (audioFixture.existsAsFile(), "Expected audio fixture for malformed-command test");
+    auto midiFixture = writeTestMidi (fixtureDir.getChildFile ("malformed_source.mid"));
+    expect (midiFixture.existsAsFile(), "Expected MIDI fixture for malformed-command test");
+
+    const auto originalTrackCount = getAudioTrackCount (*edit);
+    const auto originalClipCount = track->getClips().size();
+
     CommandHandler handler (*edit);
+
+    auto removeTrackResponse = runJsonCommand (handler, R"({
+        "action":"remove_track"
+    })");
+    expect (removeTrackResponse["status"].toString() == "error",
+            "Expected remove_track without track_id to fail");
+    expect (getAudioTrackCount (*edit) == originalTrackCount,
+            "Expected malformed remove_track request not to delete any track");
+
+    auto duplicateTrackResponse = runJsonCommand (handler, R"({
+        "action":"duplicate_track"
+    })");
+    expect (duplicateTrackResponse["status"].toString() == "error",
+            "Expected duplicate_track without track_id to fail");
+    expect (getAudioTrackCount (*edit) == originalTrackCount,
+            "Expected malformed duplicate_track request not to duplicate any track");
+
+    auto insertAudioResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"insert_audio_clip",
+        "file_path":"%s"
+    })", audioFixture.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (insertAudioResponse["status"].toString() == "error",
+            "Expected insert_audio_clip without track_id to fail");
+    expect (track->getClips().size() == originalClipCount,
+            "Expected malformed insert_audio_clip request not to insert on track 0");
+
+    auto insertMidiResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"insert_midi_clip",
+        "file_path":"%s"
+    })", midiFixture.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (insertMidiResponse["status"].toString() == "error",
+            "Expected insert_midi_clip without track_id to fail");
+    expect (track->getClips().size() == originalClipCount,
+            "Expected malformed insert_midi_clip request not to insert on track 0");
 
     auto volumeResponse = runJsonCommand (handler, R"({
         "action":"set_track_volume",
@@ -1961,6 +2040,19 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected transport_seek without position to fail");
     expect (std::abs (edit->getTransport().getPosition().inSeconds() - 1.25) < 0.0001,
             "Expected malformed transport_seek request not to move the transport");
+
+    auto setParameterResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"set_parameter",
+        "plugin_id":"%s",
+        "param_id":"%s",
+        "value":0.75
+    })",
+        stableIdentifier.replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8(),
+        firstPluginParam->paramID.replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (setParameterResponse["status"].toString() == "error",
+            "Expected set_parameter without track_id to fail");
+    expect (std::abs ((double) firstPluginParam->getCurrentValue() - (double) originalPluginParamValue) < 0.0001,
+            "Expected malformed set_parameter request not to mutate the plugin parameter");
 
     auto moveResponse = runJsonCommand (handler, R"({
         "action":"move_clip",

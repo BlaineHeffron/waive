@@ -574,9 +574,14 @@ juce::var CommandHandler::handleSetTrackPan (const juce::var& params)
 
 juce::var CommandHandler::handleInsertAudioClip (const juce::var& params)
 {
-    int trackId         = params["track_id"];
-    double startTime    = params["start_time"];
-    auto filePath       = params["file_path"].toString();
+    juce::var errorResult;
+    int trackId = 0;
+    juce::String filePath;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireStringProperty (params, "file_path", filePath, errorResult))
+        return errorResult;
+
+    double startTime = params.hasProperty ("start_time") ? (double) params["start_time"] : 0.0;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -617,7 +622,10 @@ juce::var CommandHandler::handleInsertAudioClip (const juce::var& params)
 
 juce::var CommandHandler::handleRemoveTrack (const juce::var& params)
 {
-    int trackId = params["track_id"];
+    juce::var errorResult;
+    int trackId = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult))
+        return errorResult;
 
     auto* track = getTrackById (trackId);
     if (track == nullptr)
@@ -633,9 +641,14 @@ juce::var CommandHandler::handleRemoveTrack (const juce::var& params)
 
 juce::var CommandHandler::handleInsertMidiClip (const juce::var& params)
 {
-    int trackId         = params["track_id"];
-    auto filePath       = params["file_path"].toString();
-    double startTime    = params.hasProperty ("start_time") ? (double) params["start_time"] : 0.0;
+    juce::var errorResult;
+    int trackId = 0;
+    juce::String filePath;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireStringProperty (params, "file_path", filePath, errorResult))
+        return errorResult;
+
+    double startTime = params.hasProperty ("start_time") ? (double) params["start_time"] : 0.0;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -740,10 +753,18 @@ juce::var CommandHandler::handleLoadPlugin (const juce::var& params)
 
 juce::var CommandHandler::handleSetParameter (const juce::var& params)
 {
-    int trackId      = params["track_id"];
-    auto pluginId    = params["plugin_id"].toString();
-    auto paramId     = params["param_id"].toString();
-    float value      = static_cast<float> (params["value"]);
+    juce::var errorResult;
+    int trackId = 0;
+    juce::String pluginId;
+    juce::String paramId;
+    double valueDouble = 0.0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireStringProperty (params, "plugin_id", pluginId, errorResult)
+        || ! requireStringProperty (params, "param_id", paramId, errorResult)
+        || ! requireDoubleProperty (params, "value", valueDouble, errorResult))
+        return errorResult;
+
+    auto value = static_cast<float> (valueDouble);
 
     auto* track = getTrackById (trackId);
     if (track == nullptr)
@@ -1320,10 +1341,10 @@ juce::var CommandHandler::handleMuteTrack (const juce::var& params)
 
 juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id"))
-        return makeError ("Missing required parameter: track_id");
-
-    int trackId = params["track_id"];
+    juce::var errorResult;
+    int trackId = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult))
+        return errorResult;
 
     auto* sourceTrack = getAudioTrackById (trackId);
     if (sourceTrack == nullptr)
