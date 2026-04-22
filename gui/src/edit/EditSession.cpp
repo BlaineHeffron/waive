@@ -23,7 +23,7 @@ EditSession::EditSession (te::Engine& eng)
     auto editFile = juce::File::createTempFile (".tracktionedit");
     edit = te::createEmptyEdit (engine, editFile);
     edit->getUndoManager().clearUndoHistory();
-    lastSavedStateSnapshot = buildCurrentStateSnapshot();
+    resetDirtyTrackingToCurrentState();
 }
 
 EditSession::~EditSession() = default;
@@ -40,6 +40,9 @@ void EditSession::replaceEdit (std::unique_ptr<te::Edit> newEdit)
 
     edit = std::move (newEdit);
     lastTransactionName.clear();
+    undoTransactionDepth = 0;
+    redoTransactionDepth = 0;
+    resetDirtyTrackingToCurrentState();
 
     if (edit != nullptr)
         edit->getUndoManager().clearUndoHistory();
@@ -78,7 +81,7 @@ void EditSession::resetChangedStatus()
 {
     if (edit != nullptr)
     {
-        lastSavedStateSnapshot = buildCurrentStateSnapshot();
+        resetDirtyTrackingToCurrentState();
         edit->resetChangedStatus();
     }
 }
@@ -87,6 +90,7 @@ void EditSession::markAsChanged()
 {
     if (edit != nullptr)
     {
+        hasNonUndoableUnsavedChange = true;
         edit->markAsChanged();
         listeners.call (&Listener::editStateChanged);
     }
@@ -94,7 +98,10 @@ void EditSession::markAsChanged()
 
 void EditSession::setSavedStateFromFile (const juce::File& file)
 {
-    lastSavedStateSnapshot = buildStateSnapshotFromFile (file);
+    externalSavedStateSnapshot = buildStateSnapshotFromFile (file);
+    savedUndoTransactionDepth = undoTransactionDepth;
+    useExternalSavedStateSnapshot = true;
+    hasNonUndoableUnsavedChange = false;
 }
 
 //==============================================================================
@@ -117,11 +124,27 @@ bool EditSession::performEdit (const juce::String& actionName,
     if (startedNewTransaction)
         undoManager.beginNewTransaction (actionName);
 
+    const auto actionsBeforeMutation = undoManager.getNumActionsInCurrentTransaction();
     lastTransactionName = actionName;
 
     try
     {
         mutation (*edit);
+        const auto actionsAfterMutation = undoManager.getNumActionsInCurrentTransaction();
+
+        if (actionsAfterMutation > actionsBeforeMutation)
+        {
+            if (startedNewTransaction)
+            {
+                ++undoTransactionDepth;
+                redoTransactionDepth = 0;
+            }
+        }
+        else
+        {
+            hasNonUndoableUnsavedChange = true;
+        }
+
         edit->markAsChanged();
         listeners.call (&Listener::editStateChanged);
         return true;
@@ -158,6 +181,13 @@ bool EditSession::canRedo() const
 void EditSession::undo()
 {
     edit->undo();
+
+    if (undoTransactionDepth > 0)
+    {
+        --undoTransactionDepth;
+        ++redoTransactionDepth;
+    }
+
     syncChangedStatusToSavedState();
     lastTransactionName.clear();
     listeners.call (&Listener::editStateChanged);
@@ -166,6 +196,13 @@ void EditSession::undo()
 void EditSession::redo()
 {
     edit->redo();
+
+    if (redoTransactionDepth > 0)
+    {
+        ++undoTransactionDepth;
+        --redoTransactionDepth;
+    }
+
     syncChangedStatusToSavedState();
     lastTransactionName.clear();
     listeners.call (&Listener::editStateChanged);
@@ -206,13 +243,42 @@ juce::String EditSession::buildStateSnapshotFromFile (const juce::File& file)
     return createStateSnapshot (juce::ValueTree::fromXml (*xml));
 }
 
+void EditSession::resetDirtyTrackingToCurrentState()
+{
+    savedUndoTransactionDepth = undoTransactionDepth;
+    hasNonUndoableUnsavedChange = false;
+    useExternalSavedStateSnapshot = false;
+    externalSavedStateSnapshot.clear();
+}
+
+void EditSession::syncChangedStatusToTrackingState()
+{
+    if (! hasNonUndoableUnsavedChange && undoTransactionDepth == savedUndoTransactionDepth)
+        edit->resetChangedStatus();
+    else
+        edit->markAsChanged();
+}
+
 void EditSession::syncChangedStatusToSavedState()
 {
     if (edit == nullptr)
         return;
 
-    if (buildCurrentStateSnapshot() == lastSavedStateSnapshot)
-        edit->resetChangedStatus();
+    if (useExternalSavedStateSnapshot)
+    {
+        if (buildCurrentStateSnapshot() == externalSavedStateSnapshot)
+        {
+            hasNonUndoableUnsavedChange = false;
+            edit->resetChangedStatus();
+        }
+        else
+        {
+            hasNonUndoableUnsavedChange = true;
+            edit->markAsChanged();
+        }
+    }
     else
-        edit->markAsChanged();
+    {
+        syncChangedStatusToTrackingState();
+    }
 }

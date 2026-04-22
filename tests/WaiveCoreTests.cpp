@@ -239,6 +239,40 @@ void testPerformEditExceptionSafety (EditSession& session)
             "Expected undo history before the failing mutation to remain intact");
 }
 
+void testDirtyStateSavepointAcrossCoalescedUndoRedo (te::Engine& engine)
+{
+    EditSession session (engine);
+    auto& edit = session.getEdit();
+
+    auto addTrack = [&] (const juce::String& actionName, bool coalesce)
+    {
+        return session.performEdit (actionName, coalesce, [&] (te::Edit& e)
+        {
+            e.ensureNumberOfAudioTracks (getAudioTrackCount (e) + 1);
+        });
+    };
+
+    expect (addTrack ("Seed Clean Savepoint", false), "Expected initial mutation to succeed");
+    expect (session.hasChangedSinceSaved(), "Expected initial mutation to mark the session dirty");
+
+    session.resetChangedStatus();
+    expect (! session.hasChangedSinceSaved(), "Expected resetChangedStatus to establish a clean savepoint");
+
+    expect (addTrack ("Coalesced Track Growth", true), "Expected first coalesced mutation to succeed");
+    expect (addTrack ("Coalesced Track Growth", true), "Expected second coalesced mutation to succeed");
+    expect (getAudioTrackCount (edit) == 4, "Expected coalesced mutations to add two tracks");
+    expect (session.hasChangedSinceSaved(), "Expected coalesced mutations after the savepoint to mark the session dirty");
+
+    session.undo();
+    expect (getAudioTrackCount (edit) == 2, "Expected a single undo to revert the coalesced transaction");
+    expect (! session.hasChangedSinceSaved(),
+            "Expected undo to restore the clean savepoint without requiring full-state snapshot comparison");
+
+    session.redo();
+    expect (getAudioTrackCount (edit) == 4, "Expected redo to restore the coalesced transaction");
+    expect (session.hasChangedSinceSaved(), "Expected redo to restore the dirty state after the savepoint");
+}
+
 void testUndoableCommandHandlerWrapsMutatingCommands (te::Engine& engine)
 {
     EditSession session (engine);
@@ -1848,6 +1882,7 @@ int main()
         testCoalescedTransactionsAndReset (session);
         testDuplicateMidiClipPreservesSequence (session);
         testPerformEditExceptionSafety (session);
+        testDirtyStateSavepointAcrossCoalescedUndoRedo (engine);
         testUndoableCommandHandlerWrapsMutatingCommands (engine);
         testClickTrackToggleSupportsUndoRedo (engine);
         testModelManagerSettingsPersistence();

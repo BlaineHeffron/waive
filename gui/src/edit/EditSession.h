@@ -79,11 +79,18 @@ public:
 private:
     juce::String buildCurrentStateSnapshot() const;
     static juce::String buildStateSnapshotFromFile (const juce::File& file);
+    void resetDirtyTrackingToCurrentState();
+    void syncChangedStatusToTrackingState();
     void syncChangedStatusToSavedState();
 
     te::Engine& engine;
     std::unique_ptr<te::Edit> edit;
     juce::String lastTransactionName;
-    juce::String lastSavedStateSnapshot;
+    juce::String externalSavedStateSnapshot;
+    int undoTransactionDepth = 0;
+    int savedUndoTransactionDepth = 0;
+    int redoTransactionDepth = 0;
+    bool hasNonUndoableUnsavedChange = false;
+    bool useExternalSavedStateSnapshot = false;
     juce::ListenerList<Listener> listeners;
 };
