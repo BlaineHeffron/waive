@@ -38,7 +38,7 @@ Waive has three native C++ regression test executables integrated with CTest.
       - tempo and time-signature control updates + marker insertion at playhead
       - bars/beats grid snap behavior via `SessionComponent`/`TimelineComponent` test helpers (including non-`x/4` bar snap like `6/8`)
       - automation point add/move on track plugin parameter curves, with undo/redo validation
-      - loop range + loop enable and punch-in/out state toggles
+      - loop in/out, loop enable, punch-in/out, and metronome click toggles with undo/redo validation
     - Phase 4 tool framework coverage:
       - `ToolSidebarComponent` no-user workflow for built-in `normalize_selected_clips`:
         - async `plan` generation with structured preview diff

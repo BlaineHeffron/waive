@@ -261,28 +261,24 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     {
         if (suppressControlCallbacks)
             return;
-        editSession.getEdit().getTransport().looping = loopButton.getToggleState();
+        setLoopEnabled (loopButton.getToggleState());
     };
 
     punchButton.onClick = [this]
     {
         if (suppressControlCallbacks)
             return;
-        editSession.getEdit().recordingPunchInOut = punchButton.getToggleState();
+        setPunchEnabled (punchButton.getToggleState());
     };
 
     setLoopInButton.onClick = [this]
     {
-        auto& transport = editSession.getEdit().getTransport();
-        transport.setLoopIn (transport.getPosition());
-        transport.looping = true;
+        setLoopPointAtPlayhead (true);
     };
 
     setLoopOutButton.onClick = [this]
     {
-        auto& transport = editSession.getEdit().getTransport();
-        transport.setLoopOut (transport.getPosition());
-        transport.looping = true;
+        setLoopPointAtPlayhead (false);
     };
 
     // Timeline
@@ -326,7 +322,7 @@ SessionComponent::SessionComponent (EditSession& session, UndoableCommandHandler
     {
         if (suppressControlCallbacks)
             return;
-        editSession.getEdit().clickTrackEnabled = clickToggle.getToggleState();
+        setClickEnabled (clickToggle.getToggleState());
     };
 
     refreshMicInputDevices();
@@ -1309,6 +1305,67 @@ void SessionComponent::applyTimeSignature (int numerator, int denominator)
     });
 }
 
+void SessionComponent::setLoopEnabled (bool enabled)
+{
+    if (editSession.getEdit().getTransport().looping.get() == enabled)
+        return;
+
+    editSession.performEdit (enabled ? "Enable Loop" : "Disable Loop", [enabled] (te::Edit& edit)
+    {
+        edit.getTransport().looping = enabled;
+    });
+}
+
+void SessionComponent::setPunchEnabled (bool enabled)
+{
+    if (editSession.getEdit().recordingPunchInOut.get() == enabled)
+        return;
+
+    editSession.performEdit (enabled ? "Enable Punch" : "Disable Punch", [enabled] (te::Edit& edit)
+    {
+        edit.recordingPunchInOut = enabled;
+    });
+}
+
+void SessionComponent::setLoopPointAtPlayhead (bool isLoopIn)
+{
+    const auto loopPoint = editSession.getEdit().getTransport().getPosition();
+
+    editSession.performEdit (isLoopIn ? "Set Loop In" : "Set Loop Out",
+                             [isLoopIn, loopPoint] (te::Edit& edit)
+    {
+        auto& transport = edit.getTransport();
+        if (isLoopIn)
+            transport.setLoopIn (loopPoint);
+        else
+            transport.setLoopOut (loopPoint);
+
+        transport.looping = true;
+    });
+}
+
+void SessionComponent::setLoopRange (double loopInSeconds, double loopOutSeconds)
+{
+    const auto start = te::TimePosition::fromSeconds (juce::jmax (0.0, juce::jmin (loopInSeconds, loopOutSeconds)));
+    const auto end = te::TimePosition::fromSeconds (juce::jmax (loopInSeconds, loopOutSeconds));
+
+    editSession.performEdit ("Set Loop Range", [start, end] (te::Edit& edit)
+    {
+        edit.getTransport().setLoopRange ({ start, end });
+    });
+}
+
+void SessionComponent::setClickEnabled (bool enabled)
+{
+    if (editSession.getEdit().clickTrackEnabled.get() == enabled)
+        return;
+
+    editSession.performEdit (enabled ? "Enable Click" : "Disable Click", [enabled] (te::Edit& edit)
+    {
+        edit.clickTrackEnabled = enabled;
+    });
+}
+
 int SessionComponent::getSelectedTimeSigNumerator() const
 {
     auto n = timeSigNumeratorBox.getSelectedId();
@@ -1369,19 +1426,32 @@ double SessionComponent::snapTimeForTesting (double seconds) const
 
 void SessionComponent::setLoopEnabledForTesting (bool enabled)
 {
-    editSession.getEdit().getTransport().looping = enabled;
+    setLoopEnabled (enabled);
 }
 
 void SessionComponent::setLoopRangeForTesting (double loopInSeconds, double loopOutSeconds)
 {
-    auto start = te::TimePosition::fromSeconds (juce::jmax (0.0, juce::jmin (loopInSeconds, loopOutSeconds)));
-    auto end = te::TimePosition::fromSeconds (juce::jmax (loopInSeconds, loopOutSeconds));
-    editSession.getEdit().getTransport().setLoopRange ({ start, end });
+    setLoopRange (loopInSeconds, loopOutSeconds);
+}
+
+void SessionComponent::setLoopInAtPlayheadForTesting()
+{
+    setLoopPointAtPlayhead (true);
+}
+
+void SessionComponent::setLoopOutAtPlayheadForTesting()
+{
+    setLoopPointAtPlayhead (false);
 }
 
 void SessionComponent::setPunchEnabledForTesting (bool enabled)
 {
-    editSession.getEdit().recordingPunchInOut = enabled;
+    setPunchEnabled (enabled);
+}
+
+void SessionComponent::setClickEnabledForTesting (bool enabled)
+{
+    setClickEnabled (enabled);
 }
 
 juce::Array<int> SessionComponent::getToolPreviewTracksForTesting() const

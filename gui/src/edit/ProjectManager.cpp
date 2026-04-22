@@ -219,29 +219,45 @@ bool ProjectManager::saveAs()
     if (file.getFileExtension().isEmpty())
         file = file.withFileExtension ("tracktionedit");
 
+    return saveAs (file);
+}
+
+bool ProjectManager::saveAs (const juce::File& file)
+{
+    auto targetFile = file;
+    if (targetFile == juce::File())
+        return false;
+
+    if (targetFile.getFileExtension().isEmpty())
+        targetFile = targetFile.withFileExtension ("tracktionedit");
+
     auto fileOps = te::EditFileOperations (editSession.getEdit());
     auto backingFile = fileOps.getEditFile();
+    const auto previousFile = currentFile;
 
-    if (backingFile != juce::File() && backingFile != file)
+    if (backingFile != juce::File() && backingFile != targetFile)
     {
         if (! fileOps.save (false, true, false))
             return false;
 
-        if (! replaceFileAtomically (backingFile, file))
+        if (! replaceFileAtomically (backingFile, targetFile))
             return false;
     }
     else
     {
         editSession.flushState();
-        if (! fileOps.saveAs (file))
+        if (! fileOps.saveAs (targetFile))
             return false;
     }
 
-    currentFile = file;
+    if (previousFile != juce::File() && previousFile != targetFile)
+        AutoSaveManager::deleteAutoSave (previousFile);
+
+    currentFile = targetFile;
     editSession.resetChangedStatus();
     AutoSaveManager::deleteAutoSave (currentFile);
     listeners.call ([&] (Listener& listener) { listener.projectFileChanged (currentFile); });
-    addToRecentFiles (file);
+    addToRecentFiles (targetFile);
     checkDirtyState();
     return true;
 }

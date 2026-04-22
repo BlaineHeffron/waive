@@ -709,6 +709,64 @@ void runAutoSaveDiscardOnOpenRegression()
     (void) replacementProjectFile.deleteFile();
 }
 
+void runAutoSaveSaveAsCleanupRegression()
+{
+    te::Engine engine ("WaiveUiAutoSaveSaveAsTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto originalProjectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (originalProjectFile), "Expected save-as fixture project to open");
+
+    auto originalAutoSaveFile = AutoSaveManager::getAutoSaveFileForProject (originalProjectFile);
+    (void) originalAutoSaveFile.deleteFile();
+
+    expect (session.performEdit ("Autosave Save As Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "autosave_save_as_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (78, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected save-as mutation to succeed");
+
+    {
+        AutoSaveManager autoSaveManager (session, projectManager, 1);
+        autoSaveManager.triggerAutoSaveForTesting();
+    }
+
+    expect (originalAutoSaveFile.existsAsFile(), "Expected original autosave file before Save As");
+
+    auto saveAsDir = originalProjectFile.getParentDirectory().getChildFile ("save_as_output");
+    expect (saveAsDir.createDirectory(), "Expected save-as output directory creation");
+    auto saveAsProjectFile = saveAsDir.getChildFile ("renamed_project.tracktionedit");
+    auto saveAsAutoSaveFile = AutoSaveManager::getAutoSaveFileForProject (saveAsProjectFile);
+    (void) saveAsAutoSaveFile.deleteFile();
+
+    expect (projectManager.saveAs (saveAsProjectFile), "Expected Save As to succeed");
+    expect (projectManager.getCurrentFile() == saveAsProjectFile,
+            "Expected Save As to update the current project path");
+    expect (! originalAutoSaveFile.existsAsFile(),
+            "Expected Save As to clear the old project's autosave file");
+    expect (! saveAsAutoSaveFile.existsAsFile(),
+            "Expected Save As to leave no autosave file for the new project path");
+    expect (saveAsProjectFile.existsAsFile(), "Expected Save As target file to exist");
+
+    (void) originalProjectFile.deleteFile();
+    (void) saveAsProjectFile.deleteFile();
+    (void) saveAsDir.deleteRecursively();
+}
+
 void runModelStorageAllowlistRefreshRegression()
 {
     te::Engine engine ("WaiveUiModelStorageAllowlistTests");
@@ -1194,18 +1252,83 @@ void runUiPhase3TimeAutomationLoopPunchRegression()
     expect (findPointNearTime (1.5, 0.06) >= 0,
             "Expected automation point near 1.5s after redo chain");
 
-    // 3C: loop + punch transport state.
-    sessionComponent.setLoopRangeForTesting (0.5, 1.5);
-    sessionComponent.setLoopEnabledForTesting (true);
+    // 3C: loop + punch + click transport controls, including undo/redo.
+    const auto initialLoopRange = edit.getTransport().getLoopRange();
+    const bool initialLoopEnabled = edit.getTransport().looping.get();
+    const bool initialPunchEnabled = edit.recordingPunchInOut.get();
+    const bool initialClickEnabled = edit.clickTrackEnabled.get();
+
+    edit.getTransport().setPosition (te::TimePosition::fromSeconds (0.5));
+    sessionComponent.setLoopInAtPlayheadForTesting();
+    edit.getTransport().setPosition (te::TimePosition::fromSeconds (1.5));
+    sessionComponent.setLoopOutAtPlayheadForTesting();
+    sessionComponent.setLoopEnabledForTesting (false);
     sessionComponent.setPunchEnabledForTesting (true);
+    sessionComponent.setClickEnabledForTesting (! initialClickEnabled);
 
     auto loopRange = edit.getTransport().getLoopRange();
     expect (std::abs (loopRange.getStart().inSeconds() - 0.5) < 0.01,
             "Expected loop in point at 0.5s");
     expect (std::abs (loopRange.getEnd().inSeconds() - 1.5) < 0.01,
             "Expected loop out point at 1.5s");
-    expect (edit.getTransport().looping.get(), "Expected loop enabled");
+    expect (! edit.getTransport().looping.get(), "Expected loop toggle to disable looping");
     expect (edit.recordingPunchInOut.get(), "Expected punch enabled");
+    expect (edit.clickTrackEnabled.get() == ! initialClickEnabled,
+            "Expected click toggle state change");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo command to execute for click toggle");
+    expect (edit.clickTrackEnabled.get() == initialClickEnabled,
+            "Expected undo to restore click toggle state");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo command to execute for punch toggle");
+    expect (edit.recordingPunchInOut.get() == initialPunchEnabled,
+            "Expected undo to restore punch state");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo command to execute for loop enable toggle");
+    expect (edit.getTransport().looping.get(),
+            "Expected undo to restore looping after disabling it");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo command to execute for loop-out change");
+    loopRange = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRange.getEnd().inSeconds() - initialLoopRange.getEnd().inSeconds()) < 0.01,
+            "Expected undo to restore prior loop out point");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo command to execute for loop-in change");
+    loopRange = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - initialLoopRange.getStart().inSeconds()) < 0.01,
+            "Expected undo to restore prior loop in point");
+    expect (edit.getTransport().looping.get() == initialLoopEnabled,
+            "Expected undo to restore initial loop enabled state");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo command to execute for loop-in change");
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo command to execute for loop-out change");
+    loopRange = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRange.getStart().inSeconds() - 0.5) < 0.01,
+            "Expected redo to restore loop in point");
+    expect (std::abs (loopRange.getEnd().inSeconds() - 1.5) < 0.01,
+            "Expected redo to restore loop out point");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo command to execute for loop enable toggle");
+    expect (! edit.getTransport().looping.get(),
+            "Expected redo to disable looping again");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo command to execute for punch toggle");
+    expect (edit.recordingPunchInOut.get(),
+            "Expected redo to restore punch enabled state");
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdRedo),
+            "Expected redo command to execute for click toggle");
+    expect (edit.clickTrackEnabled.get() == ! initialClickEnabled,
+            "Expected redo to restore click toggle state");
 }
 
 void runUiPhase4ToolFrameworkRegression()
@@ -2012,10 +2135,10 @@ void runUiPhase3TransportAndWorkflowTests()
 
     // Metronome toggle
     const bool clickInitial = edit.clickTrackEnabled.get();
-    edit.clickTrackEnabled = ! clickInitial;
+    sessionComponent.setClickEnabledForTesting (! clickInitial);
     juce::Thread::sleep (50);
     expect (edit.clickTrackEnabled.get() == ! clickInitial, "Expected click state change");
-    edit.clickTrackEnabled = clickInitial;
+    sessionComponent.setClickEnabledForTesting (clickInitial);
 }
 
 void runPhase2ModelWorkflowTests()
@@ -2941,6 +3064,7 @@ int main()
     RUN_TEST_SAFELY(runAutoSaveShutdownCleanupRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnNewRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnOpenRegression);
+    RUN_TEST_SAFELY(runAutoSaveSaveAsCleanupRegression);
     RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);

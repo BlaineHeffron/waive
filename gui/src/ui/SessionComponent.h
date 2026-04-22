@@ -61,7 +61,10 @@ public:
     double snapTimeForTesting (double seconds) const;
     void setLoopEnabledForTesting (bool enabled);
     void setLoopRangeForTesting (double loopInSeconds, double loopOutSeconds);
+    void setLoopInAtPlayheadForTesting();
+    void setLoopOutAtPlayheadForTesting();
     void setPunchEnabledForTesting (bool enabled);
+    void setClickEnabledForTesting (bool enabled);
     juce::Array<int> getToolPreviewTracksForTesting() const;
     juce::String getTransportTooltipForTesting (const juce::String& controlName);
     juce::String getSelectionStatusTextForTesting() const;
@@ -95,6 +98,11 @@ private:
     void closePianoRollInternal (bool relayout);
     void applyTempo (double bpm, bool coalesce);
     void applyTimeSignature (int numerator, int denominator);
+    void setLoopEnabled (bool enabled);
+    void setPunchEnabled (bool enabled);
+    void setLoopPointAtPlayhead (bool isLoopIn);
+    void setLoopRange (double loopInSeconds, double loopOutSeconds);
+    void setClickEnabled (bool enabled);
     int getSelectedTimeSigNumerator() const;
     int getSelectedTimeSigDenominator() const;
     void applyPanelLayoutMode (PanelLayoutMode mode);

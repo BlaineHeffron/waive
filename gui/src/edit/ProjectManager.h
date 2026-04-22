@@ -28,6 +28,7 @@ public:
                                      const juce::File& originalProjectFile);
     bool save();
     bool saveAs();
+    bool saveAs (const juce::File& file);
     bool confirmSaveIfDirty();
 
     bool isDirty() const;
