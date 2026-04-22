@@ -3,11 +3,11 @@
 #include <JuceHeader.h>
 #include <optional>
 
+#include "../edit/EditSession.h"
 #include "JobQueue.h"
 #include "ToolDiff.h"
 #include "SchemaFormComponent.h"
 
-class EditSession;
 class ProjectManager;
 class SessionComponent;
 
@@ -17,7 +17,8 @@ namespace waive { class ToolRegistry; class ModelManager; }
 /** Collapsible sidebar for tool plan/preview/apply workflow.
     Replaces the standalone ToolsComponent tab. */
 class ToolSidebarComponent : public juce::Component,
-                             public waive::JobQueue::Listener
+                             public waive::JobQueue::Listener,
+                             private EditSession::Listener
 {
 public:
     ToolSidebarComponent (waive::ToolRegistry& registry,
@@ -64,6 +65,9 @@ public:
     void jobEvent (const waive::JobEvent& event) override;
 
 private:
+    void editAboutToChange() override;
+    void editChanged() override;
+
     class ModelManagerSection;
     friend class ModelManagerSection;
     void populateToolList();

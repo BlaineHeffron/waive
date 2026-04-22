@@ -395,12 +395,14 @@ ToolSidebarComponent::ToolSidebarComponent (waive::ToolRegistry& registry,
     populateToolList();
     updateButtonStates();
 
+    editSession.addListener (this);
     jobQueue.addListener (this);
 }
 
 ToolSidebarComponent::~ToolSidebarComponent()
 {
     cancelRunningPlanAndWait (2000);
+    editSession.removeListener (this);
     jobQueue.removeListener (this);
 }
 
@@ -408,6 +410,19 @@ void ToolSidebarComponent::notifyModelStorageChanged()
 {
     if (onModelStorageChanged)
         onModelStorageChanged();
+}
+
+void ToolSidebarComponent::editAboutToChange()
+{
+    cancelRunningPlan();
+    clearPendingPlanState ("Project changed");
+    updateButtonStates();
+}
+
+void ToolSidebarComponent::editChanged()
+{
+    clearPendingPlanState();
+    updateButtonStates();
 }
 
 void ToolSidebarComponent::paint (juce::Graphics& g)

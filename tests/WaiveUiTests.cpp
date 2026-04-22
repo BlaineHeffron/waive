@@ -2037,6 +2037,70 @@ void runToolSidebarNoChangePlanRegression()
     std::cout << "runToolSidebarNoChangePlanRegression: PASS" << std::endl;
 }
 
+void runToolSidebarEditSwapClearsPendingPlanRegression()
+{
+    te::Engine engine ("WaiveUiToolSidebarEditSwap");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (session);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+
+    MainComponent mainComponent (undoableHandler, session, jobQueue, projectManager);
+    mainComponent.setBounds (0, 0, 1400, 900);
+    mainComponent.resized();
+
+    auto& sessionComponent = mainComponent.getSessionComponentForTesting();
+    auto& timeline = sessionComponent.getTimeline();
+    auto& toolsComponent = mainComponent.getToolSidebarForTesting();
+    auto& edit = session.getEdit();
+
+    auto* track = getFirstTrack (edit);
+    expect (track != nullptr, "Expected edit-swap test track");
+
+    auto fixtureAudio = createPhase4FixtureAudioFile();
+    auto insertedClip = track->insertWaveClip (
+        "edit_swap_source",
+        fixtureAudio,
+        { { te::TimePosition::fromSeconds (0.0),
+            te::TimePosition::fromSeconds (1.0) },
+          te::TimeDuration() },
+        false);
+    expect (insertedClip != nullptr, "Expected edit-swap wave clip insertion");
+
+    timeline.rebuildTracks();
+    timeline.getSelectionManager().selectClip (insertedClip.get());
+
+    toolsComponent.selectToolForTesting ("normalize_selected_clips");
+
+    auto* paramsObj = new juce::DynamicObject();
+    paramsObj->setProperty ("target_peak_db", -6.0);
+    paramsObj->setProperty ("analysis_delay_ms", 0);
+    toolsComponent.setParamsForTesting (juce::var (paramsObj));
+
+    expect (toolsComponent.runPlanForTesting(), "Expected edit-swap plan start");
+    expect (toolsComponent.waitForIdleForTesting(), "Expected edit-swap plan completion");
+    expect (toolsComponent.hasPendingPlanForTesting(), "Expected pending plan before edit swap");
+    expect (! sessionComponent.getToolPreviewTracksForTesting().isEmpty(),
+            "Expected preview highlight before edit swap");
+
+    expect (projectManager.newProject(), "Expected newProject to succeed after planning");
+    expect (! toolsComponent.hasPendingPlanForTesting(),
+            "Expected edit swap to clear stale pending plan state");
+    expect (toolsComponent.getPreviewTextForTesting().isEmpty(),
+            "Expected edit swap to clear stale preview text");
+    expect (sessionComponent.getToolPreviewTracksForTesting().isEmpty(),
+            "Expected edit swap to clear preview track highlights");
+    expect (! toolsComponent.applyPlanForTesting(),
+            "Expected edit swap to prevent applying stale plan state");
+
+    (void) fixtureAudio.deleteFile();
+
+    std::cout << "runToolSidebarEditSwapClearsPendingPlanRegression: PASS" << std::endl;
+}
+
 void runUiPhase5BuiltInToolsRegression()
 {
     if (const auto* disabled = std::getenv ("WAIVE_DISABLE_ASYNC_DIALOGS"))
@@ -3693,6 +3757,7 @@ int main()
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);
     RUN_TEST_SAFELY(runUiPhase3TransportAndWorkflowTests);
     RUN_TEST_SAFELY(runToolSidebarNoChangePlanRegression);
+    RUN_TEST_SAFELY(runToolSidebarEditSwapClearsPendingPlanRegression);
 
     if (automatedDialogHarness)
     {
