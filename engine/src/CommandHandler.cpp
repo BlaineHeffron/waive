@@ -1717,10 +1717,11 @@ juce::var CommandHandler::handleExportStems (const juce::var& params)
 
 juce::var CommandHandler::handleBounceTrack (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id"))
-        return makeError ("Missing required parameter: track_id");
+    juce::var errorResult;
+    int trackId = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult))
+        return errorResult;
 
-    int trackId = params["track_id"];
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
         return makeError ("Audio track not found: " + juce::String (trackId));
@@ -1790,11 +1791,12 @@ juce::var CommandHandler::handleBounceTrack (const juce::var& params)
 
 juce::var CommandHandler::handleRemovePlugin (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("plugin_index"))
-        return makeError ("Missing required parameters: track_id, plugin_index");
-
-    int trackId = params["track_id"];
-    int pluginIdx = params["plugin_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int pluginIdx = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "plugin_index", pluginIdx, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -1820,12 +1822,14 @@ juce::var CommandHandler::handleRemovePlugin (const juce::var& params)
 
 juce::var CommandHandler::handleBypassPlugin (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("plugin_index") || ! params.hasProperty ("bypassed"))
-        return makeError ("Missing required parameters: track_id, plugin_index, bypassed");
-
-    int trackId = params["track_id"];
-    int pluginIdx = params["plugin_index"];
-    bool bypassed = params["bypassed"];
+    juce::var errorResult;
+    int trackId = 0;
+    int pluginIdx = 0;
+    bool bypassed = false;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "plugin_index", pluginIdx, errorResult)
+        || ! requireBoolProperty (params, "bypassed", bypassed, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -1851,11 +1855,12 @@ juce::var CommandHandler::handleBypassPlugin (const juce::var& params)
 
 juce::var CommandHandler::handleGetPluginParameters (const juce::var& params)
 {
-    if (! params.hasProperty ("track_id") || ! params.hasProperty ("plugin_index"))
-        return makeError ("Missing required parameters: track_id, plugin_index");
-
-    int trackId = params["track_id"];
-    int pluginIdx = params["plugin_index"];
+    juce::var errorResult;
+    int trackId = 0;
+    int pluginIdx = 0;
+    if (! requireIntProperty (params, "track_id", trackId, errorResult)
+        || ! requireIntProperty (params, "plugin_index", pluginIdx, errorResult))
+        return errorResult;
 
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
@@ -1990,7 +1995,10 @@ juce::var CommandHandler::handleAddAutomationPoint (const juce::var& params)
         return errorResult;
 
     auto value = (float) valueDouble;
-    auto curveVal = params.hasProperty ("curve") ? (float) (double) params["curve"] : 0.0f;
+    double curveDouble = 0.0;
+    if (! requireOptionalDoubleProperty (params, "curve", curveDouble, errorResult))
+        return errorResult;
+    auto curveVal = (float) curveDouble;
 
     auto* track = getAudioTrackById (trackId);
     if (! track)
@@ -2153,7 +2161,9 @@ te::PluginList* CommandHandler::getPluginListForParams (const juce::var& params,
                                                         juce::String& errorMessage,
                                                         juce::String* targetDescription)
 {
-    const bool useMaster = params.hasProperty ("master") && static_cast<bool> (params["master"]);
+    const bool useMaster = params.hasProperty ("master")
+                             && params["master"].isBool()
+                             && static_cast<bool> (params["master"]);
     if (useMaster)
     {
         if (targetDescription != nullptr)
@@ -2167,7 +2177,14 @@ te::PluginList* CommandHandler::getPluginListForParams (const juce::var& params,
         return nullptr;
     }
 
-    const int trackId = static_cast<int> (params["track_index"]);
+    const auto& trackIndexValue = params["track_index"];
+    if (! trackIndexValue.isInt() && ! trackIndexValue.isInt64())
+    {
+        errorMessage = "Parameter must be integer: track_index";
+        return nullptr;
+    }
+
+    const int trackId = static_cast<int> (trackIndexValue);
     auto* track = getAudioTrackById (trackId);
     if (track == nullptr)
     {
@@ -2444,7 +2461,11 @@ juce::var CommandHandler::handleLoadPluginPreset (const juce::var& params)
 
 juce::var CommandHandler::handleAddFolderTrack (const juce::var& params)
 {
-    auto name = params.hasProperty ("name") ? params["name"].toString() : "Folder";
+    juce::String name = "Folder";
+    juce::var errorResult;
+    if (params.hasProperty ("name")
+        && ! requireStringProperty (params, "name", name, errorResult))
+        return errorResult;
 
     auto folderTrackPtr = edit.insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
     auto* folderTrack = folderTrackPtr.get();
@@ -2476,11 +2497,12 @@ juce::var CommandHandler::handleAddFolderTrack (const juce::var& params)
 
 juce::var CommandHandler::handleMoveTrackToFolder (const juce::var& params)
 {
-    if (! params.hasProperty ("track_index") || ! params.hasProperty ("folder_index"))
-        return makeError ("Missing required parameters: track_index, folder_index");
-
-    int trackIndex = params["track_index"];
-    int folderIndex = params["folder_index"];
+    juce::var errorResult;
+    int trackIndex = 0;
+    int folderIndex = 0;
+    if (! requireIntProperty (params, "track_index", trackIndex, errorResult)
+        || ! requireIntProperty (params, "folder_index", folderIndex, errorResult))
+        return errorResult;
 
     // Find tracks by index
     te::Track* track = nullptr;
@@ -2523,10 +2545,10 @@ juce::var CommandHandler::handleMoveTrackToFolder (const juce::var& params)
 
 juce::var CommandHandler::handleRemoveFromFolder (const juce::var& params)
 {
-    if (! params.hasProperty ("track_index"))
-        return makeError ("Missing required parameter: track_index");
-
-    int trackIndex = params["track_index"];
+    juce::var errorResult;
+    int trackIndex = 0;
+    if (! requireIntProperty (params, "track_index", trackIndex, errorResult))
+        return errorResult;
 
     // Find track by index
     te::Track* track = nullptr;

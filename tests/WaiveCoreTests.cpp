@@ -2002,6 +2002,10 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
     const auto originalClipName = clip->getName();
     const auto originalTrackName = track->getName();
     const auto originalGainDb = clip->state.getProperty ("gainDb", 0.0);
+    auto rootFolder = edit->insertNewFolderTrack (te::TrackInsertPoint (nullptr, nullptr), nullptr, false);
+    expect (rootFolder != nullptr, "Expected folder track fixture for malformed-command test");
+    rootFolder->setName ("Malformed Folder");
+    const auto originalParentFolder = track->getParentFolderTrack();
 
     CommandHandler handler (*edit);
 
@@ -2162,6 +2166,67 @@ void testCommandHandlerRejectsMalformedCommandRequests (te::Engine& engine)
             "Expected load_plugin without track_id to fail");
     expect (track->pluginList.size() == originalPluginCount,
             "Expected malformed load_plugin request not to insert a plugin on track 0");
+
+    auto getPluginParametersMalformedResponse = runJsonCommand (handler, R"({
+        "action":"get_plugin_parameters",
+        "track_id":0,
+        "plugin_index":"oops"
+    })");
+    expect (getPluginParametersMalformedResponse["status"].toString() == "error",
+            "Expected get_plugin_parameters with non-integer plugin_index to fail");
+
+    auto bypassPluginMalformedResponse = runJsonCommand (handler, R"({
+        "action":"bypass_plugin",
+        "track_id":0,
+        "plugin_index":0,
+        "bypassed":"oops"
+    })");
+    expect (bypassPluginMalformedResponse["status"].toString() == "error",
+            "Expected bypass_plugin with non-boolean bypassed value to fail");
+    expect (reverb->isEnabled(),
+            "Expected malformed bypass_plugin request not to change plugin enabled state");
+
+    auto removePluginMalformedResponse = runJsonCommand (handler, R"({
+        "action":"remove_plugin",
+        "track_id":"oops",
+        "plugin_index":0
+    })");
+    expect (removePluginMalformedResponse["status"].toString() == "error",
+            "Expected remove_plugin with non-integer track_id to fail");
+    expect (track->pluginList.size() == originalPluginCount,
+            "Expected malformed remove_plugin request not to remove a plugin");
+
+    auto addAutomationMalformedResponse = runJsonCommand (handler, R"({
+        "action":"add_automation_point",
+        "track_id":0,
+        "param_index":0,
+        "time":0.25,
+        "value":0.5,
+        "curve":"oops"
+    })");
+    expect (addAutomationMalformedResponse["status"].toString() == "error",
+            "Expected add_automation_point with non-numeric curve to fail");
+    expect (firstPluginParam->getCurve().getNumPoints() == 0,
+            "Expected malformed add_automation_point request not to create automation points");
+
+    auto moveTrackToFolderMalformedResponse = runJsonCommand (handler, R"({
+        "action":"move_track_to_folder",
+        "track_index":"oops",
+        "folder_index":2
+    })");
+    expect (moveTrackToFolderMalformedResponse["status"].toString() == "error",
+            "Expected move_track_to_folder with non-integer track_index to fail");
+    expect (track->getParentFolderTrack() == originalParentFolder,
+            "Expected malformed move_track_to_folder request not to move the track");
+
+    auto removeFromFolderMalformedResponse = runJsonCommand (handler, R"({
+        "action":"remove_from_folder",
+        "track_index":"oops"
+    })");
+    expect (removeFromFolderMalformedResponse["status"].toString() == "error",
+            "Expected remove_from_folder with non-integer track_index to fail");
+    expect (track->getParentFolderTrack() == originalParentFolder,
+            "Expected malformed remove_from_folder request not to change folder membership");
 
     auto soloResponse = runJsonCommand (handler, R"({
         "action":"solo_track",
