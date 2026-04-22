@@ -39,6 +39,7 @@ public:
     juce::StringArray getChainPluginTypeOrderForTesting() const;
     tracktion::engine::AudioTrack* getSelectedTrackForTesting() const;
     int getAvailableInputCountForTesting() const;
+    juce::String getSelectedTrackLabelForTesting() const;
     bool selectFirstAvailableInputForTesting();
     bool clearInputForTesting();
     bool hasAssignedInputForTesting() const;
@@ -51,6 +52,7 @@ public:
     void ensureReverbReturnOnMasterForTesting();
     int getMasterAuxReturnCountForTesting (int busNum) const;
     int getMasterReverbCountForTesting() const;
+    void refreshTrackListForTesting();
 
 private:
     void updatePresetBrowserSelection();
@@ -63,6 +65,7 @@ private:
     void updateControlsFromSelection();
 
     te::AudioTrack* getSelectedTrack() const;
+    te::EditItemID getSelectedTrackItemID() const;
     te::PluginList& getSelectedPluginList() const;
 
     void insertSelectedBrowserPlugin();
@@ -113,5 +116,7 @@ private:
     std::unique_ptr<ChainModel> chainModel;
 
     int lastTrackCount = -1;
+    juce::String lastTrackSignature;
+    juce::Array<te::EditItemID> trackIDsByComboIndex;
     bool scanningInProgress = false;
 };

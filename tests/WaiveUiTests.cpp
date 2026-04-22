@@ -1482,6 +1482,26 @@ void runUiPhase1LibraryAndPhase2PluginRoutingRegression()
     auto& pluginBrowser = mainComponent.getPluginBrowserForTesting();
     expect (pluginBrowser.selectTrackForTesting (0),
             "Expected plugin browser to select track 0 for phase-2 regression");
+    expect (pluginBrowser.getSelectedTrackForTesting() == track,
+            "Expected plugin browser selection helper to target the first track");
+
+    const auto originalTrackName = track->getName();
+    const auto renamedTrackName = originalTrackName + "_browser";
+    expect (session.performEdit ("Rename Track For Plugin Browser Test", [&] (te::Edit&)
+    {
+        track->setName (renamedTrackName);
+    }), "Expected track rename to succeed for plugin browser regression");
+    pluginBrowser.refreshTrackListForTesting();
+    expect (pluginBrowser.getSelectedTrackLabelForTesting() == renamedTrackName,
+            "Expected plugin browser track label to refresh after same-count track rename");
+
+    expect (session.performEdit ("Reorder Tracks For Plugin Browser Test", [&] (te::Edit& editForMove)
+    {
+        editForMove.moveTrack (track, te::TrackInsertPoint (nullptr, secondTrack));
+    }), "Expected track reorder to succeed for plugin browser regression");
+    pluginBrowser.refreshTrackListForTesting();
+    expect (pluginBrowser.getSelectedTrackForTesting() == track,
+            "Expected plugin browser to preserve the selected logical track after reorder");
 
     const int chainCountBeforeInsert = pluginBrowser.getChainPluginCountForTesting();
     expect (pluginBrowser.insertBuiltInPluginForTesting (te::ReverbPlugin::xmlTypeName),
@@ -1595,6 +1615,15 @@ void runUiPhase1LibraryAndPhase2PluginRoutingRegression()
             "Expected repeated return creation to be idempotent");
     expect (pluginBrowser.getMasterReverbCountForTesting() == reverbCountAfter,
             "Expected repeated reverb return creation to be idempotent");
+
+    (void) session.performEdit ("Restore Plugin Browser Track Order", [&] (te::Edit& editForMove)
+    {
+        editForMove.moveTrack (track, te::TrackInsertPoint (nullptr, nullptr));
+    });
+    (void) session.performEdit ("Restore Plugin Browser Track Name", [&] (te::Edit&)
+    {
+        track->setName (originalTrackName);
+    });
 
     (void) fixtureAudio.deleteFile();
 }
@@ -1718,6 +1747,23 @@ void runUiPhase3TimeAutomationLoopPunchRegression()
             "Expected redo command to execute for automation move");
     auto pointAfterMoveRedo = findPointNearTime (1.5, 0.06);
     expect (pointAfterMoveRedo >= 0, "Expected automation move redo to restore point near 1.5s");
+
+    sessionComponent.setLoopRangeForTesting (0.5, 1.5);
+    edit.getTransport().setPosition (te::TimePosition::fromSeconds (0.75));
+    sessionComponent.setLoopInAtPlayheadForTesting();
+    auto loopRangeAfterSingleEndpointUpdate = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRangeAfterSingleEndpointUpdate.getStart().inSeconds() - 0.75) < 0.05,
+            "Expected Set Loop In to move only the loop start");
+    expect (std::abs (loopRangeAfterSingleEndpointUpdate.getEnd().inSeconds() - 1.5) < 0.05,
+            "Expected Set Loop In to preserve the loop end");
+
+    edit.getTransport().setPosition (te::TimePosition::fromSeconds (1.25));
+    sessionComponent.setLoopOutAtPlayheadForTesting();
+    loopRangeAfterSingleEndpointUpdate = edit.getTransport().getLoopRange();
+    expect (std::abs (loopRangeAfterSingleEndpointUpdate.getStart().inSeconds() - 0.75) < 0.05,
+            "Expected Set Loop Out to preserve the loop start");
+    expect (std::abs (loopRangeAfterSingleEndpointUpdate.getEnd().inSeconds() - 1.25) < 0.05,
+            "Expected Set Loop Out to move only the loop end");
 
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
             "Expected undo command to execute for automation move redo");

@@ -46,14 +46,14 @@ void setLoopInWithUndo (te::Edit& edit, te::TimePosition loopIn)
     const auto maxEndTime = te::toPosition (edit.getLength() + te::Edit::getMaximumLength() * 0.75);
     const auto nonNegativeLoopIn = juce::jmax (te::TimePosition(), loopIn);
     auto& undoManager = edit.getUndoManager();
+    const auto preservedLoopOut = juce::jlimit (te::TimePosition(), maxEndTime,
+                                                std::max (transport.loopPoint1.get(),
+                                                          transport.loopPoint2.get()));
+    const auto clampedLoopIn = juce::jlimit (te::TimePosition(), maxEndTime,
+                                             std::min (nonNegativeLoopIn, preservedLoopOut));
 
-    transport.loopPoint1.setValue (juce::jlimit (te::TimePosition(), maxEndTime,
-                                                 std::max (std::max (transport.loopPoint1.get(),
-                                                                     transport.loopPoint2.get()),
-                                                           nonNegativeLoopIn)),
-                                   &undoManager);
-    transport.loopPoint2.setValue (juce::jlimit (te::TimePosition(), maxEndTime, nonNegativeLoopIn),
-                                   &undoManager);
+    transport.loopPoint1.setValue (clampedLoopIn, &undoManager);
+    transport.loopPoint2.setValue (preservedLoopOut, &undoManager);
 }
 
 void setLoopOutWithUndo (te::Edit& edit, te::TimePosition loopOut)
@@ -62,14 +62,14 @@ void setLoopOutWithUndo (te::Edit& edit, te::TimePosition loopOut)
     const auto maxEndTime = te::toPosition (edit.getLength() + te::Edit::getMaximumLength() * 0.75);
     const auto nonNegativeLoopOut = juce::jmax (te::TimePosition(), loopOut);
     auto& undoManager = edit.getUndoManager();
+    const auto preservedLoopIn = juce::jlimit (te::TimePosition(), maxEndTime,
+                                               std::min (transport.loopPoint1.get(),
+                                                         transport.loopPoint2.get()));
+    const auto clampedLoopOut = juce::jlimit (te::TimePosition(), maxEndTime,
+                                              std::max (nonNegativeLoopOut, preservedLoopIn));
 
-    transport.loopPoint1.setValue (juce::jlimit (te::TimePosition(), maxEndTime,
-                                                 std::min (std::min (transport.loopPoint1.get(),
-                                                                     transport.loopPoint2.get()),
-                                                           nonNegativeLoopOut)),
-                                   &undoManager);
-    transport.loopPoint2.setValue (juce::jlimit (te::TimePosition(), maxEndTime, nonNegativeLoopOut),
-                                   &undoManager);
+    transport.loopPoint1.setValue (preservedLoopIn, &undoManager);
+    transport.loopPoint2.setValue (clampedLoopOut, &undoManager);
 }
 }
 

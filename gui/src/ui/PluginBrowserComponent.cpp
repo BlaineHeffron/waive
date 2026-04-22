@@ -17,6 +17,24 @@ namespace
 constexpr int trackItemIdBase = 1000;
 constexpr int masterItemId = 1;
 
+juce::String buildAudioTrackSignature (te::Edit& edit)
+{
+    juce::String signature;
+
+    for (auto* track : te::getAudioTracks (edit))
+    {
+        if (track == nullptr)
+            continue;
+
+        signature << juce::String ((juce::int64) track->itemID.getRawID())
+                  << ':'
+                  << track->getName()
+                  << ';';
+    }
+
+    return signature;
+}
+
 bool isDefaultTrackPlugin (te::Plugin& p)
 {
     return dynamic_cast<te::VolumeAndPanPlugin*> (&p) != nullptr
@@ -560,6 +578,11 @@ int PluginBrowserComponent::getAvailableInputCountForTesting() const
     return juce::jmax (0, inputCombo.getNumItems() - 1);
 }
 
+juce::String PluginBrowserComponent::getSelectedTrackLabelForTesting() const
+{
+    return trackCombo.getText();
+}
+
 bool PluginBrowserComponent::selectFirstAvailableInputForTesting()
 {
     if (getSelectedTrack() == nullptr || getAvailableInputCountForTesting() <= 0)
@@ -684,6 +707,11 @@ int PluginBrowserComponent::getMasterReverbCountForTesting() const
     return count;
 }
 
+void PluginBrowserComponent::refreshTrackListForTesting()
+{
+    rebuildTrackListIfNeeded();
+}
+
 void PluginBrowserComponent::timerCallback()
 {
     rebuildTrackListIfNeeded();
@@ -692,6 +720,8 @@ void PluginBrowserComponent::timerCallback()
 void PluginBrowserComponent::editAboutToChange()
 {
     lastTrackCount = -1;
+    lastTrackSignature.clear();
+    trackIDsByComboIndex.clear();
 }
 
 void PluginBrowserComponent::editChanged()
@@ -705,12 +735,17 @@ void PluginBrowserComponent::rebuildTrackListIfNeeded()
 {
     auto& edit = editSession.getEdit();
     auto tracks = te::getAudioTracks (edit);
-    if (tracks.size() == lastTrackCount && trackCombo.getNumItems() > 0)
+    const auto currentTrackSignature = buildAudioTrackSignature (edit);
+    if (tracks.size() == lastTrackCount
+        && currentTrackSignature == lastTrackSignature
+        && trackCombo.getNumItems() > 0)
         return;
 
-    const int previous = trackCombo.getSelectedId();
+    const bool masterWasSelected = trackCombo.getSelectedId() == masterItemId;
+    const auto previousTrackID = getSelectedTrackItemID();
 
     trackCombo.clear (juce::dontSendNotification);
+    trackIDsByComboIndex.clear();
     trackCombo.addItem ("Master", masterItemId);
 
     int idx = 0;
@@ -721,21 +756,27 @@ void PluginBrowserComponent::rebuildTrackListIfNeeded()
 
         const int id = trackItemIdBase + idx;
         trackCombo.addItem (t->getName(), id);
+        trackIDsByComboIndex.add (t->itemID);
         ++idx;
     }
 
     lastTrackCount = tracks.size();
+    lastTrackSignature = currentTrackSignature;
 
-    auto hasItemId = [&] (int id)
+    auto findComboIndexForTrackID = [this] (te::EditItemID trackID)
     {
-        for (int i = 0; i < trackCombo.getNumItems(); ++i)
-            if (trackCombo.getItemId (i) == id)
-                return true;
-        return false;
+        for (int i = 0; i < trackIDsByComboIndex.size(); ++i)
+            if (trackIDsByComboIndex.getReference (i) == trackID)
+                return i + 1; // offset for "Master"
+
+        return -1;
     };
 
-    if (previous != 0 && hasItemId (previous))
-        trackCombo.setSelectedId (previous, juce::dontSendNotification);
+    const int previousTrackIndex = previousTrackID.isValid() ? findComboIndexForTrackID (previousTrackID) : -1;
+    if (previousTrackIndex > 0)
+        trackCombo.setSelectedItemIndex (previousTrackIndex, juce::dontSendNotification);
+    else if (masterWasSelected || tracks.isEmpty())
+        trackCombo.setSelectedId (masterItemId, juce::dontSendNotification);
     else
         trackCombo.setSelectedId (tracks.isEmpty() ? masterItemId : trackItemIdBase, juce::dontSendNotification);
 
@@ -744,16 +785,24 @@ void PluginBrowserComponent::rebuildTrackListIfNeeded()
 
 te::AudioTrack* PluginBrowserComponent::getSelectedTrack() const
 {
-    auto id = trackCombo.getSelectedId();
-    if (id < trackItemIdBase)
+    const int selectedIndex = trackCombo.getSelectedItemIndex();
+    if (selectedIndex <= 0)
         return nullptr;
 
-    const int index = id - trackItemIdBase;
-    auto tracks = te::getAudioTracks (editSession.getEdit());
-    if (! juce::isPositiveAndBelow (index, tracks.size()))
+    const int trackIndex = selectedIndex - 1;
+    if (! juce::isPositiveAndBelow (trackIndex, trackIDsByComboIndex.size()))
         return nullptr;
 
-    return tracks[index];
+    return dynamic_cast<te::AudioTrack*> (te::findTrackForID (editSession.getEdit(),
+                                                              trackIDsByComboIndex.getReference (trackIndex)));
+}
+
+te::EditItemID PluginBrowserComponent::getSelectedTrackItemID() const
+{
+    if (auto* track = getSelectedTrack())
+        return track->itemID;
+
+    return {};
 }
 
 te::PluginList& PluginBrowserComponent::getSelectedPluginList() const
