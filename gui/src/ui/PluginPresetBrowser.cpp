@@ -145,7 +145,7 @@ void PluginPresetBrowser::onDeleteClicked()
     if (selectedText.isEmpty())
         return;
 
-    bool confirmed = juce::NativeMessageBox::showOkCancelBox (
+    bool confirmed = waive::showNativeOkCancelBoxSafe (
         juce::MessageBoxIconType::WarningIcon,
         "Delete Preset",
         "Are you sure you want to delete the preset \"" + selectedText + "\"?");

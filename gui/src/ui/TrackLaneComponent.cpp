@@ -4,6 +4,7 @@
 #include "WaiveFonts.h"
 #include "WaiveLookAndFeel.h"
 #include "WaiveSpacing.h"
+#include "UiMessageHelpers.h"
 
 #include <cmath>
 #include <functional>
@@ -734,31 +735,30 @@ void TrackLaneComponent::showTrackContextMenu()
                 if (hasClips)
                 {
                     auto trackID = trk.itemID;
-                    juce::AlertWindow::showOkCancelBox (
-                        juce::MessageBoxIconType::WarningIcon,
-                        "Delete Track",
-                        "This track contains " + juce::String (clipCount) + " clip(s). Are you sure?",
-                        "Delete", "Cancel",
-                        nullptr,
-                        juce::ModalCallbackFunction::create ([safeThis, trackID] (int choice)
-                        {
-                            if (choice != 1 || ! safeThis)
-                                return;
+                    if (! waive::showOkCancelBoxSafe (
+                            juce::MessageBoxIconType::WarningIcon,
+                            "Delete Track",
+                            "This track contains " + juce::String (clipCount) + " clip(s). Are you sure?",
+                            "Delete", "Cancel"))
+                    {
+                        break;
+                    }
 
-                            auto& edit = safeThis->timeline.getEditSession().getEdit();
-                            for (auto* candidate : edit.getTrackList())
+                    if (! safeThis)
+                        break;
+
+                    auto& edit = safeThis->timeline.getEditSession().getEdit();
+                    for (auto* candidate : edit.getTrackList())
+                    {
+                        if (candidate != nullptr && candidate->itemID == trackID)
+                        {
+                            safeThis->timeline.getEditSession().performEdit ("Delete Track", [candidate] (te::Edit&)
                             {
-                                if (candidate != nullptr && candidate->itemID == trackID)
-                                {
-                                    safeThis->timeline.getEditSession().performEdit ("Delete Track", [candidate] (te::Edit&)
-                                    {
-                                        candidate->edit.deleteTrack (candidate);
-                                    });
-                                    break;
-                                }
-                            }
-                        })
-                    );
+                                candidate->edit.deleteTrack (candidate);
+                            });
+                            break;
+                        }
+                    }
                 }
                 else
                 {

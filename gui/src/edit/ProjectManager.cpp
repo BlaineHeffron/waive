@@ -1,32 +1,14 @@
 #include "ProjectManager.h"
 #include "EditSession.h"
 #include "AutoSaveManager.h"
+#include "UiMessageHelpers.h"
 
 #include <tracktion_engine/tracktion_engine.h>
-#include <cstdlib>
 
 namespace te = tracktion;
 
 namespace
 {
-
-bool isHeadlessUiEnvironment()
-{
-#if JUCE_LINUX || JUCE_BSD
-    const auto hasDisplayEnv = [] (const char* name)
-    {
-        if (const auto* value = std::getenv (name))
-            return *value != '\0';
-
-        return false;
-    };
-
-    return ! hasDisplayEnv ("DISPLAY") && ! hasDisplayEnv ("WAYLAND_DISPLAY");
-#else
-    return false;
-#endif
-}
-
 bool replaceFileAtomically (const juce::File& sourceFile, const juce::File& destinationFile)
 {
     if (! sourceFile.existsAsFile())
@@ -125,7 +107,7 @@ bool ProjectManager::openProject (const juce::File& file)
         autoSaveFile != juce::File())
     {
         bool shouldRecover = false;
-        if (isHeadlessUiEnvironment())
+        if (! waive::canShowUiDialogs())
         {
             juce::Logger::writeToLog ("ProjectManager: headless environment detected, auto-recovering newer autosave");
             shouldRecover = true;
@@ -375,7 +357,7 @@ bool ProjectManager::confirmSaveIfDirty()
     if (! isDirty())
         return true;
 
-    if (isHeadlessUiEnvironment())
+    if (! waive::canShowUiDialogs())
     {
         juce::Logger::writeToLog ("ProjectManager: headless environment detected, discarding unsaved changes without prompt");
         return true;

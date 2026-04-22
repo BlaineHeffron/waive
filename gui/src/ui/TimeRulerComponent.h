@@ -28,7 +28,7 @@ private:
     enum LoopDragMode { None, DraggingStart, DraggingEnd };
     static constexpr int loopMarkerHitThreshold = 8;
 
-    bool beginLoopMarkerDragAtX (int x);
+    bool beginLoopMarkerDragAtX (int x, bool requireLoopEnabled = true);
     void dragActiveLoopMarkerToX (int x);
     void seekToX (int x);
 

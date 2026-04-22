@@ -515,34 +515,30 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                     // Capture track itemID to safely locate track in async callback
                     auto trackID = selectedTrack->itemID;
                     auto safeThis = juce::Component::SafePointer<MainComponent> (this);
-                    juce::AlertWindow::showOkCancelBox (
-                        juce::MessageBoxIconType::WarningIcon,
-                        "Delete Track",
-                        "This track contains " + juce::String (selectedTrack->getClips().size()) + " clip(s). Are you sure?",
-                        "Delete", "Cancel",
-                        nullptr,
-                        juce::ModalCallbackFunction::create ([safeThis, trackID] (int choice)
-                        {
-                            if (safeThis == nullptr)
-                                return;
+                    if (! waive::showOkCancelBoxSafe (
+                            juce::MessageBoxIconType::WarningIcon,
+                            "Delete Track",
+                            "This track contains " + juce::String (selectedTrack->getClips().size()) + " clip(s). Are you sure?",
+                            "Delete", "Cancel"))
+                    {
+                        return true;
+                    }
 
-                            if (choice == 1)
+                    if (safeThis == nullptr)
+                        return true;
+
+                    auto& edit = safeThis->editSession.getEdit();
+                    for (auto* track : edit.getTrackList())
+                    {
+                        if (track->itemID == trackID)
+                        {
+                            safeThis->editSession.performEdit ("Delete Track", [track] (te::Edit& ed)
                             {
-                                auto& edit = safeThis->editSession.getEdit();
-                                for (auto* track : edit.getTrackList())
-                                {
-                                    if (track->itemID == trackID)
-                                    {
-                                        safeThis->editSession.performEdit ("Delete Track", [track] (te::Edit& ed)
-                                        {
-                                            ed.deleteTrack (track);
-                                        });
-                                        break;
-                                    }
-                                }
-                            }
-                        })
-                    );
+                                ed.deleteTrack (track);
+                            });
+                            break;
+                        }
+                    }
                 }
                 else
                 {
@@ -685,7 +681,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
                 message << "  " << file.getFileName() << "\n";
             message << "\nFiles will be moved to .trash folder.\nRemove these files?";
 
-            bool shouldRemove = juce::AlertWindow::showOkCancelBox (
+            bool shouldRemove = waive::showOkCancelBoxSafe (
                 juce::MessageBoxIconType::QuestionIcon,
                 "Remove Unused Media",
                 message,

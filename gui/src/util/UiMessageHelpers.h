@@ -31,6 +31,11 @@ inline bool isHeadlessUiEnvironment()
 #endif
 }
 
+inline bool canShowUiDialogs()
+{
+    return ! asyncDialogsDisabled() && ! isHeadlessUiEnvironment();
+}
+
 inline void showMessageBoxAsyncSafe (juce::MessageBoxIconType iconType,
                                      const juce::String& title,
                                      const juce::String& message,
@@ -38,7 +43,7 @@ inline void showMessageBoxAsyncSafe (juce::MessageBoxIconType iconType,
 {
     juce::ignoreUnused (iconType, associatedComponent);
 
-    if (asyncDialogsDisabled() || isHeadlessUiEnvironment())
+    if (! canShowUiDialogs())
     {
         juce::Logger::writeToLog (title + ": " + message);
         return;
@@ -54,13 +59,46 @@ inline void showNativeMessageBoxAsyncSafe (juce::MessageBoxIconType iconType,
 {
     juce::ignoreUnused (iconType, associatedComponent);
 
-    if (asyncDialogsDisabled() || isHeadlessUiEnvironment())
+    if (! canShowUiDialogs())
     {
         juce::Logger::writeToLog (title + ": " + message);
         return;
     }
 
     juce::NativeMessageBox::showMessageBoxAsync (iconType, title, message, associatedComponent);
+}
+
+inline bool showOkCancelBoxSafe (juce::MessageBoxIconType iconType,
+                                 const juce::String& title,
+                                 const juce::String& message,
+                                 const juce::String& button1 = {},
+                                 const juce::String& button2 = {},
+                                 juce::Component* associatedComponent = nullptr,
+                                 bool defaultResultWhenSuppressed = false)
+{
+    if (! canShowUiDialogs())
+    {
+        juce::Logger::writeToLog (title + ": " + message);
+        return defaultResultWhenSuppressed;
+    }
+
+    return juce::AlertWindow::showOkCancelBox (iconType, title, message,
+                                               button1, button2, associatedComponent);
+}
+
+inline bool showNativeOkCancelBoxSafe (juce::MessageBoxIconType iconType,
+                                       const juce::String& title,
+                                       const juce::String& message,
+                                       juce::Component* associatedComponent = nullptr,
+                                       bool defaultResultWhenSuppressed = false)
+{
+    if (! canShowUiDialogs())
+    {
+        juce::Logger::writeToLog (title + ": " + message);
+        return defaultResultWhenSuppressed;
+    }
+
+    return juce::NativeMessageBox::showOkCancelBox (iconType, title, message, associatedComponent);
 }
 
 } // namespace waive

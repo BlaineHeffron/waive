@@ -171,21 +171,21 @@ void TimeRulerComponent::mouseMove (const juce::MouseEvent& e)
 bool TimeRulerComponent::beginLoopStartDragForTesting()
 {
     auto& transport = editSession.getEdit().getTransport();
-    if (! transport.looping)
+    const auto loopRange = transport.getLoopRange();
+    if (loopRange.getLength().inSeconds() <= 0.0)
         return false;
 
-    const auto loopRange = transport.getLoopRange();
-    return beginLoopMarkerDragAtX (timeline.timeToX (loopRange.getStart().inSeconds()));
+    return beginLoopMarkerDragAtX (timeline.timeToX (loopRange.getStart().inSeconds()), false);
 }
 
 bool TimeRulerComponent::beginLoopEndDragForTesting()
 {
     auto& transport = editSession.getEdit().getTransport();
-    if (! transport.looping)
+    const auto loopRange = transport.getLoopRange();
+    if (loopRange.getLength().inSeconds() <= 0.0)
         return false;
 
-    const auto loopRange = transport.getLoopRange();
-    return beginLoopMarkerDragAtX (timeline.timeToX (loopRange.getEnd().inSeconds()));
+    return beginLoopMarkerDragAtX (timeline.timeToX (loopRange.getEnd().inSeconds()), false);
 }
 
 void TimeRulerComponent::dragActiveLoopMarkerToTimeForTesting (double seconds)
@@ -201,13 +201,16 @@ void TimeRulerComponent::endLoopMarkerDragForTesting()
     loopDragMode = None;
 }
 
-bool TimeRulerComponent::beginLoopMarkerDragAtX (int x)
+bool TimeRulerComponent::beginLoopMarkerDragAtX (int x, bool requireLoopEnabled)
 {
     auto& transport = editSession.getEdit().getTransport();
-    if (! transport.looping)
+    if (requireLoopEnabled && ! transport.looping)
         return false;
 
     const auto loopRange = transport.getLoopRange();
+    if (loopRange.getLength().inSeconds() <= 0.0)
+        return false;
+
     const int x1 = timeline.timeToX (loopRange.getStart().inSeconds());
     const int x2 = timeline.timeToX (loopRange.getEnd().inSeconds());
 

@@ -87,6 +87,7 @@ private:
 
     te::Engine& engine;
     std::unique_ptr<te::Edit> edit;
+    std::vector<std::unique_ptr<te::Edit>> retiredEdits;
     juce::String lastTransactionName;
     bool lastTransactionWasCoalesced = false;
     juce::String externalSavedStateSnapshot;
