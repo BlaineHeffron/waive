@@ -1066,6 +1066,75 @@ void runAutoSaveSaveAsCleanupRegression()
     (void) saveAsDir.deleteRecursively();
 }
 
+void runSaveAsFailurePreservesCurrentProjectStateRegression()
+{
+    te::Engine engine ("WaiveUiSaveAsFailureStateTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+
+    auto originalProjectFile = createLifecycleFixtureProject (engine);
+    expect (projectManager.openProject (originalProjectFile), "Expected save-as failure fixture project to open");
+
+    auto originalAutoSaveFile = AutoSaveManager::getAutoSaveFileForProject (originalProjectFile);
+    (void) originalAutoSaveFile.deleteFile();
+
+    expect (session.performEdit ("Save As Failure Add Clip", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        auto clip = track->insertMIDIClip (
+            "save_as_failure_clip",
+            te::TimeRange (te::TimePosition::fromSeconds (1.0),
+                           te::TimePosition::fromSeconds (2.0)),
+            nullptr);
+        if (clip != nullptr)
+            clip->getSequence().addNote (83, te::BeatPosition::fromBeats (0.0),
+                                         te::BeatDuration::fromBeats (1.0),
+                                         100, 0, &edit.getUndoManager());
+    }), "Expected save-as failure mutation to succeed");
+
+    {
+        AutoSaveManager autoSaveManager (session, projectManager, 1);
+        autoSaveManager.triggerAutoSaveForTesting();
+    }
+
+    expect (originalAutoSaveFile.existsAsFile(), "Expected original autosave file before failed Save As");
+
+    auto missingParent = originalProjectFile.getParentDirectory()
+                             .getNonexistentChildFile ("missing_save_as_parent_", "", false);
+    auto invalidSaveAsTarget = missingParent.getChildFile ("nested").getChildFile ("renamed_project.tracktionedit");
+    expect (! invalidSaveAsTarget.getParentDirectory().exists(),
+            "Expected invalid Save As target parent directory to be absent");
+
+    expect (! projectManager.saveAs (invalidSaveAsTarget), "Expected Save As to fail for an invalid target path");
+    expect (projectManager.getCurrentFile() == originalProjectFile,
+            "Expected failed Save As to keep the original current project path");
+    expect (originalAutoSaveFile.existsAsFile(),
+            "Expected failed Save As to preserve the original project's autosave file");
+    expect (! invalidSaveAsTarget.existsAsFile(),
+            "Expected failed Save As not to create the target project file");
+    expect (projectManager.isDirty(),
+            "Expected failed Save As to leave the original project dirty");
+
+    auto liveBackingFile = te::EditFileOperations (session.getEdit()).getEditFile();
+    expect (liveBackingFile == originalProjectFile,
+            "Expected failed Save As not to rebind the live edit backing file");
+
+    te::Engine verifyEngine ("WaiveUiSaveAsFailureVerify");
+    verifyEngine.getPluginManager().initialise();
+    auto originalSavedEdit = te::loadEditFromFile (verifyEngine, originalProjectFile);
+    auto* originalSavedTrack = getFirstTrack (*originalSavedEdit);
+    expect (originalSavedTrack != nullptr, "Expected original project track after failed Save As");
+    expect (getClipCount (*originalSavedTrack) == 1,
+            "Expected failed Save As not to overwrite the original saved project contents");
+
+    (void) originalProjectFile.deleteFile();
+}
+
 void runUndoRedoDirtyStateNotificationRegression()
 {
     struct EditStateListener final : EditSession::Listener
@@ -3477,6 +3546,7 @@ int main()
     RUN_TEST_SAFELY(runAutoSaveDiscardOnOpenRegression);
     RUN_TEST_SAFELY(runAutoSaveDiscardOnRecoverRegression);
     RUN_TEST_SAFELY(runAutoSaveSaveAsCleanupRegression);
+    RUN_TEST_SAFELY(runSaveAsFailurePreservesCurrentProjectStateRegression);
     RUN_TEST_SAFELY(runUndoRedoDirtyStateNotificationRegression);
     RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);

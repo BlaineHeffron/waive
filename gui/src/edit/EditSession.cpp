@@ -40,6 +40,9 @@ void EditSession::replaceEdit (std::unique_ptr<te::Edit> newEdit)
 
     edit = std::move (newEdit);
     lastTransactionName.clear();
+    lastTransactionWasCoalesced = false;
+    undoTransactionGroupSizes.clear();
+    redoTransactionGroupSizes.clear();
     undoTransactionDepth = 0;
     redoTransactionDepth = 0;
     resetDirtyTrackingToCurrentState();
@@ -119,13 +122,14 @@ bool EditSession::performEdit (const juce::String& actionName,
         return false;
 
     auto& undoManager = edit->getUndoManager();
-    const auto startedNewTransaction = ! coalesce || lastTransactionName != actionName;
+    const bool extendsCoalescedGroup = coalesce
+                                    && lastTransactionWasCoalesced
+                                    && lastTransactionName == actionName
+                                    && ! undoTransactionGroupSizes.empty();
 
-    if (startedNewTransaction)
-        undoManager.beginNewTransaction (actionName);
+    undoManager.beginNewTransaction (actionName);
 
     const auto actionsBeforeMutation = undoManager.getNumActionsInCurrentTransaction();
-    lastTransactionName = actionName;
 
     try
     {
@@ -134,37 +138,43 @@ bool EditSession::performEdit (const juce::String& actionName,
 
         if (actionsAfterMutation > actionsBeforeMutation)
         {
-            if (startedNewTransaction)
-            {
-                ++undoTransactionDepth;
-                redoTransactionDepth = 0;
-            }
+            ++undoTransactionDepth;
+            redoTransactionDepth = 0;
+            redoTransactionGroupSizes.clear();
+
+            if (extendsCoalescedGroup)
+                ++undoTransactionGroupSizes.back();
+            else
+                undoTransactionGroupSizes.push_back (1);
         }
         else
         {
             hasNonUndoableUnsavedChange = true;
         }
 
+        lastTransactionName = coalesce ? actionName : juce::String();
+        lastTransactionWasCoalesced = coalesce;
         edit->markAsChanged();
         listeners.call (&Listener::editStateChanged);
         return true;
     }
     catch (const std::exception& e)
     {
-        if (startedNewTransaction && undoManager.getNumActionsInCurrentTransaction() > 0)
+        if (undoManager.getNumActionsInCurrentTransaction() > 0)
             undoManager.undoCurrentTransactionOnly();
 
         juce::Logger::writeToLog ("EditSession::performEdit failed: " + juce::String (e.what()));
     }
     catch (...)
     {
-        if (startedNewTransaction && undoManager.getNumActionsInCurrentTransaction() > 0)
+        if (undoManager.getNumActionsInCurrentTransaction() > 0)
             undoManager.undoCurrentTransactionOnly();
 
         juce::Logger::writeToLog ("EditSession::performEdit failed with unknown exception");
     }
 
     lastTransactionName.clear();
+    lastTransactionWasCoalesced = false;
     return false;
 }
 
@@ -180,37 +190,64 @@ bool EditSession::canRedo() const
 
 void EditSession::undo()
 {
-    edit->undo();
+    const int transactionGroupSize = undoTransactionGroupSizes.empty() ? 1
+                                                                       : undoTransactionGroupSizes.back();
 
-    if (undoTransactionDepth > 0)
+    for (int i = 0; i < transactionGroupSize; ++i)
     {
-        --undoTransactionDepth;
-        ++redoTransactionDepth;
+        edit->undo();
+
+        if (undoTransactionDepth > 0)
+        {
+            --undoTransactionDepth;
+            ++redoTransactionDepth;
+        }
+    }
+
+    if (! undoTransactionGroupSizes.empty())
+    {
+        redoTransactionGroupSizes.push_back (undoTransactionGroupSizes.back());
+        undoTransactionGroupSizes.pop_back();
     }
 
     syncChangedStatusToSavedState();
     lastTransactionName.clear();
+    lastTransactionWasCoalesced = false;
     listeners.call (&Listener::editStateChanged);
 }
 
 void EditSession::redo()
 {
-    edit->redo();
+    const int transactionGroupSize = redoTransactionGroupSizes.empty() ? 1
+                                                                       : redoTransactionGroupSizes.back();
 
-    if (redoTransactionDepth > 0)
+    for (int i = 0; i < transactionGroupSize; ++i)
     {
-        ++undoTransactionDepth;
-        --redoTransactionDepth;
+        edit->redo();
+
+        if (redoTransactionDepth > 0)
+        {
+            ++undoTransactionDepth;
+            --redoTransactionDepth;
+        }
+    }
+
+    if (! redoTransactionGroupSizes.empty())
+    {
+        undoTransactionGroupSizes.push_back (redoTransactionGroupSizes.back());
+        redoTransactionGroupSizes.pop_back();
     }
 
     syncChangedStatusToSavedState();
     lastTransactionName.clear();
+    lastTransactionWasCoalesced = false;
     listeners.call (&Listener::editStateChanged);
 }
 
 void EditSession::endCoalescedTransaction()
 {
     lastTransactionName.clear();
+    lastTransactionWasCoalesced = false;
 }
 
 juce::String EditSession::getUndoDescription() const

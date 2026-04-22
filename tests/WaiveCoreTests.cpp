@@ -239,6 +239,46 @@ void testPerformEditExceptionSafety (EditSession& session)
             "Expected undo history before the failing mutation to remain intact");
 }
 
+void testCoalescedPerformEditExceptionSafety (te::Engine& engine)
+{
+    EditSession session (engine);
+    auto& edit = session.getEdit();
+    const auto initialTrackCount = getAudioTrackCount (edit);
+
+    auto addTrack = [&] (bool shouldThrow)
+    {
+        return session.performEdit ("Coalesced Throwing Mutation", true, [&] (te::Edit& e)
+        {
+            e.ensureNumberOfAudioTracks (getAudioTrackCount (e) + 1);
+
+            if (shouldThrow)
+                throw std::runtime_error ("intentional coalesced test exception");
+        });
+    };
+
+    expect (addTrack (false), "Expected initial coalesced mutation to succeed");
+    expect (getAudioTrackCount (edit) == initialTrackCount + 1,
+            "Expected initial coalesced mutation to add one track");
+    expect (session.canUndo(), "Expected initial coalesced mutation to create an undo entry");
+
+    const auto undoDescriptionBeforeFailure = session.getUndoDescription();
+    const auto dirtyStateBeforeFailure = session.hasChangedSinceSaved();
+
+    auto ok = addTrack (true);
+
+    expect (! ok, "Expected coalesced performEdit to return false when mutation throws");
+    expect (getAudioTrackCount (edit) == initialTrackCount + 1,
+            "Expected throwing coalesced mutation not to leave a partial added track behind");
+    expect (session.getUndoDescription() == undoDescriptionBeforeFailure,
+            "Expected throwing coalesced mutation to preserve prior undo history");
+    expect (session.hasChangedSinceSaved() == dirtyStateBeforeFailure,
+            "Expected throwing coalesced mutation not to perturb dirty tracking");
+
+    session.undo();
+    expect (getAudioTrackCount (edit) == initialTrackCount,
+            "Expected undo after coalesced failure to revert the last successful mutation");
+}
+
 void testDirtyStateSavepointAcrossCoalescedUndoRedo (te::Engine& engine)
 {
     EditSession session (engine);
@@ -1882,6 +1922,7 @@ int main()
         testCoalescedTransactionsAndReset (session);
         testDuplicateMidiClipPreservesSequence (session);
         testPerformEditExceptionSafety (session);
+        testCoalescedPerformEditExceptionSafety (engine);
         testDirtyStateSavepointAcrossCoalescedUndoRedo (engine);
         testUndoableCommandHandlerWrapsMutatingCommands (engine);
         testClickTrackToggleSupportsUndoRedo (engine);

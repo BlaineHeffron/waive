@@ -2,6 +2,7 @@
 
 #include <JuceHeader.h>
 #include <tracktion_engine/tracktion_engine.h>
+#include <vector>
 
 namespace te = tracktion;
 
@@ -61,8 +62,9 @@ public:
     bool performEdit (const juce::String& actionName,
                       std::function<void (te::Edit&)> mutation);
 
-    /** Coalescing overload — skips beginNewTransaction when the previous
-        transaction has the same name. Useful for slider drags. */
+    /** Coalescing overload — groups adjacent same-name edits into a single
+        undo/redo step while still isolating each call for exception rollback.
+        Useful for slider drags. */
     bool performEdit (const juce::String& actionName,
                       bool coalesce,
                       std::function<void (te::Edit&)> mutation);
@@ -86,7 +88,10 @@ private:
     te::Engine& engine;
     std::unique_ptr<te::Edit> edit;
     juce::String lastTransactionName;
+    bool lastTransactionWasCoalesced = false;
     juce::String externalSavedStateSnapshot;
+    std::vector<int> undoTransactionGroupSizes;
+    std::vector<int> redoTransactionGroupSizes;
     int undoTransactionDepth = 0;
     int savedUndoTransactionDepth = 0;
     int redoTransactionDepth = 0;
