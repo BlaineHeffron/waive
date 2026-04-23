@@ -1783,13 +1783,11 @@ void testCommandServerDisconnectsSilentUnauthenticatedClients()
             "Expected silent auth-timeout client to connect");
 
     const auto deadline = juce::Time::getMillisecondCounter() + 2500u;
-    while (! client.disconnected.load() && juce::Time::getMillisecondCounter() < deadline)
-    {
-        juce::Timer::callPendingTimersSynchronously();
+    while (client.isConnected() && ! client.disconnected.load()
+           && juce::Time::getMillisecondCounter() < deadline)
         juce::Thread::sleep (20);
-    }
 
-    expect (client.disconnected.load(),
+    expect (! client.isConnected() || client.disconnected.load(),
             "Expected silent unauthenticated client to be disconnected after timeout");
 }
 

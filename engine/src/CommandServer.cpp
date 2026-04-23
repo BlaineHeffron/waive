@@ -19,31 +19,49 @@
 #include <unistd.h>
 #endif
 
+namespace
+{
+void closeConnectionTransport (juce::InterprocessConnection& connection)
+{
+    if (auto* socket = connection.getSocket())
+        socket->close();
+
+    if (auto* pipe = connection.getPipe())
+        pipe->close();
+}
+}
+
 //==============================================================================
 // CommandConnection
 //==============================================================================
 
 CommandConnection::CommandConnection (CommandCallback callback, const juce::String& authToken,
                                       int timeoutMs)
-    : InterprocessConnection (true, 0x0000AD10),
+    : InterprocessConnection (false, 0x0000AD10),
       commandCallback (std::move (callback)),
       expectedToken (authToken),
       authTimeoutMs (timeoutMs)
 {
 }
 
+CommandConnection::~CommandConnection()
+{
+    stopAuthTimeoutThread();
+    disconnect (1000, juce::InterprocessConnection::Notify::no);
+}
+
 void CommandConnection::connectionMade()
 {
     connectionTime = juce::Time::getCurrentTime();
     if (authTimeoutMs > 0)
-        startTimer (authTimeoutMs);
+        startAuthTimeoutThread();
 
     juce::Logger::writeToLog ("Client connected. Awaiting authentication...");
 }
 
 void CommandConnection::connectionLost()
 {
-    stopTimer();
+    stopAuthTimeoutThread();
     juce::Logger::writeToLog ("Client disconnected.");
 }
 
@@ -54,11 +72,11 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
     // First message must be authentication token
     if (! authenticated)
     {
-        auto elapsed = juce::Time::getCurrentTime() - connectionTime;
-        if (elapsed.inSeconds() > 5.0)
+        const auto elapsedMs = (juce::Time::getCurrentTime() - connectionTime).inMilliseconds();
+        if (elapsedMs > authTimeoutMs)
         {
             juce::Logger::writeToLog ("Authentication timeout - disconnecting");
-            disconnect();
+            closeConnectionTransport (*this);
             return;
         }
 
@@ -66,7 +84,8 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
         if (receivedToken == expectedToken)
         {
             authenticated = true;
-            stopTimer();
+            stopAuthTimeout.store (true);
+            stopAuthTimeoutThread();
             juce::Logger::writeToLog ("Client authenticated successfully");
 
             // Send acknowledgment
@@ -78,7 +97,7 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
         else
         {
             juce::Logger::writeToLog ("Invalid authentication token - disconnecting");
-            disconnect();
+            closeConnectionTransport (*this);
             return;
         }
     }
@@ -111,17 +130,45 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
     sendMessage (responseBlock);
 }
 
-void CommandConnection::timerCallback()
+void CommandConnection::startAuthTimeoutThread()
 {
-    stopTimer();
+    stopAuthTimeoutThread();
+    stopAuthTimeout.store (false);
 
-    if (! authenticated)
+    authTimeoutThread = std::thread ([this]
     {
-        const auto elapsedMs = (juce::Time::getCurrentTime() - connectionTime).inMilliseconds();
-        juce::Logger::writeToLog ("Authentication timeout after " + juce::String (elapsedMs)
-                                  + " ms - disconnecting");
-        disconnect();
+        const auto deadline = juce::Time::getMillisecondCounterHiRes() + (double) authTimeoutMs;
+
+        while (! stopAuthTimeout.load() && ! authenticated.load())
+        {
+            if (juce::Time::getMillisecondCounterHiRes() >= deadline)
+            {
+                const auto elapsedMs = (juce::Time::getCurrentTime() - connectionTime).inMilliseconds();
+                juce::Logger::writeToLog ("Authentication timeout after " + juce::String (elapsedMs)
+                                          + " ms - disconnecting");
+                closeConnectionTransport (*this);
+                return;
+            }
+
+            juce::Thread::sleep (10);
+        }
+    });
+}
+
+void CommandConnection::stopAuthTimeoutThread()
+{
+    stopAuthTimeout.store (true);
+
+    if (! authTimeoutThread.joinable())
+        return;
+
+    if (authTimeoutThread.get_id() == std::this_thread::get_id())
+    {
+        authTimeoutThread.detach();
+        return;
     }
+
+    authTimeoutThread.join();
 }
 
 //==============================================================================

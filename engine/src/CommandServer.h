@@ -1,30 +1,35 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <atomic>
 #include <functional>
+#include <thread>
 
 //==============================================================================
 /** A single client connection to the Waive command server. */
-class CommandConnection : public juce::InterprocessConnection,
-                          private juce::Timer
+class CommandConnection : public juce::InterprocessConnection
 {
 public:
     using CommandCallback = std::function<juce::String (const juce::String&)>;
 
     explicit CommandConnection (CommandCallback callback, const juce::String& authToken,
                                 int authTimeoutMs = 5000);
+    ~CommandConnection() override;
 
     void connectionMade() override;
     void connectionLost() override;
     void messageReceived (const juce::MemoryBlock& message) override;
 
 private:
-    void timerCallback() override;
+    void startAuthTimeoutThread();
+    void stopAuthTimeoutThread();
 
     CommandCallback commandCallback;
     juce::String expectedToken;
     int authTimeoutMs = 5000;
-    bool authenticated = false;
+    std::atomic<bool> authenticated { false };
+    std::atomic<bool> stopAuthTimeout { false };
+    std::thread authTimeoutThread;
     juce::Time connectionTime;
 };
 
