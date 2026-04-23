@@ -754,6 +754,16 @@ void PluginBrowserComponent::editChanged()
     updateControlsFromSelection();
 }
 
+void PluginBrowserComponent::editStateChanged()
+{
+    chainList.updateContent();
+    if (chainList.getSelectedRow() >= chainModel->getNumRows())
+        chainList.selectRow (chainModel->getNumRows() - 1);
+
+    chainList.repaint();
+    updatePresetBrowserSelection();
+}
+
 void PluginBrowserComponent::rebuildTrackListIfNeeded()
 {
     auto& edit = editSession.getEdit();
@@ -1178,9 +1188,8 @@ void PluginBrowserComponent::updateAuxSendGainFromSlider()
     if (t == nullptr)
         return;
 
-    ensureAuxSendOnSelectedTrack();
-
     const float db = (float) sendSlider.getValue();
+    ensureAuxSendOnSelectedTrack();
     editSession.performEdit ("Set Send Level", true, [&] (te::Edit&)
     {
         if (auto* send = findAuxSend (*t, 0))

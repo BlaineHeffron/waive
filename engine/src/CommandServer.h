@@ -5,20 +5,25 @@
 
 //==============================================================================
 /** A single client connection to the Waive command server. */
-class CommandConnection : public juce::InterprocessConnection
+class CommandConnection : public juce::InterprocessConnection,
+                          private juce::Timer
 {
 public:
     using CommandCallback = std::function<juce::String (const juce::String&)>;
 
-    explicit CommandConnection (CommandCallback callback, const juce::String& authToken);
+    explicit CommandConnection (CommandCallback callback, const juce::String& authToken,
+                                int authTimeoutMs = 5000);
 
     void connectionMade() override;
     void connectionLost() override;
     void messageReceived (const juce::MemoryBlock& message) override;
 
 private:
+    void timerCallback() override;
+
     CommandCallback commandCallback;
     juce::String expectedToken;
+    int authTimeoutMs = 5000;
     bool authenticated = false;
     juce::Time connectionTime;
 };
@@ -30,7 +35,7 @@ class CommandServer : public juce::InterprocessConnectionServer
 public:
     using CommandCallback = CommandConnection::CommandCallback;
 
-    CommandServer (CommandCallback callback, int port);
+    CommandServer (CommandCallback callback, int port, int authTimeoutMs = 5000);
     ~CommandServer() override;
 
     bool start();
@@ -46,6 +51,7 @@ public:
 private:
     CommandCallback commandCallback;
     int port;
+    int authTimeoutMs = 5000;
     juce::String authToken;
     juce::File authTokenFile;
 

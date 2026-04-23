@@ -145,6 +145,11 @@ bool EditSession::performEdit (const juce::String& actionName,
         return false;
 
     auto& undoManager = edit->getUndoManager();
+    const bool wasDirtyBeforeMutation = hasChangedSinceSaved();
+    juce::String cleanSnapshotBeforeMutation;
+    if (! wasDirtyBeforeMutation)
+        cleanSnapshotBeforeMutation = buildCurrentStateSnapshot();
+
     const bool extendsCoalescedGroup = coalesce
                                     && lastTransactionWasCoalesced
                                     && lastTransactionName == actionName
@@ -158,9 +163,11 @@ bool EditSession::performEdit (const juce::String& actionName,
     {
         mutation (*edit);
         const auto actionsAfterMutation = undoManager.getNumActionsInCurrentTransaction();
+        bool stateChanged = false;
 
         if (actionsAfterMutation > actionsBeforeMutation)
         {
+            stateChanged = true;
             ++undoTransactionDepth;
             redoTransactionDepth = 0;
             redoTransactionGroupSizes.clear();
@@ -172,13 +179,26 @@ bool EditSession::performEdit (const juce::String& actionName,
         }
         else
         {
-            hasNonUndoableUnsavedChange = true;
+            if (wasDirtyBeforeMutation)
+            {
+                stateChanged = true;
+            }
+            else if (buildCurrentStateSnapshot() != cleanSnapshotBeforeMutation)
+            {
+                stateChanged = true;
+                hasNonUndoableUnsavedChange = true;
+            }
         }
 
         lastTransactionName = coalesce ? actionName : juce::String();
         lastTransactionWasCoalesced = coalesce;
-        edit->markAsChanged();
-        listeners.call (&Listener::editStateChanged);
+
+        if (stateChanged)
+        {
+            edit->markAsChanged();
+            listeners.call (&Listener::editStateChanged);
+        }
+
         return true;
     }
     catch (const std::exception& e)

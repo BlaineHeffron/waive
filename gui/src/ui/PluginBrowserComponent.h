@@ -61,6 +61,7 @@ private:
     void updatePresetBrowserSelection();
     void editAboutToChange() override;
     void editChanged() override;
+    void editStateChanged() override;
     void timerCallback() override;
     void rebuildTrackListIfNeeded();
     void setScanning (bool scanning);

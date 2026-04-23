@@ -23,19 +23,27 @@
 // CommandConnection
 //==============================================================================
 
-CommandConnection::CommandConnection (CommandCallback callback, const juce::String& authToken)
-    : InterprocessConnection (true, 0x0000AD10), commandCallback (std::move (callback)), expectedToken (authToken)
+CommandConnection::CommandConnection (CommandCallback callback, const juce::String& authToken,
+                                      int timeoutMs)
+    : InterprocessConnection (true, 0x0000AD10),
+      commandCallback (std::move (callback)),
+      expectedToken (authToken),
+      authTimeoutMs (timeoutMs)
 {
-    connectionTime = juce::Time::getCurrentTime();
 }
 
 void CommandConnection::connectionMade()
 {
+    connectionTime = juce::Time::getCurrentTime();
+    if (authTimeoutMs > 0)
+        startTimer (authTimeoutMs);
+
     juce::Logger::writeToLog ("Client connected. Awaiting authentication...");
 }
 
 void CommandConnection::connectionLost()
 {
+    stopTimer();
     juce::Logger::writeToLog ("Client disconnected.");
 }
 
@@ -58,6 +66,7 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
         if (receivedToken == expectedToken)
         {
             authenticated = true;
+            stopTimer();
             juce::Logger::writeToLog ("Client authenticated successfully");
 
             // Send acknowledgment
@@ -100,6 +109,19 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
     juce::MemoryBlock responseBlock (response.toRawUTF8(),
                                      response.getNumBytesAsUTF8());
     sendMessage (responseBlock);
+}
+
+void CommandConnection::timerCallback()
+{
+    stopTimer();
+
+    if (! authenticated)
+    {
+        const auto elapsedMs = (juce::Time::getCurrentTime() - connectionTime).inMilliseconds();
+        juce::Logger::writeToLog ("Authentication timeout after " + juce::String (elapsedMs)
+                                  + " ms - disconnecting");
+        disconnect();
+    }
 }
 
 //==============================================================================
@@ -202,8 +224,8 @@ bool writeAuthTokenFile (const juce::File& authTokenFile, const juce::String& to
 }
 }
 
-CommandServer::CommandServer (CommandCallback callback, int p)
-    : commandCallback (std::move (callback)), port (p)
+CommandServer::CommandServer (CommandCallback callback, int p, int timeoutMs)
+    : commandCallback (std::move (callback)), port (p), authTimeoutMs (timeoutMs)
 {
 }
 
@@ -260,7 +282,7 @@ bool CommandServer::start()
 
 juce::InterprocessConnection* CommandServer::createConnectionObject()
 {
-    auto* conn = new CommandConnection (commandCallback, authToken);
+    auto* conn = new CommandConnection (commandCallback, authToken, authTimeoutMs);
 
     juce::ScopedLock lock (connectionLock);
     connections.add (conn);

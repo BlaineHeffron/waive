@@ -15,6 +15,7 @@
 #include "AiToolSchema.h"
 
 #include <cmath>
+#include <atomic>
 #include <cstdlib>
 #include <iostream>
 #include <stdexcept>
@@ -119,6 +120,46 @@ juce::var runJsonCommand (CommandHandler& handler, const juce::String& payload)
     expect (response.isObject(), "Expected JSON command response object");
     return response;
 }
+
+int findAvailableTcpPort()
+{
+    for (int attempt = 0; attempt < 64; ++attempt)
+    {
+        const int port = 40000 + juce::Random::getSystemRandom().nextInt (20000);
+        juce::StreamingSocket socket;
+        if (socket.createListener (port))
+        {
+            socket.close();
+            return port;
+        }
+    }
+
+    return 0;
+}
+
+class TestInterprocessClient final : public juce::InterprocessConnection
+{
+public:
+    TestInterprocessClient()
+        : juce::InterprocessConnection (false, 0x0000AD10)
+    {
+    }
+
+    void connectionMade() override {}
+
+    void connectionLost() override
+    {
+        disconnected.store (true);
+    }
+
+    void messageReceived (const juce::MemoryBlock& message) override
+    {
+        lastMessage = message.toString();
+    }
+
+    std::atomic<bool> disconnected { false };
+    juce::String lastMessage;
+};
 
 void expectAutomationCurveMatches (te::AutomatableParameter& actual,
                                    te::AutomatableParameter& expected,
@@ -407,6 +448,34 @@ void testDirtyStateSavepointAcrossCoalescedUndoRedo (te::Engine& engine)
     session.redo();
     expect (getAudioTrackCount (edit) == 4, "Expected redo to restore the coalesced transaction");
     expect (session.hasChangedSinceSaved(), "Expected redo to restore the dirty state after the savepoint");
+}
+
+void testNoOpPerformEditDoesNotDirtyCleanSession (te::Engine& engine)
+{
+    EditSession session (engine);
+
+    struct Listener final : EditSession::Listener
+    {
+        void editStateChanged() override
+        {
+            ++editStateChangedCount;
+        }
+
+        int editStateChangedCount = 0;
+    } listener;
+
+    session.addListener (&listener);
+    session.resetChangedStatus();
+
+    expect (! session.hasChangedSinceSaved(), "Expected fresh session savepoint to start clean");
+    expect (session.performEdit ("No-op Mutation", [] (te::Edit&) {}),
+            "Expected performEdit to succeed for a no-op mutation");
+    expect (! session.hasChangedSinceSaved(),
+            "Expected a no-op performEdit call not to dirty a clean session");
+    expect (listener.editStateChangedCount == 0,
+            "Expected a no-op performEdit call not to notify edit-state listeners");
+
+    session.removeListener (&listener);
 }
 
 void testUndoableCommandHandlerWrapsMutatingCommands (te::Engine& engine)
@@ -1699,6 +1768,29 @@ void testCommandServerStartFailureDoesNotClobberExistingAuthTokenFile()
             "Expected failed competing server start not to delete the original auth token file");
     expect (authTokenFile.loadFileAsString() == originalToken,
             "Expected failed competing server start not to overwrite the original auth token");
+}
+
+void testCommandServerDisconnectsSilentUnauthenticatedClients()
+{
+    const int port = findAvailableTcpPort();
+    expect (port > 0, "Expected to reserve a TCP port for auth-timeout coverage");
+
+    CommandServer server ([] (const juce::String&) { return "{}"; }, port, 150);
+    expect (server.start(), "Expected command server to start for auth-timeout coverage");
+
+    TestInterprocessClient client;
+    expect (client.connectToSocket ("127.0.0.1", port, 1000),
+            "Expected silent auth-timeout client to connect");
+
+    const auto deadline = juce::Time::getMillisecondCounter() + 2500u;
+    while (! client.disconnected.load() && juce::Time::getMillisecondCounter() < deadline)
+    {
+        juce::Timer::callPendingTimersSynchronously();
+        juce::Thread::sleep (20);
+    }
+
+    expect (client.disconnected.load(),
+            "Expected silent unauthenticated client to be disconnected after timeout");
 }
 
 void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine& engine)
@@ -3444,6 +3536,7 @@ int main()
         testPerformEditExceptionSafety (session);
         testCoalescedPerformEditExceptionSafety (engine);
         testDirtyStateSavepointAcrossCoalescedUndoRedo (engine);
+        testNoOpPerformEditDoesNotDirtyCleanSession (engine);
         testUndoableCommandHandlerWrapsMutatingCommands (engine);
         testUndoableCommandHandlerPassesThroughFileSideEffectCommands (engine);
         testClickTrackToggleSupportsUndoRedo (engine);
@@ -3475,6 +3568,7 @@ int main()
         testProjectScopedCommandsUseResolvedSavedBackingFileWithoutExplicitProjectFile (engine);
         testCommandServerWritesSecureAuthTokenFile();
         testCommandServerStartFailureDoesNotClobberExistingAuthTokenFile();
+        testCommandServerDisconnectsSilentUnauthenticatedClients();
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testPluginPresetCommandsSupportMasterChain (engine);
         testPluginPresetCommandsRejectMissingPluginIndex (engine);

@@ -119,6 +119,12 @@ juce::TextButton* findButtonWithText (juce::Component& parent, const juce::Strin
     return nullptr;
 }
 
+bool isAddressablePlugin (te::Plugin& plugin)
+{
+    return dynamic_cast<te::VolumeAndPanPlugin*> (&plugin) == nullptr
+        && dynamic_cast<te::LevelMeterPlugin*> (&plugin) == nullptr;
+}
+
 class NoChangePlanTool final : public waive::Tool
 {
 public:
@@ -1697,6 +1703,45 @@ void runUiPhase1LibraryAndPhase2PluginRoutingRegression()
     auto pluginOrderAfterMove = pluginBrowser.getChainPluginTypeOrderForTesting();
     expect (pluginOrderAfterMove != pluginOrderBeforeMove,
             "Expected plugin order to change after move");
+
+    expect (pluginBrowser.selectChainRowForTesting (0),
+            "Expected selecting chain row before out-of-band removal");
+    const int chainCountBeforeExternalRemove = pluginBrowser.getChainPluginCountForTesting();
+    const auto externallyRemovedPluginName = pluginBrowser.getSelectedChainPluginNameForTesting();
+    expect (session.performEdit ("Remove Plugin Out Of Band", [&] (te::Edit&)
+    {
+        for (auto* plugin : track->pluginList)
+        {
+            if (plugin != nullptr
+                && isAddressablePlugin (*plugin)
+                && plugin->getName() == externallyRemovedPluginName)
+            {
+                plugin->deleteFromParent();
+                break;
+            }
+        }
+    }), "Expected out-of-band plugin removal to succeed");
+    expect (pluginBrowser.getChainPluginCountForTesting() == chainCountBeforeExternalRemove - 1,
+            "Expected out-of-band plugin removal to update the visible chain size");
+
+    if (pluginBrowser.getChainPluginCountForTesting() > 0)
+    {
+        expect (pluginBrowser.getPresetPluginNameForTesting()
+                    == pluginBrowser.getSelectedChainPluginNameForTesting(),
+                "Expected preset browser selection to resync after out-of-band plugin removal");
+        expect (pluginBrowser.getPresetPluginNameForTesting() != externallyRemovedPluginName,
+                "Expected preset browser not to retain the removed plugin after out-of-band removal");
+    }
+    else
+    {
+        expect (! pluginBrowser.hasPresetPluginSelectionForTesting(),
+                "Expected preset browser selection to clear when out-of-band removal empties the chain");
+    }
+
+    expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
+            "Expected undo to restore command-routed plugin removal");
+    expect (pluginBrowser.getChainPluginCountForTesting() == chainCountBeforeExternalRemove,
+            "Expected undo to restore chain size after out-of-band plugin removal");
 
     expect (pluginBrowser.selectChainRowForTesting (0),
             "Expected selecting top chain row before removal");
