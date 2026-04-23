@@ -287,10 +287,14 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
 
     if (exitCode != 0)
     {
-        output.stdErr = process.readAllProcessOutput().trim();
+        auto failureOutput = output.stdOut.trim();
+        if (failureOutput.isEmpty())
+            failureOutput = process.readAllProcessOutput().trim();
+
+        output.stdErr = failureOutput;
         output.message = "External tool failed with exit code " + juce::String (exitCode);
-        if (output.stdErr.isNotEmpty())
-            output.message << ": " << output.stdErr;
+        if (failureOutput.isNotEmpty())
+            output.message << ": " << failureOutput;
         cleanupTempDirectory();
         return output;
     }

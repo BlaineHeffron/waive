@@ -457,6 +457,42 @@ with open(os.path.join(output_dir, "result.json"), "w", encoding="utf-8") as han
             "Expected helper script to inherit the original process working directory");
 }
 
+void testExternalToolRunnerPreservesFailureOutput()
+{
+    auto fixtureDir = getUniqueFixtureDir ("external_runner_failure");
+    auto scriptFile = fixtureDir.getChildFile ("fail_with_message.py");
+
+    writeTextFile (scriptFile, R"(#!/usr/bin/env python3
+import sys
+
+sys.stderr.write("intentional failure output\n")
+sys.exit(7)
+)");
+
+    waive::ExternalToolManifest manifest;
+    manifest.name = "runner_failure_test";
+    manifest.displayName = "Runner Failure Test";
+    manifest.version = "1.0.0";
+    manifest.executable = "python3";
+    manifest.arguments.add ("fail_with_message.py");
+    manifest.baseDirectory = fixtureDir;
+    manifest.timeoutMs = 10000;
+
+    waive::ExternalToolRunner runner;
+    std::atomic<bool> cancelFlag { false };
+    waive::ProgressReporter reporter (1, cancelFlag,
+                                      [] (int, float, const juce::String&) {});
+
+    auto output = runner.run (manifest, juce::var(), juce::File(), reporter);
+
+    expect (! output.success, "Expected external tool runner failure to report unsuccessful result");
+    expect (output.message.contains ("exit code 7"), "Expected failure message to include exit code");
+    expect (output.message.contains ("intentional failure output"),
+            "Expected failure message to preserve child process output");
+    expect (output.stdErr.contains ("intentional failure output"),
+            "Expected stderr field to preserve child process output");
+}
+
 // ── Peak Gain Helper Test ──────────────────────────────────────────────────
 
 void testPeakGainVariousAmplitudes()
@@ -755,6 +791,7 @@ int main()
         runTest ("External tool manifest recursion", testExternalToolManifestScanRecursesIntoSubdirectories);
         runTest ("External tool manifest legacy command", testExternalToolManifestSupportsLegacyCommandArray);
         runTest ("External tool runner relative args", testExternalToolRunnerResolvesRelativeArgumentsWithoutChangingCwd);
+        runTest ("External tool runner failure output", testExternalToolRunnerPreservesFailureOutput);
 
         std::cout << "\n=== Tool Logic Tests ===" << std::endl;
         runTest ("Normalization gain calculation", testNormalizationGainCalculation);
