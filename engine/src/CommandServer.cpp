@@ -73,7 +73,7 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
     if (! authenticated)
     {
         const auto elapsedMs = (juce::Time::getCurrentTime() - connectionTime).inMilliseconds();
-        if (elapsedMs > authTimeoutMs)
+        if (authTimeoutMs > 0 && elapsedMs > authTimeoutMs)
         {
             juce::Logger::writeToLog ("Authentication timeout - disconnecting");
             closeConnectionTransport (*this);

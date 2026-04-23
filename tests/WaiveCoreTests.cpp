@@ -1791,6 +1791,34 @@ void testCommandServerDisconnectsSilentUnauthenticatedClients()
             "Expected silent unauthenticated client to be disconnected after timeout");
 }
 
+void testCommandServerAllowsDelayedAuthenticationWhenTimeoutDisabled()
+{
+    const int port = findAvailableTcpPort();
+    expect (port > 0, "Expected to reserve a TCP port for disabled-timeout coverage");
+
+    CommandServer server ([] (const juce::String&) { return "{}"; }, port, 0);
+    expect (server.start(), "Expected command server to start with timeout disabled");
+
+    TestInterprocessClient client;
+    expect (client.connectToSocket ("127.0.0.1", port, 1000),
+            "Expected disabled-timeout client to connect");
+
+    juce::Thread::sleep (250);
+    expect (client.isConnected(), "Expected disabled-timeout client to remain connected before auth");
+
+    const auto authToken = server.getAuthToken();
+    juce::MemoryBlock authBlock (authToken.toRawUTF8(), authToken.getNumBytesAsUTF8());
+    expect (client.sendMessage (authBlock),
+            "Expected delayed authentication message to send successfully when timeout is disabled");
+
+    const auto deadline = juce::Time::getMillisecondCounter() + 1000u;
+    while (client.lastMessage != "AUTH_OK" && juce::Time::getMillisecondCounter() < deadline)
+        juce::Thread::sleep (10);
+
+    expect (client.lastMessage == "AUTH_OK",
+            "Expected delayed authentication to succeed when timeout is disabled");
+}
+
 void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("plugin_preset_manager");
@@ -3567,6 +3595,7 @@ int main()
         testCommandServerWritesSecureAuthTokenFile();
         testCommandServerStartFailureDoesNotClobberExistingAuthTokenFile();
         testCommandServerDisconnectsSilentUnauthenticatedClients();
+        testCommandServerAllowsDelayedAuthenticationWhenTimeoutDisabled();
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testPluginPresetCommandsSupportMasterChain (engine);
         testPluginPresetCommandsRejectMissingPluginIndex (engine);
