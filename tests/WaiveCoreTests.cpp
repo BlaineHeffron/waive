@@ -179,6 +179,15 @@ void expectNormalisedStateMatches (const juce::ValueTree& actual,
             messagePrefix + ": expected matching state after normalising generated identifiers");
 }
 
+void expectStateWasRegenerated (const juce::ValueTree& actual,
+                                const juce::ValueTree& expected,
+                                const std::string& messagePrefix)
+{
+    expect (! actual.isEquivalentTo (expected),
+            messagePrefix + ": expected duplicate state to regenerate internal identifiers");
+    expectNormalisedStateMatches (actual, expected, messagePrefix);
+}
+
 class ScopedWorkingDirectory
 {
 public:
@@ -1272,9 +1281,9 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     expect (! duplicatedParams.isEmpty(), "Expected duplicated reverb to expose parameters");
     expect (std::abs (duplicatedParams.getFirst()->getCurrentValue() - firstPluginParam->getCurrentValue()) < 0.0001f,
             "Expected duplicate_track to preserve plugin parameter state");
-    expectNormalisedStateMatches (duplicatedReverb->state,
-                                  reverb->state,
-                                  "duplicate_track plugin state");
+    expectStateWasRegenerated (duplicatedReverb->state,
+                               reverb->state,
+                               "duplicate_track plugin state");
 
     auto duplicatedVolPlugins = duplicatedTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
     expect (! duplicatedVolPlugins.isEmpty(), "Expected duplicated track volume plugin");
@@ -1284,9 +1293,15 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     expectAutomationCurveMatches (*duplicatedVolPlugins.getFirst()->panParam,
                                   *sourceVolPlugins.getFirst()->panParam,
                                   "duplicate_track pan automation");
-    expectNormalisedStateMatches (duplicatedVolPlugins.getFirst()->state,
-                                  sourceVolPlugins.getFirst()->state,
-                                  "duplicate_track volume/pan plugin state");
+    expectStateWasRegenerated (duplicatedVolPlugins.getFirst()->state,
+                               sourceVolPlugins.getFirst()->state,
+                               "duplicate_track volume/pan plugin state");
+    expectStateWasRegenerated (duplicatedVolPlugins.getFirst()->volParam->getCurve().state,
+                               sourceVolPlugins.getFirst()->volParam->getCurve().state,
+                               "duplicate_track volume automation state");
+    expectStateWasRegenerated (duplicatedVolPlugins.getFirst()->panParam->getCurve().state,
+                               sourceVolPlugins.getFirst()->panParam->getCurve().state,
+                               "duplicate_track pan automation state");
 
     (void) fixtureDir.deleteRecursively();
 }
