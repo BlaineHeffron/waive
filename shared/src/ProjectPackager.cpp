@@ -383,10 +383,6 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
     if (tempZip.existsAsFile())
         (void) tempZip.deleteFile();
 
-    juce::FileOutputStream outputStream (tempZip);
-    if (! outputStream.openedOk())
-        return false;
-
     juce::ZipFile::Builder builder;
     builder.addFile (projectFile, 9, projectFile.getFileName());
 
@@ -404,37 +400,35 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
             builder.addFile (audioFile, 9, audioFile.getRelativePathFrom (projectDir).replaceCharacter ('\\', '/'));
         }
 
-    if (! builder.writeToStream (outputStream, nullptr))
     {
-        (void) outputStream.flush();
+        juce::FileOutputStream outputStream (tempZip);
+        if (! outputStream.openedOk())
+            return false;
+
+        if (! builder.writeToStream (outputStream, nullptr))
+        {
+            (void) outputStream.flush();
+            (void) tempZip.deleteFile();
+            return false;
+        }
+
+        outputStream.flush();
+        if (outputStream.getStatus().failed())
+        {
+            (void) tempZip.deleteFile();
+            return false;
+        }
+    }
+
+    const bool success = outputZip.existsAsFile()
+                           ? tempZip.replaceFileIn (outputZip)
+                           : tempZip.moveFileTo (outputZip);
+
+    if (! success)
+    {
         (void) tempZip.deleteFile();
         return false;
     }
-
-    outputStream.flush();
-
-    auto existingZipBackup = outputZip.getSiblingFile (outputZip.getFileName() + ".bak");
-    if (existingZipBackup.existsAsFile())
-        (void) existingZipBackup.deleteFile();
-
-    const bool hadExistingZip = outputZip.existsAsFile();
-    if (hadExistingZip && ! outputZip.moveFileTo (existingZipBackup))
-    {
-        (void) tempZip.deleteFile();
-        return false;
-    }
-
-    if (! tempZip.moveFileTo (outputZip))
-    {
-        if (hadExistingZip)
-            (void) existingZipBackup.moveFileTo (outputZip);
-
-        (void) tempZip.deleteFile();
-        return false;
-    }
-
-    if (hadExistingZip)
-        (void) existingZipBackup.deleteFile();
 
     return true;
 }
