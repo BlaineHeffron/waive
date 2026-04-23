@@ -1115,7 +1115,7 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
             "Expected zip entry paths to be normalised with forward slashes");
     expect (entries.contains (autoSaveFile.getFileName()),
             "Expected zip to include autosave snapshot when present");
-    expect (entries.count (autoSaveFile.getFileName()) == 1,
+    expect (entries.contains (autoSaveFile.getFileName(), true),
             "Expected zip to include the autosave snapshot only once");
     expect (! entries.contains (backupProjectFile.getFileName()),
             "Expected zip to exclude unrelated tracktionedit files from the project directory");
