@@ -293,6 +293,16 @@ bool ProjectPackager::isAudioFile (const juce::File& file)
            ext == ".aif" || ext == ".aiff" || ext == ".mp3";
 }
 
+juce::File ProjectPackager::createTemporaryZipOutput (const juce::File& outputZip)
+{
+    auto parentDir = outputZip.getParentDirectory();
+    auto baseName = outputZip.getFileNameWithoutExtension();
+    if (baseName.isEmpty())
+        baseName = "portable";
+
+    return parentDir.getNonexistentChildFile (baseName + "_tmp", outputZip.getFileExtension(), false);
+}
+
 juce::Array<juce::File> ProjectPackager::findUnusedMedia (te::Edit& edit, const juce::File& projectDir)
 {
     juce::Array<juce::File> unusedFiles;
@@ -365,14 +375,15 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
         return false;
 
     auto projectDir = projectFile.getParentDirectory();
-    if (outputZip.existsAsFile())
-        outputZip.deleteFile();
-
     auto outputDir = outputZip.getParentDirectory();
     if (! outputDir.exists() || ! outputDir.hasWriteAccess())
         return false;
 
-    juce::FileOutputStream outputStream (outputZip);
+    auto tempZip = createTemporaryZipOutput (outputZip);
+    if (tempZip.existsAsFile())
+        (void) tempZip.deleteFile();
+
+    juce::FileOutputStream outputStream (tempZip);
     if (! outputStream.openedOk())
         return false;
 
@@ -393,7 +404,39 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
             builder.addFile (audioFile, 9, audioFile.getRelativePathFrom (projectDir).replaceCharacter ('\\', '/'));
         }
 
-    return builder.writeToStream (outputStream, nullptr);
+    if (! builder.writeToStream (outputStream, nullptr))
+    {
+        (void) outputStream.flush();
+        (void) tempZip.deleteFile();
+        return false;
+    }
+
+    outputStream.flush();
+
+    auto existingZipBackup = outputZip.getSiblingFile (outputZip.getFileName() + ".bak");
+    if (existingZipBackup.existsAsFile())
+        (void) existingZipBackup.deleteFile();
+
+    const bool hadExistingZip = outputZip.existsAsFile();
+    if (hadExistingZip && ! outputZip.moveFileTo (existingZipBackup))
+    {
+        (void) tempZip.deleteFile();
+        return false;
+    }
+
+    if (! tempZip.moveFileTo (outputZip))
+    {
+        if (hadExistingZip)
+            (void) existingZipBackup.moveFileTo (outputZip);
+
+        (void) tempZip.deleteFile();
+        return false;
+    }
+
+    if (hadExistingZip)
+        (void) existingZipBackup.deleteFile();
+
+    return true;
 }
 
 } // namespace waive

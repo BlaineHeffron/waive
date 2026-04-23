@@ -46,6 +46,7 @@ private:
     static juce::Array<juce::File> getAllReferencedFiles (tracktion::engine::Edit& edit);
     static juce::File getUniqueTargetFile (const juce::File& targetDir, const juce::String& baseName);
     static bool isAudioFile (const juce::File& file);
+    static juce::File createTemporaryZipOutput (const juce::File& outputZip);
 };
 
 } // namespace waive

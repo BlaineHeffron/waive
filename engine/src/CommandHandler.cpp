@@ -172,6 +172,18 @@ bool copyTrackPlugins (te::Edit& edit, te::AudioTrack& sourceTrack, te::AudioTra
     return true;
 }
 
+void copyAutomationCurveState (te::Edit& edit,
+                               te::AutomatableParameter& sourceParam,
+                               te::AutomatableParameter& destinationParam)
+{
+    auto& sourceCurve = sourceParam.getCurve();
+    auto& destinationCurve = destinationParam.getCurve();
+
+    destinationCurve.state.copyPropertiesAndChildrenFrom (sourceCurve.state.createCopy(), nullptr);
+    edit.createNewItemID().writeID (destinationCurve.state, nullptr);
+    te::assignNewIDsToAutomationCurveModifiers (edit, destinationCurve.state);
+}
+
 bool isOutputPathAllowed (const juce::String& originalPath,
                           const juce::File& outputPath,
                           const juce::Array<juce::File>& allowedDirectories)
@@ -1595,6 +1607,8 @@ juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
         te::assignNewIDsToAutomationCurveModifiers (edit, sourceState);
         dstVolPlugins.getFirst()->state.copyPropertiesAndChildrenFrom (sourceState, nullptr);
         dstVolPlugins.getFirst()->restorePluginStateFromValueTree (dstVolPlugins.getFirst()->state);
+        copyAutomationCurveState (edit, *srcVolPlugins.getFirst()->volParam, *dstVolPlugins.getFirst()->volParam);
+        copyAutomationCurveState (edit, *srcVolPlugins.getFirst()->panParam, *dstVolPlugins.getFirst()->panParam);
     }
 
     if (! copyTrackPlugins (edit, *sourceTrack, *newTrack))

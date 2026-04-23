@@ -1118,6 +1118,39 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testPackageAsZipOverwritesExistingArchiveAtomically (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("package_zip_overwrite");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto outputDir = fixtureDir.getChildFile ("output");
+    projectDir.createDirectory();
+    outputDir.createDirectory();
+
+    auto projectFile = createSavedProjectFixture (engine, projectDir.getChildFile ("main_project.tracktionedit"));
+    auto outputZip = outputDir.getChildFile ("portable.zip");
+
+    expect (outputZip.replaceWithText ("existing archive"),
+            "Expected existing archive fixture");
+
+    expect (waive::ProjectPackager::packageAsZip (projectFile, outputZip),
+            "Expected packageAsZip to replace an existing archive");
+    expect (outputZip.existsAsFile(),
+            "Expected replacement archive to exist");
+    expect (outputZip.loadFileAsString() != "existing archive",
+            "Expected replacement archive contents to differ from the previous archive");
+
+    juce::ZipFile zip (outputZip);
+    juce::StringArray entries;
+    for (int i = 0; i < zip.getNumEntries(); ++i)
+        if (auto* entry = zip.getEntry (i))
+            entries.add (entry->filename);
+
+    expect (entries.contains (projectFile.getFileName()),
+            "Expected replacement archive to contain the current project file");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testPackageAsZipRejectsOutputInsideProjectDirectory (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("package_zip_inside_project");
@@ -3189,6 +3222,7 @@ int main()
         testMediaManagementCanonicalisesSymlinkedReferences (engine);
         testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
+        testPackageAsZipOverwritesExistingArchiveAtomically (engine);
         testPackageAsZipRejectsOutputInsideProjectDirectory (engine);
         testPackageAsZipRejectsSymlinkedOutputInsideProjectDirectory (engine);
         testCollectAndSaveCommandReturnsErrorOnPackagingFailure (engine);
