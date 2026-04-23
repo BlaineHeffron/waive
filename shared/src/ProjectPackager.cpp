@@ -8,6 +8,12 @@ namespace waive {
 
 namespace
 {
+bool isPackagedAuxiliaryProjectFile (const juce::File& file)
+{
+    return file.hasFileExtension (".tracktionedit")
+           && file.getFileName().startsWith (".waive-autosave-");
+}
+
 bool copyDirectoryRecursively (const juce::File& sourceDir, const juce::File& destinationDir)
 {
     if (! sourceDir.isDirectory())
@@ -453,16 +459,22 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
     {
         const auto file = iter.getFile();
         const auto canonicalFile = canonicalisePath (file);
+        const auto relativePath = file.getRelativePathFrom (projectDir).replaceCharacter ('\\', '/');
         if (canonicalFile == canonicalisePath (projectFile)
             || canonicalFile == canonicalisePath (outputZip))
             continue;
 
-        const auto fileName = file.getFileName();
-        if (file.hasFileExtension (".tracktionedit")
-            && ! fileName.startsWith (".waive-autosave-"))
+        if (relativePath.startsWith (".trash/"))
             continue;
 
-        builder.addFile (file, 9, file.getRelativePathFrom (projectDir).replaceCharacter ('\\', '/'));
+        const auto fileName = file.getFileName();
+        if (isPackagedAuxiliaryProjectFile (file))
+            continue;
+
+        if (file.hasFileExtension (".tracktionedit"))
+            continue;
+
+        builder.addFile (file, 9, relativePath);
     }
 
     {

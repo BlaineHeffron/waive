@@ -1078,15 +1078,18 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
     auto projectDir = fixtureDir.getChildFile ("project");
     auto audioDir = projectDir.getChildFile ("Audio");
     auto nestedAudioDir = audioDir.getChildFile ("Stems");
+    auto trashDir = projectDir.getChildFile (".trash");
     projectDir.createDirectory();
     audioDir.createDirectory();
     nestedAudioDir.createDirectory();
+    trashDir.createDirectory();
 
     auto projectFile = createSavedProjectFixture (engine, projectDir.getChildFile ("main_project.tracktionedit"));
     auto backupProjectFile = projectDir.getChildFile ("backup.tracktionedit");
     auto autoSaveFile = projectDir.getChildFile (".waive-autosave-main_project.tracktionedit");
     auto audioFile = writeTestWav (audioDir.getChildFile ("packaged.wav"));
     auto nestedAudioFile = writeTestWav (nestedAudioDir.getChildFile ("nested.wav"));
+    auto trashedAudioFile = writeTestWav (trashDir.getChildFile ("unused.wav"));
     auto outputZip = fixtureDir.getChildFile ("portable.zip");
 
     expect (backupProjectFile.replaceWithText ("backup"), "Expected backup fixture project file");
@@ -1112,8 +1115,12 @@ void testPackageAsZipIncludesOnlyCurrentProjectFile (te::Engine& engine)
             "Expected zip entry paths to be normalised with forward slashes");
     expect (entries.contains (autoSaveFile.getFileName()),
             "Expected zip to include autosave snapshot when present");
+    expect (entries.count (autoSaveFile.getFileName()) == 1,
+            "Expected zip to include the autosave snapshot only once");
     expect (! entries.contains (backupProjectFile.getFileName()),
             "Expected zip to exclude unrelated tracktionedit files from the project directory");
+    expect (! entries.contains (".trash/" + trashedAudioFile.getFileName()),
+            "Expected zip to exclude media moved into the project trash directory");
 
     (void) fixtureDir.deleteRecursively();
 }
