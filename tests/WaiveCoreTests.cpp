@@ -11,6 +11,7 @@
 #include "ProjectPackager.h"
 #include "PluginPresetManager.h"
 #include "CommandHandler.h"
+#include "CommandServer.h"
 #include "AiToolSchema.h"
 
 #include <cmath>
@@ -19,6 +20,10 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+
+#if ! JUCE_WINDOWS
+#include <sys/stat.h>
+#endif
 
 namespace te = tracktion;
 
@@ -1486,6 +1491,7 @@ void testCollectAndSaveCommandReturnsErrorOnPackagingFailure (te::Engine& engine
     expect (projectDir.deleteRecursively(), "Expected collect-command project directory deletion");
 
     CommandHandler handler (*edit);
+    handler.setProjectFile (projectFile);
     auto response = runJsonCommand (handler, R"({ "action":"collect_and_save" })");
     expect (response["status"].toString() == "error",
             "Expected collect_and_save command to return error when collect/save fails");
@@ -1572,6 +1578,7 @@ void testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (te::Engine& engine)
     expect (unusedAudio.existsAsFile(), "Expected unused media fixture file");
 
     CommandHandler handler (*edit);
+    handler.setProjectFile (projectFile);
     auto response = runJsonCommand (handler, R"({ "action":"remove_unused_media" })");
     expect (response["status"].toString() == "error",
             "Expected remove_unused_media command to return error when file moves fail");
@@ -1579,6 +1586,73 @@ void testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (te::Engine& engine)
     expect (unusedAudio.existsAsFile(), "Expected failed removal to leave unused file in place");
 
     (void) fixtureDir.deleteRecursively();
+}
+
+void testProjectScopedCommandsRequireExplicitSavedProject (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("project_scoped_requires_saved_project");
+    auto backingFile = fixtureDir.getChildFile ("unsaved_edit.tracktionedit");
+    auto outputZip = fixtureDir.getChildFile ("portable.zip");
+    auto edit = te::createEmptyEdit (engine, backingFile);
+
+    CommandHandler handler (*edit);
+    handler.setAllowedMediaDirectories ({ fixtureDir });
+
+    const auto collectResponse = runJsonCommand (handler, R"({ "action":"collect_and_save" })");
+    expect (collectResponse["status"].toString() == "error",
+            "Expected collect_and_save to reject unsaved projects");
+    expect (collectResponse["message"].toString().contains ("Edit file not saved"),
+            "Expected collect_and_save unsaved-project message");
+
+    const auto removeResponse = runJsonCommand (handler, R"({ "action":"remove_unused_media" })");
+    expect (removeResponse["status"].toString() == "error",
+            "Expected remove_unused_media to reject unsaved projects");
+    expect (removeResponse["message"].toString().contains ("Edit file not saved"),
+            "Expected remove_unused_media unsaved-project message");
+
+    const auto packageResponse = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"package_as_zip",
+        "file_path":"%s"
+    })", outputZip.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (packageResponse["status"].toString() == "error",
+            "Expected package_as_zip to reject unsaved projects");
+    expect (packageResponse["message"].toString().contains ("Edit file not saved"),
+            "Expected package_as_zip unsaved-project message");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testCommandServerWritesSecureAuthTokenFile()
+{
+    CommandServer server ([] (const juce::String&) { return "{}"; }, 0);
+    const bool started = server.start();
+    juce::ignoreUnused (started);
+
+    const auto authToken = server.getAuthToken();
+    const auto authTokenFile = server.getAuthTokenFile();
+    const auto expectedDirectory = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                                       .getChildFile ("Waive");
+
+    expect (authToken.length() == 64, "Expected 32 random auth bytes encoded as 64 hex characters");
+    expect (authToken.containsOnly ("0123456789abcdef"),
+            "Expected auth token to be lowercase hexadecimal");
+    expect (authTokenFile.existsAsFile(), "Expected auth token file to exist after server start");
+    expect (authTokenFile.getParentDirectory() == expectedDirectory,
+            "Expected auth token file to live under the per-user app-data directory");
+    expect (authTokenFile.loadFileAsString() == authToken,
+            "Expected auth token file contents to match the generated token");
+    expect (! authTokenFile.isAChildOf (juce::File::getSpecialLocation (juce::File::tempDirectory)),
+            "Expected auth token file not to be written under the temp directory");
+
+#if ! JUCE_WINDOWS
+    struct stat tokenStat
+    {
+    };
+    expect (::stat (authTokenFile.getFullPathName().toRawUTF8(), &tokenStat) == 0,
+            "Expected to stat auth token file");
+    expect ((tokenStat.st_mode & 0777) == 0600,
+            "Expected auth token file mode to be 0600 on Unix");
+#endif
 }
 
 void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine& engine)
@@ -3351,6 +3425,8 @@ int main()
         testCollectAndSaveCommandReturnsErrorOnPackagingFailure (engine);
         testCollectAndSaveRollsBackOnPartialCopyFailure (engine);
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
+        testProjectScopedCommandsRequireExplicitSavedProject (engine);
+        testCommandServerWritesSecureAuthTokenFile();
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testPluginPresetCommandsSupportMasterChain (engine);
         testPluginPresetCommandsRejectMissingPluginIndex (engine);

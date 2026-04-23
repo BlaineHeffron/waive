@@ -130,10 +130,12 @@ private:
                                    std::initializer_list<const char*> propertyNames,
                                    double& valueOut,
                                    juce::var& errorResult);
+    juce::File requireSavedProjectFile (const juce::String& actionDescription,
+                                        juce::var& errorResult) const;
     juce::File resolveProjectFile() const;
     te::Track* getTrackById (int trackIndex);
     te::AudioTrack* getAudioTrackById (int trackIndex);
     te::Clip* getClipByIndex (int trackIndex, int clipIndex);
-    juce::var makeError (const juce::String& message);
-    juce::var makeOk();
+    juce::var makeError (const juce::String& message) const;
+    juce::var makeOk() const;
 };

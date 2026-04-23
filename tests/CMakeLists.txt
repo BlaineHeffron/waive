@@ -33,6 +33,8 @@ target_sources(WaiveCoreTests PRIVATE
     ../shared/src/ProjectPackager.cpp
     ../engine/src/CommandHandler.h
     ../engine/src/CommandHandler.cpp
+    ../engine/src/CommandServer.h
+    ../engine/src/CommandServer.cpp
 )
 
 target_compile_features(WaiveCoreTests PRIVATE cxx_std_20)

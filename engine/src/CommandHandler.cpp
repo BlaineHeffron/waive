@@ -351,6 +351,18 @@ juce::File CommandHandler::resolveProjectFile() const
     return edit.editFileRetriever();
 }
 
+juce::File CommandHandler::requireSavedProjectFile (const juce::String& actionDescription,
+                                                    juce::var& errorResult) const
+{
+    if (currentProjectFile == juce::File())
+    {
+        errorResult = makeError ("Edit file not saved - cannot " + actionDescription);
+        return {};
+    }
+
+    return currentProjectFile;
+}
+
 bool CommandHandler::requireIntProperty (const juce::var& params,
                                          const char* propertyName,
                                          int& valueOut,
@@ -2776,9 +2788,10 @@ juce::var CommandHandler::handleRemoveFromFolder (const juce::var& params)
 
 juce::var CommandHandler::handleCollectAndSave()
 {
-    auto editFile = resolveProjectFile();
+    juce::var errorResult;
+    auto editFile = requireSavedProjectFile ("determine project directory", errorResult);
     if (editFile == juce::File())
-        return makeError ("Edit file not saved - cannot determine project directory");
+        return errorResult;
 
     auto projectDir = editFile.getParentDirectory();
     auto result = waive::ProjectPackager::collectAndSave (edit, projectDir, editFile);
@@ -2804,9 +2817,10 @@ juce::var CommandHandler::handleCollectAndSave()
 
 juce::var CommandHandler::handleRemoveUnusedMedia()
 {
-    auto editFile = resolveProjectFile();
+    juce::var errorResult;
+    auto editFile = requireSavedProjectFile ("determine project directory", errorResult);
     if (editFile == juce::File())
-        return makeError ("Edit file not saved - cannot determine project directory");
+        return errorResult;
 
     auto projectDir = editFile.getParentDirectory();
     auto removeResult = waive::ProjectPackager::removeUnusedMedia (edit, projectDir);
@@ -2837,9 +2851,9 @@ juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
     if (! requireStringProperty (params, "file_path", outputPath, errorResult))
         return errorResult;
 
-    auto projectFile = resolveProjectFile();
+    auto projectFile = requireSavedProjectFile ("package project", errorResult);
     if (projectFile == juce::File())
-        return makeError ("Edit file not saved - cannot package project");
+        return errorResult;
 
     juce::File outputZip (outputPath);
 
@@ -2870,7 +2884,7 @@ juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
     return response;
 }
 
-juce::var CommandHandler::makeError (const juce::String& message)
+juce::var CommandHandler::makeError (const juce::String& message) const
 {
     auto* obj = new juce::DynamicObject();
     obj->setProperty ("status", "error");
@@ -2878,7 +2892,7 @@ juce::var CommandHandler::makeError (const juce::String& message)
     return juce::var (obj);
 }
 
-juce::var CommandHandler::makeOk()
+juce::var CommandHandler::makeOk() const
 {
     auto* obj = new juce::DynamicObject();
     obj->setProperty ("status", "ok");

@@ -1,6 +1,23 @@
 #include "CommandServer.h"
-#include <random>
+
+#if JUCE_WINDOWS
+#include <bcrypt.h>
+#endif
+
+#if JUCE_WINDOWS
+#pragma comment(lib, "bcrypt")
+#endif
+
+#include <array>
+#include <cerrno>
+#include <cstring>
+#include <fstream>
 #include <sys/stat.h>
+
+#if ! JUCE_WINDOWS
+#include <fcntl.h>
+#include <unistd.h>
+#endif
 
 //==============================================================================
 // CommandConnection
@@ -89,6 +106,102 @@ void CommandConnection::messageReceived (const juce::MemoryBlock& message)
 // CommandServer
 //==============================================================================
 
+namespace
+{
+bool fillSecureRandomBytes (std::array<unsigned char, 32>& bytes)
+{
+#if JUCE_WINDOWS
+    return BCryptGenRandom (nullptr, bytes.data(), (ULONG) bytes.size(),
+                            BCRYPT_USE_SYSTEM_PREFERRED_RNG) == STATUS_SUCCESS;
+#else
+    std::ifstream randomStream ("/dev/urandom", std::ios::binary);
+    if (! randomStream.good())
+        return false;
+
+    randomStream.read (reinterpret_cast<char*> (bytes.data()), (std::streamsize) bytes.size());
+    return randomStream.good();
+#endif
+}
+
+juce::String bytesToHexString (const std::array<unsigned char, 32>& bytes)
+{
+    juce::String token;
+    for (const auto byte : bytes)
+        token += juce::String::toHexString ((int) byte).paddedLeft ('0', 2);
+    return token;
+}
+
+juce::File getAuthTokenFilePathForPort (int port)
+{
+    auto directory = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
+                         .getChildFile ("Waive");
+    return directory.getChildFile (".waive_auth_token_" + juce::String (port));
+}
+
+bool writeAuthTokenFile (const juce::File& authTokenFile, const juce::String& token)
+{
+    auto parentDir = authTokenFile.getParentDirectory();
+    if (parentDir == juce::File() || (! parentDir.exists() && parentDir.createDirectory().failed()))
+        return false;
+
+#if JUCE_WINDOWS
+    juce::FileOutputStream outputStream (authTokenFile);
+    if (! outputStream.openedOk())
+        return false;
+
+    if (! outputStream.writeText (token, false, false, nullptr))
+        return false;
+
+    return outputStream.flush().wasOk();
+#else
+    int flags = O_WRONLY | O_CREAT | O_TRUNC;
+   #if defined(O_NOFOLLOW)
+    flags |= O_NOFOLLOW;
+   #endif
+
+    const auto path = authTokenFile.getFullPathName().toRawUTF8();
+    const auto fd = ::open (path, flags, S_IRUSR | S_IWUSR);
+    if (fd < 0)
+        return false;
+
+    const auto closeFd = [&fd]
+    {
+        if (fd >= 0)
+            ::close (fd);
+    };
+
+    const auto tokenBytes = token.toRawUTF8();
+    const auto bytesToWrite = (size_t) std::strlen (tokenBytes);
+    ssize_t bytesWritten = 0;
+
+    while ((size_t) bytesWritten < bytesToWrite)
+    {
+        const auto result = ::write (fd, tokenBytes + bytesWritten, bytesToWrite - (size_t) bytesWritten);
+        if (result < 0)
+        {
+            const auto lastErrno = errno;
+            closeFd();
+            errno = lastErrno;
+            (void) authTokenFile.deleteFile();
+            return false;
+        }
+
+        bytesWritten += result;
+    }
+
+    if (::fchmod (fd, S_IRUSR | S_IWUSR) != 0)
+    {
+        closeFd();
+        (void) authTokenFile.deleteFile();
+        return false;
+    }
+
+    closeFd();
+    return true;
+#endif
+}
+}
+
 CommandServer::CommandServer (CommandCallback callback, int p)
     : commandCallback (std::move (callback)), port (p)
 {
@@ -108,31 +221,25 @@ CommandServer::~CommandServer()
 
 void CommandServer::generateAuthToken()
 {
-    // Generate 32-byte random hex token using cryptographically secure source
-    std::random_device rd;
-    std::mt19937 gen (rd());
-    std::uniform_int_distribution<> dis (0, 255);
-
-    juce::String token;
-    for (int i = 0; i < 32; ++i)
+    std::array<unsigned char, 32> randomBytes {};
+    if (! fillSecureRandomBytes (randomBytes))
     {
-        int byte = dis (gen);
-        token += juce::String::toHexString (byte).paddedLeft ('0', 2);
+        authToken = {};
+        authTokenFile = juce::File();
+        juce::Logger::writeToLog ("CommandServer: failed to obtain cryptographic random bytes for auth token");
+        return;
     }
-    authToken = token;
 
-    // Write to temp file with mode 0600
-    authTokenFile = juce::File::getSpecialLocation (juce::File::tempDirectory)
-                        .getChildFile (".waive_auth_token_" + juce::String (port));
+    authToken = bytesToHexString (randomBytes);
+    authTokenFile = getAuthTokenFilePathForPort (port);
 
-    authTokenFile.replaceWithText (authToken);
-
-    // Enforce mode 0600 (owner read/write only) on Unix
-    #if JUCE_LINUX || JUCE_MAC
-    chmod (authTokenFile.getFullPathName().toRawUTF8(), 0600);
-    #else
-    authTokenFile.setReadOnly (true, false);
-    #endif
+    if (! writeAuthTokenFile (authTokenFile, authToken))
+    {
+        authToken = {};
+        authTokenFile = juce::File();
+        juce::Logger::writeToLog ("CommandServer: failed to write auth token file");
+        return;
+    }
 
     juce::Logger::writeToLog ("Authentication token written to: " + authTokenFile.getFullPathName());
 }
@@ -140,6 +247,9 @@ void CommandServer::generateAuthToken()
 bool CommandServer::start()
 {
     generateAuthToken();
+    if (authToken.isEmpty() || authTokenFile == juce::File())
+        return false;
+
     return beginWaitingForSocket (port, "127.0.0.1");
 }
 
