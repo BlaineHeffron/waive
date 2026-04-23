@@ -59,6 +59,15 @@ public:
 
     void notifyDirtyChanged()
     {
+        if (auto* messageManager = juce::MessageManager::getInstanceWithoutCreating())
+        {
+            if (messageManager->isThisTheMessageThread())
+            {
+                checkDirtyState();
+                return;
+            }
+        }
+
         juce::WeakReference<ProjectManager> weakThis (this);
         juce::MessageManager::callAsync ([weakThis]
         {

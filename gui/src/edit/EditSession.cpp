@@ -26,7 +26,15 @@ EditSession::EditSession (te::Engine& eng)
     resetDirtyTrackingToCurrentState();
 }
 
-EditSession::~EditSession() = default;
+EditSession::~EditSession()
+{
+    if (edit != nullptr)
+    {
+        auto& transport = edit->getTransport();
+        transport.stop (false, true);
+        transport.freePlaybackContext();
+    }
+}
 
 te::Edit& EditSession::getEdit()
 {

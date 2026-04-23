@@ -452,6 +452,10 @@ SessionComponent::~SessionComponent()
 
     if (timeline)
         timeline->getSelectionManager().removeListener (this);
+
+    auto& transport = editSession.getEdit().getTransport();
+    transport.stop (false, true);
+    transport.freePlaybackContext();
 }
 
 void SessionComponent::resized()
@@ -864,7 +868,10 @@ void SessionComponent::record()
 {
     auto& transport = editSession.getEdit().getTransport();
     if (transport.isRecording())
+    {
+        stopRecording();
         return;
+    }
 
     auto safeThis = juce::Component::SafePointer<SessionComponent> (this);
     requestMicrophoneAccess ([safeThis] (bool granted)
