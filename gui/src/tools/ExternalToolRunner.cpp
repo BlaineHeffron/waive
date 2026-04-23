@@ -80,6 +80,20 @@ bool toolReportedSuccess (const juce::var& resultData)
     return false;
 }
 
+bool toolReportedFailure (const juce::var& resultData)
+{
+    if (auto* resultObj = resultData.getDynamicObject())
+    {
+        if (resultObj->hasProperty ("success"))
+            return ! static_cast<bool> (resultObj->getProperty ("success"));
+
+        if (resultObj->hasProperty ("status"))
+            return ! resultObj->getProperty ("status").toString().equalsIgnoreCase ("ok");
+    }
+
+    return false;
+}
+
 juce::File findFirstExistingFile (const juce::Array<juce::var>* files, const juce::String& preferredExtension)
 {
     if (files == nullptr)
@@ -310,8 +324,10 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     }
 
     populateOutputPathsFromResult (output, outputDir);
-    output.success = toolReportedSuccess (output.resultData)
-                     || output.outputAudioFile.existsAsFile();
+    const bool explicitFailure = toolReportedFailure (output.resultData);
+    output.success = ! explicitFailure
+                     && (toolReportedSuccess (output.resultData)
+                         || output.outputAudioFile.existsAsFile());
     if (output.message.isEmpty() && ! output.success)
         output.message = output.resultData.isObject()
                            ? "External tool reported a failure"

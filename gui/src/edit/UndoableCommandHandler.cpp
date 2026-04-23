@@ -107,7 +107,10 @@ juce::String UndoableCommandHandler::handleInternal (const juce::String& jsonStr
             editSession.resetChangedStatus();
 
             if (projectManager != nullptr)
+            {
                 deleteAutoSaveForProjectFile (projectManager->getCurrentFile());
+                projectManager->notifyDirtyChanged();
+            }
         }
 
         return result;

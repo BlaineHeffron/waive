@@ -45,7 +45,10 @@ public:
     bool confirmSaveIfDirty();
     void markCurrentProjectSaved();
 
-    bool isDirty() const;
+    bool isDirty() const
+    {
+        return editSession.hasChangedSinceSaved();
+    }
     juce::File getCurrentFile() const   { return currentFile; }
     juce::String getProjectName() const;
     juce::StringArray getRecentFiles() const;
@@ -54,10 +57,26 @@ public:
     void addListener (Listener* listener);
     void removeListener (Listener* listener);
 
-    void notifyDirtyChanged();
+    void notifyDirtyChanged()
+    {
+        juce::WeakReference<ProjectManager> weakThis (this);
+        juce::MessageManager::callAsync ([weakThis]
+        {
+            if (weakThis != nullptr)
+                weakThis->checkDirtyState();
+        });
+    }
 
 private:
-    void checkDirtyState();
+    void checkDirtyState()
+    {
+        bool currentDirty = isDirty();
+        if (currentDirty != lastDirtyState)
+        {
+            lastDirtyState = currentDirty;
+            listeners.call (&Listener::projectDirtyChanged);
+        }
+    }
     void discardUnsavedChanges();
     bool prepareForProjectTransition (bool discardCurrentAutoSaveOnDiscard,
                                       const juce::File& preservedAutoSaveFile = juce::File());

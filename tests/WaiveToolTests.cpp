@@ -611,6 +611,54 @@ print(json.dumps({"success": False}))
             "Expected structured tool failure without a message to use the generic failure text");
 }
 
+void testExternalToolRunnerDoesNotOverrideStructuredFailureWithAudioOutput()
+{
+    auto fixtureDir = getUniqueFixtureDir ("external_runner_failure_with_output");
+    auto scriptFile = fixtureDir.getChildFile ("emit_failure_with_output.py");
+
+    writeTextFile (scriptFile, R"(#!/usr/bin/env python3
+import json
+import os
+import wave
+
+output_dir = None
+for index, arg in enumerate(__import__("sys").argv):
+    if arg == "--output-dir" and index + 1 < len(__import__("sys").argv):
+        output_dir = __import__("sys").argv[index + 1]
+        break
+
+assert output_dir is not None
+os.makedirs(output_dir, exist_ok=True)
+with wave.open(os.path.join(output_dir, "output.wav"), "wb") as handle:
+    handle.setnchannels(1)
+    handle.setsampwidth(2)
+    handle.setframerate(44100)
+    handle.writeframes(b"\x00\x00" * 32)
+
+print(json.dumps({"success": False, "message": "tool failed after writing output"}))
+)");
+
+    waive::ExternalToolManifest manifest;
+    manifest.name = "runner_failure_with_output_test";
+    manifest.displayName = "Runner Failure With Output Test";
+    manifest.version = "1.0.0";
+    manifest.executable = "python3";
+    manifest.arguments.add ("emit_failure_with_output.py");
+    manifest.baseDirectory = fixtureDir;
+    manifest.timeoutMs = 10000;
+
+    waive::ExternalToolRunner runner;
+    std::atomic<bool> cancelFlag { false };
+    waive::ProgressReporter reporter (1, cancelFlag,
+                                      [] (int, float, const juce::String&) {});
+
+    auto output = runner.run (manifest, juce::var(), juce::File(), reporter);
+
+    expect (! output.success, "Expected explicit tool failure to override incidental audio output");
+    expect (output.message == "tool failed after writing output",
+            "Expected explicit structured failure message to be preserved");
+}
+
 // ── Peak Gain Helper Test ──────────────────────────────────────────────────
 
 void testPeakGainVariousAmplitudes()
@@ -913,6 +961,7 @@ int main()
         runTest ("External tool runner failure output", testExternalToolRunnerPreservesFailureOutput);
         runTest ("External tool runner missing success result", testExternalToolRunnerRequiresStructuredSuccessOrAudioOutput);
         runTest ("External tool runner structured failure message", testExternalToolRunnerReportsStructuredFailureWithoutFalseSuccessMessage);
+        runTest ("External tool runner failure beats audio output", testExternalToolRunnerDoesNotOverrideStructuredFailureWithAudioOutput);
 
         std::cout << "\n=== Tool Logic Tests ===" << std::endl;
         runTest ("Normalization gain calculation", testNormalizationGainCalculation);

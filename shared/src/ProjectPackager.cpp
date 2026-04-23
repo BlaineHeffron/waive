@@ -8,23 +8,6 @@ namespace waive {
 
 namespace
 {
-bool copyFileToDirectoryPreservingRelativePath (const juce::File& sourceFile,
-                                                const juce::File& sourceRoot,
-                                                const juce::File& destinationRoot)
-{
-    auto relativePath = sourceFile.getRelativePathFrom (sourceRoot);
-    if (relativePath.isEmpty())
-        relativePath = sourceFile.getFileName();
-
-    auto destinationFile = destinationRoot.getChildFile (relativePath);
-    auto destinationParent = destinationFile.getParentDirectory();
-    if (destinationParent != juce::File() && ! destinationParent.exists()
-        && destinationParent.createDirectory().failed())
-        return false;
-
-    return sourceFile.copyFileTo (destinationFile);
-}
-
 bool copyDirectoryRecursively (const juce::File& sourceDir, const juce::File& destinationDir)
 {
     if (! sourceDir.isDirectory())
@@ -79,20 +62,7 @@ bool writeEditSnapshotToFile (te::Edit& edit, const juce::File& destinationFile)
 bool preparePackagingStagingDirectory (const juce::File& sourceProjectDir,
                                        const juce::File& stagingProjectDir)
 {
-    if (! stagingProjectDir.exists() && stagingProjectDir.createDirectory().failed())
-        return false;
-
-    auto sourceAudioDir = sourceProjectDir.getChildFile ("Audio");
-    if (! copyDirectoryRecursively (sourceAudioDir, stagingProjectDir.getChildFile ("Audio")))
-        return false;
-
-    for (const auto& entry : juce::RangedDirectoryIterator (sourceProjectDir, false,
-                                                            ".waive-autosave-*.tracktionedit",
-                                                            juce::File::findFiles))
-        if (! copyFileToDirectoryPreservingRelativePath (entry.getFile(), sourceProjectDir, stagingProjectDir))
-            return false;
-
-    return true;
+    return copyDirectoryRecursively (sourceProjectDir, stagingProjectDir);
 }
 }
 
@@ -479,16 +449,21 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
     for (const auto& iter : juce::RangedDirectoryIterator (projectDir, false, ".waive-autosave-*.tracktionedit", juce::File::findFiles))
         builder.addFile (iter.getFile(), 9, iter.getFile().getFileName());
 
-    auto audioDir = projectDir.getChildFile ("Audio");
-    if (audioDir.exists())
-        for (const auto& iter : juce::RangedDirectoryIterator (audioDir, true, "*", juce::File::findFiles))
-        {
-            const auto audioFile = iter.getFile();
-            if (canonicalisePath (audioFile) == canonicalisePath (outputZip))
-                continue;
+    for (const auto& iter : juce::RangedDirectoryIterator (projectDir, true, "*", juce::File::findFiles))
+    {
+        const auto file = iter.getFile();
+        const auto canonicalFile = canonicalisePath (file);
+        if (canonicalFile == canonicalisePath (projectFile)
+            || canonicalFile == canonicalisePath (outputZip))
+            continue;
 
-            builder.addFile (audioFile, 9, audioFile.getRelativePathFrom (projectDir).replaceCharacter ('\\', '/'));
-        }
+        const auto fileName = file.getFileName();
+        if (file.hasFileExtension (".tracktionedit")
+            && ! fileName.startsWith (".waive-autosave-"))
+            continue;
+
+        builder.addFile (file, 9, file.getRelativePathFrom (projectDir).replaceCharacter ('\\', '/'));
+    }
 
     {
         juce::FileOutputStream outputStream (tempZip);

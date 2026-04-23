@@ -207,6 +207,16 @@ bool waitForFile (const juce::File& file, int timeoutMs = 2000)
     return file.existsAsFile();
 }
 
+struct DirtyStateListener final : ProjectManager::Listener
+{
+    void projectDirtyChanged() override
+    {
+        ++dirtyChangedCount;
+    }
+
+    int dirtyChangedCount = 0;
+};
+
 juce::File getRepoRoot()
 {
     auto dir = juce::File::getCurrentWorkingDirectory();
@@ -1264,6 +1274,8 @@ void runCollectAndPackageCommandsClearDirtyStateRegression()
 
     EditSession session (engine);
     ProjectManager projectManager (session);
+    DirtyStateListener dirtyListener;
+    projectManager.addListener (&dirtyListener);
     CommandHandler commandHandler (session.getEdit());
     UndoableCommandHandler undoableHandler (commandHandler, session, &projectManager);
     AutoSaveManager autoSaveManager (session, projectManager, 300);
@@ -1306,15 +1318,21 @@ void runCollectAndPackageCommandsClearDirtyStateRegression()
             false);
     }), "Expected external media insertion to succeed");
 
+    projectManager.notifyDirtyChanged();
+    drainPendingUiWork();
     expect (projectManager.isDirty(), "Expected collect/package fixture project to become dirty");
 
     auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
     autoSaveManager.triggerAutoSaveForTesting();
     expect (autoSaveFile.existsAsFile(), "Expected collect/package autosave before collect");
 
+    auto dirtyNotificationsBeforeCollect = dirtyListener.dirtyChangedCount;
     auto collectResponse = runJsonCommand (undoableHandler, R"({ "action":"collect_and_save" })");
+    drainPendingUiWork();
     expect (commandSucceeded (collectResponse), "Expected collect_and_save command to succeed through undoable handler");
     expect (! projectManager.isDirty(), "Expected successful collect_and_save to clear dirty state");
+    expect (dirtyListener.dirtyChangedCount > dirtyNotificationsBeforeCollect,
+            "Expected successful collect_and_save to notify project dirty-state listeners");
     expect (! autoSaveFile.existsAsFile(), "Expected successful collect_and_save to clear autosave");
     expect (projectDir.getChildFile ("Audio").getChildFile ("external_source.wav").existsAsFile(),
             "Expected collect_and_save to copy external media into the project");
@@ -1342,6 +1360,7 @@ void runCollectAndPackageCommandsClearDirtyStateRegression()
     expect (outputZip.existsAsFile(), "Expected package_as_zip to create the archive");
 
     drainPendingUiWork();
+    projectManager.removeListener (&dirtyListener);
     (void) fixtureDir.deleteRecursively();
 }
 

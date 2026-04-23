@@ -310,11 +310,6 @@ void ProjectManager::markCurrentProjectSaved()
 }
 
 //==============================================================================
-bool ProjectManager::isDirty() const
-{
-    return editSession.hasChangedSinceSaved();
-}
-
 void ProjectManager::addListener (Listener* listener)
 {
     listeners.add (listener);
@@ -323,26 +318,6 @@ void ProjectManager::addListener (Listener* listener)
 void ProjectManager::removeListener (Listener* listener)
 {
     listeners.remove (listener);
-}
-
-void ProjectManager::notifyDirtyChanged()
-{
-    juce::WeakReference<ProjectManager> weakThis (this);
-    juce::MessageManager::callAsync ([weakThis]
-    {
-        if (weakThis != nullptr)
-            weakThis->checkDirtyState();
-    });
-}
-
-void ProjectManager::checkDirtyState()
-{
-    bool currentDirty = isDirty();
-    if (currentDirty != lastDirtyState)
-    {
-        lastDirtyState = currentDirty;
-        listeners.call (&Listener::projectDirtyChanged);
-    }
 }
 
 void ProjectManager::discardUnsavedChanges()

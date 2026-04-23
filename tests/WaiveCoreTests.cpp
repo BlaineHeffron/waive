@@ -1151,6 +1151,56 @@ void testPackageAsZipOverwritesExistingArchiveAtomically (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testPackageEditAsZipIncludesProjectRelativeMediaOutsideAudio (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("package_zip_project_relative_media");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto sampleDir = projectDir.getChildFile ("Samples");
+    auto outputDir = fixtureDir.getChildFile ("output");
+    expect (projectDir.createDirectory().wasOk(), "Expected project directory for project-relative packaging");
+    expect (sampleDir.createDirectory().wasOk(), "Expected sample directory for project-relative packaging");
+    expect (outputDir.createDirectory().wasOk(), "Expected output directory for project-relative packaging");
+
+    auto projectFile = createSavedProjectFixture (engine, projectDir.getChildFile ("session.tracktionedit"));
+    auto internalSample = writeTestWav (sampleDir.getChildFile ("inside_project.wav"), 0.3f);
+
+    auto edit = te::loadEditFromFile (engine, projectFile);
+    expect (edit != nullptr, "Expected saved edit for project-relative packaging");
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected track for project-relative packaging");
+    expect (track->insertWaveClip (
+                "inside_project",
+                internalSample,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.1) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected project-relative wave clip insertion");
+    expect (te::EditFileOperations (*edit).saveAs (projectFile, true),
+            "Expected project-relative packaging save to succeed");
+    expect (projectFile.existsAsFile(), "Expected saved project file for project-relative packaging");
+
+    auto outputZip = outputDir.getChildFile ("portable.zip");
+    auto packageResult = waive::ProjectPackager::packageEditAsZip (*edit, projectFile, outputZip);
+    expect (packageResult.errors.isEmpty(),
+            "Expected packageEditAsZip to succeed for project-relative media outside Audio: "
+                + packageResult.errors.joinIntoString ("; ").toStdString());
+    expect (outputZip.existsAsFile(), "Expected project-relative packaging zip file");
+
+    juce::ZipFile zip (outputZip);
+    juce::StringArray entries;
+    for (int i = 0; i < zip.getNumEntries(); ++i)
+        if (auto* entry = zip.getEntry (i))
+            entries.add (entry->filename);
+
+    expect (entries.contains (projectFile.getFileName()),
+            "Expected packaged zip to contain the project file");
+    expect (entries.contains ("Samples/" + internalSample.getFileName()),
+            "Expected packaged zip to include project-relative media outside Audio");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testPackageAsZipRejectsOutputInsideProjectDirectory (te::Engine& engine)
 {
     auto fixtureDir = getFixtureDir ("package_zip_inside_project");
@@ -3287,6 +3337,7 @@ int main()
         testCollectAndSaveRestoresReferencesWhenSaveFails (engine);
         testPackageAsZipIncludesOnlyCurrentProjectFile (engine);
         testPackageAsZipOverwritesExistingArchiveAtomically (engine);
+        testPackageEditAsZipIncludesProjectRelativeMediaOutsideAudio (engine);
         testPackageAsZipRejectsOutputInsideProjectDirectory (engine);
         testPackageAsZipRejectsSymlinkedOutputInsideProjectDirectory (engine);
         testPackageAsZipCommandFailureDoesNotMutateProjectState (engine);
