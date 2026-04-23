@@ -6,6 +6,96 @@ namespace te = tracktion;
 
 namespace waive {
 
+namespace
+{
+bool copyFileToDirectoryPreservingRelativePath (const juce::File& sourceFile,
+                                                const juce::File& sourceRoot,
+                                                const juce::File& destinationRoot)
+{
+    auto relativePath = sourceFile.getRelativePathFrom (sourceRoot);
+    if (relativePath.isEmpty())
+        relativePath = sourceFile.getFileName();
+
+    auto destinationFile = destinationRoot.getChildFile (relativePath);
+    auto destinationParent = destinationFile.getParentDirectory();
+    if (destinationParent != juce::File() && ! destinationParent.exists()
+        && destinationParent.createDirectory().failed())
+        return false;
+
+    return sourceFile.copyFileTo (destinationFile);
+}
+
+bool copyDirectoryRecursively (const juce::File& sourceDir, const juce::File& destinationDir)
+{
+    if (! sourceDir.isDirectory())
+        return true;
+
+    if (! destinationDir.exists() && destinationDir.createDirectory().failed())
+        return false;
+
+    for (const auto& entry : juce::RangedDirectoryIterator (sourceDir, true, "*",
+                                                            juce::File::findFilesAndDirectories))
+    {
+        const auto source = entry.getFile();
+        auto relativePath = source.getRelativePathFrom (sourceDir);
+        if (relativePath.isEmpty())
+            continue;
+
+        auto destination = destinationDir.getChildFile (relativePath);
+        if (source.isDirectory())
+        {
+            if (! destination.exists() && destination.createDirectory().failed())
+                return false;
+
+            continue;
+        }
+
+        auto destinationParent = destination.getParentDirectory();
+        if (destinationParent != juce::File() && ! destinationParent.exists()
+            && destinationParent.createDirectory().failed())
+            return false;
+
+        if (! source.copyFileTo (destination))
+            return false;
+    }
+
+    return true;
+}
+
+bool writeEditSnapshotToFile (te::Edit& edit, const juce::File& destinationFile)
+{
+    edit.flushState();
+
+    auto parentDir = destinationFile.getParentDirectory();
+    if (parentDir == juce::File() || (! parentDir.exists() && parentDir.createDirectory().failed()))
+        return false;
+
+    if (auto xml = edit.state.createXml())
+        return xml->writeTo (destinationFile, {});
+
+    return false;
+}
+
+bool preparePackagingStagingDirectory (const juce::File& sourceProjectDir,
+                                       const juce::File& stagingProjectDir)
+{
+    if (! stagingProjectDir.exists() && stagingProjectDir.createDirectory().failed())
+        return false;
+
+    auto sourceAudioDir = sourceProjectDir.getChildFile ("Audio");
+    if (! copyDirectoryRecursively (sourceAudioDir, stagingProjectDir.getChildFile ("Audio")))
+        return false;
+
+    for (const auto& entry : juce::RangedDirectoryIterator (sourceProjectDir, false,
+                                                            ".waive-autosave-*.tracktionedit",
+                                                            juce::File::findFiles))
+        if (! copyFileToDirectoryPreservingRelativePath (entry.getFile(), sourceProjectDir, stagingProjectDir))
+            return false;
+
+    return true;
+}
+}
+
 juce::StringArray ProjectPackager::validateReferencedMedia (te::Edit& edit)
 {
     juce::StringArray errors;
@@ -431,6 +521,73 @@ bool ProjectPackager::packageAsZip (const juce::File& projectFile, const juce::F
     }
 
     return true;
+}
+
+ProjectPackager::PackageResult ProjectPackager::packageEditAsZip (te::Edit& edit,
+                                                                  const juce::File& projectFile,
+                                                                  const juce::File& outputZip)
+{
+    PackageResult result;
+
+    if (! projectFile.existsAsFile())
+    {
+        result.errors.add ("Project file does not exist: " + projectFile.getFullPathName());
+        return result;
+    }
+
+    auto stagingRoot = juce::File::getSpecialLocation (juce::File::tempDirectory)
+                           .getChildFile ("waive_package_" + juce::Uuid().toString());
+    auto cleanupStagingRoot = [&stagingRoot]
+    {
+        if (stagingRoot != juce::File() && stagingRoot.exists())
+            (void) stagingRoot.deleteRecursively();
+    };
+
+    if (stagingRoot.createDirectory().failed())
+    {
+        result.errors.add ("Failed to create packaging staging directory");
+        return result;
+    }
+
+    auto stagingProjectDir = stagingRoot.getChildFile ("project");
+    auto stagingProjectFile = stagingProjectDir.getChildFile (projectFile.getFileName());
+    if (! preparePackagingStagingDirectory (projectFile.getParentDirectory(), stagingProjectDir))
+    {
+        result.errors.add ("Failed to prepare packaging staging directory");
+        cleanupStagingRoot();
+        return result;
+    }
+
+    if (! writeEditSnapshotToFile (edit, stagingProjectFile))
+    {
+        result.errors.add ("Failed to write packaging snapshot project file");
+        cleanupStagingRoot();
+        return result;
+    }
+
+    auto stagingEdit = te::loadEditFromFile (edit.engine, stagingProjectFile);
+    if (stagingEdit == nullptr)
+    {
+        result.errors.add ("Failed to load packaging snapshot project");
+        cleanupStagingRoot();
+        return result;
+    }
+
+    auto collectResult = collectAndSave (*stagingEdit, stagingProjectDir, stagingProjectFile);
+    result.filesCopied = collectResult.filesCopied;
+    result.bytesCopied = collectResult.bytesCopied;
+    if (! collectResult.errors.isEmpty())
+    {
+        result.errors = collectResult.errors;
+        cleanupStagingRoot();
+        return result;
+    }
+
+    if (! packageAsZip (stagingProjectFile, outputZip))
+        result.errors.add ("Failed to create zip archive");
+
+    cleanupStagingRoot();
+    return result;
 }
 
 } // namespace waive

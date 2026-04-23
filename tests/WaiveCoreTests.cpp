@@ -1580,9 +1580,73 @@ void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine
                 "Expected PluginState wrapper element");
         expect (presetTree.getChild (0).getNumChildren() == 1,
                 "Expected wrapped plugin state child");
+
+        expect (presetManager.savePreset (*plugin, "Room: A*?."),
+                "Expected preset save with Windows-invalid characters to succeed after sanitization");
+
+        auto sanitisedPresetFile = customPresetDir
+                                       .getChildFile (pluginIdentifier)
+                                       .getChildFile ("Room_ A__.xml");
+        expect (sanitisedPresetFile.existsAsFile(),
+                "Expected preset manager to sanitize Windows-invalid preset filename characters");
     }
 
     setenv ("HOME", previousHome.getFullPathName().toRawUTF8(), 1);
+    (void) fixtureDir.deleteRecursively();
+}
+
+void testPackageAsZipCommandFailureDoesNotMutateProjectState (te::Engine& engine)
+{
+    auto fixtureDir = getFixtureDir ("package_zip_command_failure_atomic");
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto externalDir = fixtureDir.getChildFile ("external");
+    auto blockedParent = fixtureDir.getChildFile ("blocked_output_parent");
+    expect (projectDir.createDirectory().wasOk(), "Expected project directory for package failure regression");
+    expect (externalDir.createDirectory().wasOk(), "Expected external directory for package failure regression");
+    expect (blockedParent.replaceWithText ("not a directory"),
+            "Expected blocked output parent fixture file");
+
+    auto projectFile = projectDir.getChildFile ("session.tracktionedit");
+    auto externalAudio = writeTestWav (externalDir.getChildFile ("external_source.wav"));
+    auto initialProjectXml = "<EDIT></EDIT>";
+    expect (projectFile.replaceWithText (initialProjectXml),
+            "Expected package failure fixture project file");
+
+    auto edit = te::createEmptyEdit (engine, projectFile);
+    edit->ensureNumberOfAudioTracks (1);
+    auto* track = te::getAudioTracks (*edit).getFirst();
+    expect (track != nullptr, "Expected package failure fixture track");
+    expect (track->insertWaveClip (
+                "external_source",
+                externalAudio,
+                { { te::TimePosition::fromSeconds (0.0),
+                    te::TimePosition::fromSeconds (0.1) },
+                  te::TimeDuration() },
+                false) != nullptr,
+            "Expected package failure fixture wave clip insertion");
+
+    CommandHandler handler (*edit);
+    handler.setProjectFile (projectFile);
+    handler.setAllowedMediaDirectories ({ fixtureDir });
+
+    auto outputZip = blockedParent.getChildFile ("portable.zip");
+    auto response = runJsonCommand (handler, juce::String::formatted (R"({
+        "action":"package_as_zip",
+        "file_path":"%s"
+    })", outputZip.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+
+    expect (response["status"].toString() == "error",
+            "Expected package_as_zip to fail when the output parent is not writable as a directory");
+    expect (! projectDir.getChildFile ("Audio").getChildFile ("external_source.wav").existsAsFile(),
+            "Expected failed package_as_zip not to collect media into the live project");
+    expect (projectFile.loadFileAsString() == initialProjectXml,
+            "Expected failed package_as_zip not to rewrite the live project file");
+
+    auto* clip = dynamic_cast<te::AudioClipBase*> (track->getClips().getFirst());
+    expect (clip != nullptr, "Expected package failure fixture audio clip");
+    expect (clip->getSourceFileReference().getFile() == externalAudio,
+            "Expected failed package_as_zip to preserve the live clip source reference");
+
     (void) fixtureDir.deleteRecursively();
 }
 
@@ -3225,6 +3289,7 @@ int main()
         testPackageAsZipOverwritesExistingArchiveAtomically (engine);
         testPackageAsZipRejectsOutputInsideProjectDirectory (engine);
         testPackageAsZipRejectsSymlinkedOutputInsideProjectDirectory (engine);
+        testPackageAsZipCommandFailureDoesNotMutateProjectState (engine);
         testCollectAndSaveCommandReturnsErrorOnPackagingFailure (engine);
         testCollectAndSaveRollsBackOnPartialCopyFailure (engine);
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);

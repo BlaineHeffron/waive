@@ -1337,8 +1337,8 @@ void runCollectAndPackageCommandsClearDirtyStateRegression()
             "file_path":"%s"
         })", outputZip.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
     expect (commandSucceeded (packageResponse), "Expected package_as_zip command to succeed through undoable handler");
-    expect (! projectManager.isDirty(), "Expected successful package_as_zip to clear dirty state after collect");
-    expect (! autoSaveFile.existsAsFile(), "Expected successful package_as_zip to clear autosave after collect");
+    expect (projectManager.isDirty(), "Expected successful package_as_zip to preserve dirty state for unsaved edits");
+    expect (autoSaveFile.existsAsFile(), "Expected successful package_as_zip to preserve autosave for unsaved edits");
     expect (outputZip.existsAsFile(), "Expected package_as_zip to create the archive");
 
     drainPendingUiWork();

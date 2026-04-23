@@ -2851,21 +2851,21 @@ juce::var CommandHandler::handlePackageAsZip (const juce::var& params)
         || waive::ProjectPackager::isWithinProjectDirectory (outputZip, projectDir))
         return makeError ("Output zip must be outside the project directory");
 
-    auto collectResult = waive::ProjectPackager::collectAndSave (edit, projectDir, projectFile);
-    if (! collectResult.errors.isEmpty())
-        return makeError ("Failed to collect project media before packaging: "
-                          + collectResult.errors.joinIntoString ("; "));
+    auto outputDir = outputZip.getParentDirectory();
+    if (outputDir == juce::File() || (! outputDir.exists() && outputDir.createDirectory().failed()))
+        return makeError ("Failed to create output directory: " + outputDir.getFullPathName());
 
-    outputZip.getParentDirectory().createDirectory();
-    if (! waive::ProjectPackager::packageAsZip (projectFile, outputZip))
-        return makeError ("Failed to create zip archive");
+    auto packageResult = waive::ProjectPackager::packageEditAsZip (edit, projectFile, outputZip);
+    if (! packageResult.errors.isEmpty())
+        return makeError ("Failed to collect project media before packaging: "
+                          + packageResult.errors.joinIntoString ("; "));
 
     auto response = makeOk();
     if (auto* obj = response.getDynamicObject())
     {
         obj->setProperty ("file_path", outputZip.getFullPathName());
-        obj->setProperty ("files_copied", collectResult.filesCopied);
-        obj->setProperty ("bytes_copied", collectResult.bytesCopied);
+        obj->setProperty ("files_copied", packageResult.filesCopied);
+        obj->setProperty ("bytes_copied", packageResult.bytesCopied);
     }
     return response;
 }

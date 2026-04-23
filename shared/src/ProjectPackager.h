@@ -25,12 +25,22 @@ public:
         juce::StringArray errors;
     };
 
+    struct PackageResult
+    {
+        int filesCopied = 0;
+        juce::int64 bytesCopied = 0;
+        juce::StringArray errors;
+    };
+
     static CollectResult collectAndSave (tracktion::engine::Edit& edit,
                                          const juce::File& projectDir,
                                          const juce::File& projectFile = {});
     static juce::Array<juce::File> findExternalMedia (tracktion::engine::Edit& edit, const juce::File& projectDir);
     static juce::Array<juce::File> findUnusedMedia (tracktion::engine::Edit& edit, const juce::File& projectDir);
     static RemoveResult removeUnusedMedia (tracktion::engine::Edit& edit, const juce::File& projectDir);
+    static PackageResult packageEditAsZip (tracktion::engine::Edit& edit,
+                                           const juce::File& projectFile,
+                                           const juce::File& outputZip);
     static bool packageAsZip (const juce::File& projectFile, const juce::File& outputZip);
     static bool isWithinProjectDirectory (const juce::File& file, const juce::File& projectDir);
 

@@ -1,9 +1,8 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include "EditSession.h"
 
-class EditSession;
-class AutoSaveManager;
 
 //==============================================================================
 /** Manages project file operations: new, open, save, save-as, recent files. */

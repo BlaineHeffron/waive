@@ -8,6 +8,33 @@ PluginPresetManager::PluginPresetManager() = default;
 
 namespace
 {
+bool isReservedWindowsFileName (const juce::String& value)
+{
+    static const juce::StringArray reservedNames {
+        "CON", "PRN", "AUX", "NUL",
+        "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9",
+        "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9"
+    };
+
+    return reservedNames.contains (value.toUpperCase());
+}
+
+juce::String sanitisePresetFileComponent (juce::String value)
+{
+    value = value.trim();
+    if (value.isEmpty())
+        return {};
+
+    value = value.replaceCharacters ("<>:\"/\\|?*", "_________");
+    while (value.endsWithChar (' ') || value.endsWithChar ('.'))
+        value = value.dropLastCharacters (1);
+
+    if (value.isEmpty() || isReservedWindowsFileName (value))
+        return {};
+
+    return PathSanitizer::sanitizePathComponent (value);
+}
+
 juce::String sanitiseIdentifierPart (juce::String value)
 {
     value = value.trim();
@@ -87,8 +114,8 @@ juce::String PluginPresetManager::getPluginIdentifier (tracktion::engine::Plugin
 juce::File PluginPresetManager::getPresetFile (const juce::String& pluginIdentifier,
                                                const juce::String& presetName) const
 {
-    auto sanitizedPluginId = PathSanitizer::sanitizePathComponent (pluginIdentifier);
-    auto sanitizedPresetName = PathSanitizer::sanitizePathComponent (presetName);
+    auto sanitizedPluginId = sanitisePresetFileComponent (pluginIdentifier);
+    auto sanitizedPresetName = sanitisePresetFileComponent (presetName);
 
     if (sanitizedPluginId.isEmpty() || sanitizedPresetName.isEmpty())
     {
@@ -188,7 +215,7 @@ juce::StringArray PluginPresetManager::getPresetsForPlugin (const juce::String& 
 {
     juce::StringArray presets;
 
-    auto sanitizedPluginId = PathSanitizer::sanitizePathComponent (pluginIdentifier);
+    auto sanitizedPluginId = sanitisePresetFileComponent (pluginIdentifier);
     if (sanitizedPluginId.isEmpty())
         return presets;
 

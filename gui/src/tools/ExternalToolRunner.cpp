@@ -73,9 +73,11 @@ bool toolReportedSuccess (const juce::var& resultData)
 
         if (resultObj->hasProperty ("status"))
             return resultObj->getProperty ("status").toString().equalsIgnoreCase ("ok");
+
+        return true;
     }
 
-    return true;
+    return false;
 }
 
 juce::File findFirstExistingFile (const juce::Array<juce::var>* files, const juce::String& preferredExtension)
@@ -308,9 +310,12 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
     }
 
     populateOutputPathsFromResult (output, outputDir);
-    output.success = toolReportedSuccess (output.resultData);
+    output.success = toolReportedSuccess (output.resultData)
+                     || output.outputAudioFile.existsAsFile();
     if (output.message.isEmpty() && ! output.success)
-        output.message = "External tool reported a failure";
+        output.message = output.resultData.isObject()
+                           ? "External tool reported a failure"
+                           : "External tool did not return a valid result";
     else if (output.message.isEmpty())
         output.message = "External tool executed successfully";
 

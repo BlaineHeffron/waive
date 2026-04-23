@@ -44,7 +44,19 @@ bool marksProjectAsSaved (const juce::String& action, const juce::var& response)
     if (! response.isObject() || response["status"].toString() != "ok")
         return false;
 
-    return action == "collect_and_save" || action == "package_as_zip";
+    return action == "collect_and_save";
+}
+
+void deleteAutoSaveForProjectFile (const juce::File& projectFile)
+{
+    if (projectFile == juce::File())
+        return;
+
+    auto autoSave = projectFile.getSiblingFile (".waive-autosave-"
+                                                + projectFile.getFileNameWithoutExtension()
+                                                + ".tracktionedit");
+    if (autoSave.existsAsFile())
+        (void) autoSave.deleteFile();
 }
 }
 
@@ -92,10 +104,10 @@ juce::String UndoableCommandHandler::handleInternal (const juce::String& jsonStr
 
         if (marksProjectAsSaved (action, response))
         {
+            editSession.resetChangedStatus();
+
             if (projectManager != nullptr)
-                projectManager->markCurrentProjectSaved();
-            else
-                editSession.resetChangedStatus();
+                deleteAutoSaveForProjectFile (projectManager->getCurrentFile());
         }
 
         return result;

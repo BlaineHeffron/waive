@@ -493,6 +493,38 @@ sys.exit(7)
             "Expected stderr field to preserve child process output");
 }
 
+void testExternalToolRunnerRequiresStructuredSuccessOrAudioOutput()
+{
+    auto fixtureDir = getUniqueFixtureDir ("external_runner_missing_result");
+    auto scriptFile = fixtureDir.getChildFile ("succeed_without_result.py");
+
+    writeTextFile (scriptFile, R"(#!/usr/bin/env python3
+import sys
+
+sys.exit(0)
+)");
+
+    waive::ExternalToolManifest manifest;
+    manifest.name = "runner_missing_result_test";
+    manifest.displayName = "Runner Missing Result Test";
+    manifest.version = "1.0.0";
+    manifest.executable = "python3";
+    manifest.arguments.add ("succeed_without_result.py");
+    manifest.baseDirectory = fixtureDir;
+    manifest.timeoutMs = 10000;
+
+    waive::ExternalToolRunner runner;
+    std::atomic<bool> cancelFlag { false };
+    waive::ProgressReporter reporter (1, cancelFlag,
+                                      [] (int, float, const juce::String&) {});
+
+    auto output = runner.run (manifest, juce::var(), juce::File(), reporter);
+
+    expect (! output.success, "Expected external tool runner to reject empty success responses");
+    expect (output.message.contains ("did not return a valid result"),
+            "Expected empty success response to produce a clear error");
+}
+
 void testExternalToolRunnerResolvesRelativeArgumentsForCreatedPaths()
 {
     auto fixtureDir = getUniqueFixtureDir ("external_runner_relative_output");
@@ -879,6 +911,7 @@ int main()
         runTest ("External tool runner relative args", testExternalToolRunnerResolvesRelativeArgumentsWithoutChangingCwd);
         runTest ("External tool runner relative future args", testExternalToolRunnerResolvesRelativeArgumentsForCreatedPaths);
         runTest ("External tool runner failure output", testExternalToolRunnerPreservesFailureOutput);
+        runTest ("External tool runner missing success result", testExternalToolRunnerRequiresStructuredSuccessOrAudioOutput);
         runTest ("External tool runner structured failure message", testExternalToolRunnerReportsStructuredFailureWithoutFalseSuccessMessage);
 
         std::cout << "\n=== Tool Logic Tests ===" << std::endl;
