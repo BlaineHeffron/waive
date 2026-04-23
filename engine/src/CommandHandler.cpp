@@ -165,25 +165,19 @@ bool copyTrackPlugins (te::Edit& edit, te::AudioTrack& sourceTrack, te::AudioTra
         if (destinationPlugin == nullptr)
             return false;
 
-        destinationPlugin->restorePluginStateFromValueTree (sourcePlugin->state);
+        destinationPlugin->restorePluginStateFromValueTree (sourceState);
         destinationTrack.pluginList.insertPlugin (destinationPlugin, destinationTrack.pluginList.size(), nullptr);
     }
 
     return true;
 }
 
-void copyAutomationCurve (te::AutomatableParameter& sourceParam, te::AutomatableParameter& destinationParam)
+void copyAutomationCurveState (te::AutomatableParameter& sourceParam, te::AutomatableParameter& destinationParam)
 {
     auto& sourceCurve = sourceParam.getCurve();
     auto& destinationCurve = destinationParam.getCurve();
 
-    destinationCurve.clear (nullptr);
-    destinationCurve.bypass = sourceCurve.bypass.get();
-    for (int i = 0; i < sourceCurve.getNumPoints(); ++i)
-        destinationCurve.addPoint (sourceCurve.getPointTime (i),
-                                   sourceCurve.getPointValue (i),
-                                   sourceCurve.getPointCurve (i),
-                                   nullptr);
+    destinationCurve.state.copyPropertiesAndChildrenFrom (sourceCurve.state.createCopy(), nullptr);
 }
 
 bool isOutputPathAllowed (const juce::String& originalPath,
@@ -1598,17 +1592,19 @@ juce::var CommandHandler::handleDuplicateTrack (const juce::var& params)
     newTrack->setMute (sourceTrack->isMuted (false));
     newTrack->setSolo (sourceTrack->isSolo (false));
 
-    // Copy volume and pan
+    // Restore the full built-in volume/pan plugin state so automation metadata
+    // is preserved alongside current values and curve points.
     auto srcVolPlugins = sourceTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
     auto dstVolPlugins = newTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
     if (! srcVolPlugins.isEmpty() && ! dstVolPlugins.isEmpty())
     {
-        dstVolPlugins.getFirst()->volParam->setParameter (
-            srcVolPlugins.getFirst()->volParam->getCurrentValue(), juce::dontSendNotification);
-        dstVolPlugins.getFirst()->panParam->setParameter (
-            srcVolPlugins.getFirst()->panParam->getCurrentValue(), juce::dontSendNotification);
-        copyAutomationCurve (*srcVolPlugins.getFirst()->volParam, *dstVolPlugins.getFirst()->volParam);
-        copyAutomationCurve (*srcVolPlugins.getFirst()->panParam, *dstVolPlugins.getFirst()->panParam);
+        auto sourceState = srcVolPlugins.getFirst()->state.createCopy();
+        edit.createNewItemID().writeID (sourceState, nullptr);
+        te::assignNewIDsToAutomationCurveModifiers (edit, sourceState);
+        dstVolPlugins.getFirst()->state.copyPropertiesAndChildrenFrom (sourceState, nullptr);
+        dstVolPlugins.getFirst()->restorePluginStateFromValueTree (dstVolPlugins.getFirst()->state);
+        copyAutomationCurveState (*srcVolPlugins.getFirst()->volParam, *dstVolPlugins.getFirst()->volParam);
+        copyAutomationCurveState (*srcVolPlugins.getFirst()->panParam, *dstVolPlugins.getFirst()->panParam);
     }
 
     if (! copyTrackPlugins (edit, *sourceTrack, *newTrack))

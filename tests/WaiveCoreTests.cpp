@@ -141,6 +141,44 @@ void expectAutomationCurveMatches (te::AutomatableParameter& actual,
     }
 }
 
+bool shouldIgnoreStateProperty (const juce::Identifier& propertyName)
+{
+    const auto lowerName = propertyName.toString().toLowerCase();
+    return lowerName == "id"
+        || lowerName == "src"
+        || lowerName.endsWith ("id")
+        || lowerName.contains ("modifier");
+}
+
+juce::ValueTree normaliseStateForComparison (const juce::ValueTree& source)
+{
+    if (! source.isValid())
+        return {};
+
+    auto normalised = juce::ValueTree (source.getType());
+    for (int i = 0; i < source.getNumProperties(); ++i)
+    {
+        const auto propertyName = source.getPropertyName (i);
+        if (shouldIgnoreStateProperty (propertyName))
+            continue;
+
+        normalised.setProperty (propertyName, source.getProperty (propertyName), nullptr);
+    }
+
+    for (int i = 0; i < source.getNumChildren(); ++i)
+        normalised.appendChild (normaliseStateForComparison (source.getChild (i)), nullptr);
+
+    return normalised;
+}
+
+void expectNormalisedStateMatches (const juce::ValueTree& actual,
+                                   const juce::ValueTree& expected,
+                                   const std::string& messagePrefix)
+{
+    expect (normaliseStateForComparison (actual).isEquivalentTo (normaliseStateForComparison (expected)),
+            messagePrefix + ": expected matching state after normalising generated identifiers");
+}
+
 class ScopedWorkingDirectory
 {
 public:
@@ -1234,6 +1272,9 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     expect (! duplicatedParams.isEmpty(), "Expected duplicated reverb to expose parameters");
     expect (std::abs (duplicatedParams.getFirst()->getCurrentValue() - firstPluginParam->getCurrentValue()) < 0.0001f,
             "Expected duplicate_track to preserve plugin parameter state");
+    expectNormalisedStateMatches (duplicatedReverb->state,
+                                  reverb->state,
+                                  "duplicate_track plugin state");
 
     auto duplicatedVolPlugins = duplicatedTrack->pluginList.getPluginsOfType<te::VolumeAndPanPlugin>();
     expect (! duplicatedVolPlugins.isEmpty(), "Expected duplicated track volume plugin");
@@ -1243,6 +1284,9 @@ void testTrackCommandsReturnPublicIndicesWithFolderTracks (te::Engine& engine)
     expectAutomationCurveMatches (*duplicatedVolPlugins.getFirst()->panParam,
                                   *sourceVolPlugins.getFirst()->panParam,
                                   "duplicate_track pan automation");
+    expectNormalisedStateMatches (duplicatedVolPlugins.getFirst()->state,
+                                  sourceVolPlugins.getFirst()->state,
+                                  "duplicate_track volume/pan plugin state");
 
     (void) fixtureDir.deleteRecursively();
 }
