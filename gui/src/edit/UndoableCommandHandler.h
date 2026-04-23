@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 class CommandHandler;
 class EditSession;
+class ProjectManager;
 
 //==============================================================================
 /** Wraps CommandHandler, adding undo transactions for mutating commands.
@@ -11,7 +12,8 @@ class EditSession;
 class UndoableCommandHandler
 {
 public:
-    UndoableCommandHandler (CommandHandler& handler, EditSession& session);
+    UndoableCommandHandler (CommandHandler& handler, EditSession& session,
+                            ProjectManager* projectManager = nullptr);
 
     /** Reseat the underlying CommandHandler (used after edit swap). */
     void setCommandHandler (CommandHandler& handler);
@@ -34,4 +36,5 @@ private:
 
     CommandHandler* commandHandler;
     EditSession& editSession;
+    ProjectManager* projectManager;
 };

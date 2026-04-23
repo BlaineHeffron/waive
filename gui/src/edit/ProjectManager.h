@@ -44,6 +44,7 @@ public:
     bool saveAs();
     bool saveAs (const juce::File& file);
     bool confirmSaveIfDirty();
+    void markCurrentProjectSaved();
 
     bool isDirty() const;
     juce::File getCurrentFile() const   { return currentFile; }

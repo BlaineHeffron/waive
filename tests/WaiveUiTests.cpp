@@ -87,6 +87,13 @@ juce::var runJsonCommand (CommandHandler& handler, const juce::String& payload)
     return response;
 }
 
+juce::var runJsonCommand (UndoableCommandHandler& handler, const juce::String& payload)
+{
+    auto response = juce::JSON::parse (handler.handleCommand (payload));
+    expect (response.isObject(), "Expected undoable JSON command response object");
+    return response;
+}
+
 bool commandSucceeded (const juce::var& response)
 {
     return response.isObject() && response["status"].toString() == "ok";
@@ -1248,6 +1255,94 @@ void runUndoRedoDirtyStateNotificationRegression()
 
     session.removeListener (&editStateListener);
     (void) projectFile.deleteFile();
+}
+
+void runCollectAndPackageCommandsClearDirtyStateRegression()
+{
+    te::Engine engine ("WaiveUiCollectAndPackageDirtyStateTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    ProjectManager projectManager (session);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session, &projectManager);
+    AutoSaveManager autoSaveManager (session, projectManager, 300);
+
+    auto fixtureDir = getRepoRoot()
+                          .getChildFile ("build")
+                          .getChildFile ("ui_test_projects")
+                          .getNonexistentChildFile ("collect_package_dirty_state_", {}, true);
+    auto projectDir = fixtureDir.getChildFile ("project");
+    auto externalDir = fixtureDir.getChildFile ("external");
+    auto outputDir = fixtureDir.getChildFile ("exports");
+    expect (projectDir.createDirectory().wasOk(), "Expected project directory for collect/package regression");
+    expect (externalDir.createDirectory().wasOk(), "Expected external directory for collect/package regression");
+    expect (outputDir.createDirectory().wasOk(), "Expected export directory for collect/package regression");
+
+    auto projectFile = projectDir.getChildFile ("session.tracktionedit");
+    auto externalAudio = createPhase4FixtureAudioFile().copyFileTo (externalDir.getChildFile ("external_source.wav"))
+                            ? externalDir.getChildFile ("external_source.wav")
+                            : juce::File();
+    expect (externalAudio.existsAsFile(), "Expected external audio fixture for collect/package regression");
+
+    expect (projectManager.saveAs (projectFile), "Expected collect/package fixture project save to succeed");
+    commandHandler.setProjectFile (projectManager.getCurrentFile());
+    juce::Array<juce::File> allowedDirectories;
+    allowedDirectories.add (fixtureDir);
+    commandHandler.setAllowedMediaDirectories (allowedDirectories);
+
+    expect (session.performEdit ("Insert External Audio", [&] (te::Edit& edit)
+    {
+        auto* track = getFirstTrack (edit);
+        if (track == nullptr)
+            return;
+
+        (void) track->insertWaveClip (
+            "external_source",
+            externalAudio,
+            { { te::TimePosition::fromSeconds (0.0),
+                te::TimePosition::fromSeconds (0.1) },
+              te::TimeDuration() },
+            false);
+    }), "Expected external media insertion to succeed");
+
+    expect (projectManager.isDirty(), "Expected collect/package fixture project to become dirty");
+
+    auto autoSaveFile = AutoSaveManager::getAutoSaveFileForProject (projectFile);
+    autoSaveManager.triggerAutoSaveForTesting();
+    expect (autoSaveFile.existsAsFile(), "Expected collect/package autosave before collect");
+
+    auto collectResponse = runJsonCommand (undoableHandler, R"({ "action":"collect_and_save" })");
+    expect (commandSucceeded (collectResponse), "Expected collect_and_save command to succeed through undoable handler");
+    expect (! projectManager.isDirty(), "Expected successful collect_and_save to clear dirty state");
+    expect (! autoSaveFile.existsAsFile(), "Expected successful collect_and_save to clear autosave");
+    expect (projectDir.getChildFile ("Audio").getChildFile ("external_source.wav").existsAsFile(),
+            "Expected collect_and_save to copy external media into the project");
+
+    expect (session.performEdit ("Rename After Collect", [&] (te::Edit& edit)
+    {
+        if (auto* track = getFirstTrack (edit))
+            track->setName ("Renamed After Collect");
+    }), "Expected post-collect mutation to succeed");
+    expect (projectManager.isDirty(), "Expected post-collect mutation to dirty the project again");
+
+    autoSaveManager.triggerAutoSaveForTesting();
+    expect (autoSaveFile.existsAsFile(), "Expected autosave before package_as_zip");
+
+    auto outputZip = outputDir.getChildFile ("portable.zip");
+    auto packageResponse = runJsonCommand (
+        undoableHandler,
+        juce::String::formatted (R"({
+            "action":"package_as_zip",
+            "file_path":"%s"
+        })", outputZip.getFullPathName().replace ("\\", "\\\\").replace ("\"", "\\\"").toRawUTF8()));
+    expect (commandSucceeded (packageResponse), "Expected package_as_zip command to succeed through undoable handler");
+    expect (! projectManager.isDirty(), "Expected successful package_as_zip to clear dirty state after collect");
+    expect (! autoSaveFile.existsAsFile(), "Expected successful package_as_zip to clear autosave after collect");
+    expect (outputZip.existsAsFile(), "Expected package_as_zip to create the archive");
+
+    drainPendingUiWork();
+    (void) fixtureDir.deleteRecursively();
 }
 
 void runModelStorageAllowlistRefreshRegression()
@@ -4084,6 +4179,7 @@ int main()
     RUN_TEST_SAFELY(runAutoSaveSaveAsCleanupRegression);
     RUN_TEST_SAFELY(runSaveAsFailurePreservesCurrentProjectStateRegression);
     RUN_TEST_SAFELY(runUndoRedoDirtyStateNotificationRegression);
+    RUN_TEST_SAFELY(runCollectAndPackageCommandsClearDirtyStateRegression);
     RUN_TEST_SAFELY(runModelStorageAllowlistRefreshRegression);
     RUN_TEST_SAFELY(runChatApprovalBarLifecycleRegression);
     RUN_TEST_SAFELY(runProjectScopedChatHistoryRegression);

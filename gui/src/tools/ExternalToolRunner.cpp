@@ -135,11 +135,7 @@ juce::String ExternalToolRunner::resolveManifestArgument (const ExternalToolMani
     if (argument.isEmpty() || juce::File::isAbsolutePath (argument))
         return argument;
 
-    auto candidate = manifest.baseDirectory.getChildFile (argument);
-    if (candidate.exists())
-        return candidate.getFullPathName();
-
-    return argument;
+    return manifest.baseDirectory.getChildFile (argument).getFullPathName();
 }
 
 juce::File ExternalToolRunner::getToolsDirectory() const
@@ -313,11 +309,10 @@ ExternalToolOutput ExternalToolRunner::run (const ExternalToolManifest& manifest
 
     populateOutputPathsFromResult (output, outputDir);
     output.success = toolReportedSuccess (output.resultData);
-    if (output.message.isEmpty())
-        output.message = "External tool executed successfully";
-
-    if (! output.success && output.message.isEmpty())
+    if (output.message.isEmpty() && ! output.success)
         output.message = "External tool reported a failure";
+    else if (output.message.isEmpty())
+        output.message = "External tool executed successfully";
 
     return output;
 }

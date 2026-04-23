@@ -1,6 +1,7 @@
 #include "UndoableCommandHandler.h"
 #include "CommandHandler.h"
 #include "EditSession.h"
+#include "ProjectManager.h"
 
 #include <stdexcept>
 
@@ -37,10 +38,19 @@ bool isPassThroughAction (const juce::String& action)
         || action == "collect_and_save"
         || action == "remove_unused_media";
 }
+
+bool marksProjectAsSaved (const juce::String& action, const juce::var& response)
+{
+    if (! response.isObject() || response["status"].toString() != "ok")
+        return false;
+
+    return action == "collect_and_save" || action == "package_as_zip";
+}
 }
 
-UndoableCommandHandler::UndoableCommandHandler (CommandHandler& handler, EditSession& session)
-    : commandHandler (&handler), editSession (session)
+UndoableCommandHandler::UndoableCommandHandler (CommandHandler& handler, EditSession& session,
+                                                ProjectManager* owningProjectManager)
+    : commandHandler (&handler), editSession (session), projectManager (owningProjectManager)
 {
 }
 
@@ -76,7 +86,20 @@ juce::String UndoableCommandHandler::handleInternal (const juce::String& jsonStr
 
     // Read-only queries and file-side-effect commands pass through without undo wrapping.
     if (isPassThroughAction (action))
-        return commandHandler->handleCommand (jsonString);
+    {
+        auto result = commandHandler->handleCommand (jsonString);
+        auto response = juce::JSON::parse (result);
+
+        if (marksProjectAsSaved (action, response))
+        {
+            if (projectManager != nullptr)
+                projectManager->markCurrentProjectSaved();
+            else
+                editSession.resetChangedStatus();
+        }
+
+        return result;
+    }
 
     // Mutating command — wrap in undo transaction.
     juce::String result;

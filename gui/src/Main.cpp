@@ -147,7 +147,8 @@ public:
 
         commandHandler = std::make_unique<CommandHandler> (editSession->getEdit());
         commandHandler->setProjectFile (projectManager->getCurrentFile());
-        undoableHandler = std::make_unique<UndoableCommandHandler> (*commandHandler, *editSession);
+        undoableHandler = std::make_unique<UndoableCommandHandler> (*commandHandler, *editSession,
+                                                                    projectManager.get());
 
         // Application properties for settings persistence
         juce::PropertiesFile::Options propOpts;

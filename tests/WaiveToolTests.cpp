@@ -493,6 +493,92 @@ sys.exit(7)
             "Expected stderr field to preserve child process output");
 }
 
+void testExternalToolRunnerResolvesRelativeArgumentsForCreatedPaths()
+{
+    auto fixtureDir = getUniqueFixtureDir ("external_runner_relative_output");
+    auto scriptFile = fixtureDir.getChildFile ("write_relative_output.py");
+
+    writeTextFile (scriptFile, R"(#!/usr/bin/env python3
+import json
+import os
+import sys
+
+target = sys.argv[1]
+os.makedirs(os.path.dirname(target), exist_ok=True)
+with open(target, "w", encoding="utf-8") as handle:
+    handle.write("created\n")
+
+print(json.dumps({
+    "success": True,
+    "target": target,
+    "exists": os.path.exists(target),
+    "cwd": os.getcwd(),
+}))
+)");
+
+    waive::ExternalToolManifest manifest;
+    manifest.name = "runner_relative_output_test";
+    manifest.displayName = "Runner Relative Output Test";
+    manifest.version = "1.0.0";
+    manifest.executable = "python3";
+    manifest.arguments.add ("write_relative_output.py");
+    manifest.arguments.add ("generated/output.txt");
+    manifest.baseDirectory = fixtureDir;
+    manifest.timeoutMs = 10000;
+
+    waive::ExternalToolRunner runner;
+    std::atomic<bool> cancelFlag { false };
+    waive::ProgressReporter reporter (1, cancelFlag,
+                                      [] (int, float, const juce::String&) {});
+
+    auto output = runner.run (manifest, juce::var(), juce::File(), reporter);
+
+    expect (output.success, "Expected external tool runner to resolve future relative output paths");
+
+    auto* resultObj = output.resultData.getDynamicObject();
+    expect (resultObj != nullptr, "Expected JSON result payload from relative output helper");
+
+    const auto expectedTarget = fixtureDir.getChildFile ("generated").getChildFile ("output.txt");
+    expect (juce::File (resultObj->getProperty ("target").toString()) == expectedTarget,
+            "Expected relative output argument to be resolved under the manifest base directory");
+    expect ((bool) resultObj->getProperty ("exists"),
+            "Expected helper script to create the resolved output path");
+    expect (expectedTarget.existsAsFile(),
+            "Expected resolved output file to exist under the manifest base directory");
+}
+
+void testExternalToolRunnerReportsStructuredFailureWithoutFalseSuccessMessage()
+{
+    auto fixtureDir = getUniqueFixtureDir ("external_runner_structured_failure");
+    auto scriptFile = fixtureDir.getChildFile ("emit_failure_result.py");
+
+    writeTextFile (scriptFile, R"(#!/usr/bin/env python3
+import json
+
+print(json.dumps({"success": False}))
+)");
+
+    waive::ExternalToolManifest manifest;
+    manifest.name = "runner_structured_failure_test";
+    manifest.displayName = "Runner Structured Failure Test";
+    manifest.version = "1.0.0";
+    manifest.executable = "python3";
+    manifest.arguments.add ("emit_failure_result.py");
+    manifest.baseDirectory = fixtureDir;
+    manifest.timeoutMs = 10000;
+
+    waive::ExternalToolRunner runner;
+    std::atomic<bool> cancelFlag { false };
+    waive::ProgressReporter reporter (1, cancelFlag,
+                                      [] (int, float, const juce::String&) {});
+
+    auto output = runner.run (manifest, juce::var(), juce::File(), reporter);
+
+    expect (! output.success, "Expected structured tool failure to mark the run unsuccessful");
+    expect (output.message == "External tool reported a failure",
+            "Expected structured tool failure without a message to use the generic failure text");
+}
+
 // ── Peak Gain Helper Test ──────────────────────────────────────────────────
 
 void testPeakGainVariousAmplitudes()
@@ -791,7 +877,9 @@ int main()
         runTest ("External tool manifest recursion", testExternalToolManifestScanRecursesIntoSubdirectories);
         runTest ("External tool manifest legacy command", testExternalToolManifestSupportsLegacyCommandArray);
         runTest ("External tool runner relative args", testExternalToolRunnerResolvesRelativeArgumentsWithoutChangingCwd);
+        runTest ("External tool runner relative future args", testExternalToolRunnerResolvesRelativeArgumentsForCreatedPaths);
         runTest ("External tool runner failure output", testExternalToolRunnerPreservesFailureOutput);
+        runTest ("External tool runner structured failure message", testExternalToolRunnerReportsStructuredFailureWithoutFalseSuccessMessage);
 
         std::cout << "\n=== Tool Logic Tests ===" << std::endl;
         runTest ("Normalization gain calculation", testNormalizationGainCalculation);

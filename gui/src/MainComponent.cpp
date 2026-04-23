@@ -628,6 +628,9 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             auto& edit = editSession.getEdit();
             auto result = waive::ProjectPackager::collectAndSave (edit, projectDir, currentFile);
 
+            if (result.errors.isEmpty())
+                projectManager.markCurrentProjectSaved();
+
             juce::String message;
             if (result.filesCopied > 0)
             {
@@ -727,6 +730,8 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
 
                 // First collect external media
                 auto collectResult = waive::ProjectPackager::collectAndSave (edit, projectDir, currentFile);
+                if (collectResult.errors.isEmpty())
+                    projectManager.markCurrentProjectSaved();
 
                 // Then create zip
                 bool success = collectResult.errors.isEmpty()

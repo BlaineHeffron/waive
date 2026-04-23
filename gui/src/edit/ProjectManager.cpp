@@ -299,6 +299,16 @@ bool ProjectManager::saveAs (const juce::File& file)
     return true;
 }
 
+void ProjectManager::markCurrentProjectSaved()
+{
+    if (currentFile == juce::File())
+        return;
+
+    editSession.resetChangedStatus();
+    AutoSaveManager::deleteAutoSave (currentFile);
+    checkDirtyState();
+}
+
 //==============================================================================
 bool ProjectManager::isDirty() const
 {
