@@ -1622,6 +1622,28 @@ void testProjectScopedCommandsRequireExplicitSavedProject (te::Engine& engine)
     (void) fixtureDir.deleteRecursively();
 }
 
+void testProjectScopedCommandsUseResolvedSavedBackingFileWithoutExplicitProjectFile (te::Engine& engine)
+{
+    auto fixtureDir = juce::File::getSpecialLocation (juce::File::userHomeDirectory)
+                          .getChildFile (".waive_core_tests")
+                          .getChildFile ("project_scoped_resolved_saved_backing_file_" + juce::Uuid().toString());
+    auto projectDir = fixtureDir.getChildFile ("project");
+    expect (projectDir.createDirectory().wasOk(), "Expected project directory for saved-backing-file test");
+
+    auto projectFile = createSavedProjectFixture (engine, projectDir.getChildFile ("session.tracktionedit"));
+    auto edit = te::createEmptyEdit (engine, fixtureDir.getChildFile ("transient.tracktionedit"));
+    edit->editFileRetriever = [projectFile] { return projectFile; };
+
+    CommandHandler handler (*edit);
+    handler.setAllowedMediaDirectories ({ fixtureDir });
+
+    const auto collectResponse = runJsonCommand (handler, R"({ "action":"collect_and_save" })");
+    expect (collectResponse["status"].toString() == "ok",
+            "Expected collect_and_save to use saved edit backing file when explicit project path is absent");
+
+    (void) fixtureDir.deleteRecursively();
+}
+
 void testCommandServerWritesSecureAuthTokenFile()
 {
     CommandServer server ([] (const juce::String&) { return "{}"; }, 0);
@@ -1653,6 +1675,30 @@ void testCommandServerWritesSecureAuthTokenFile()
     expect ((tokenStat.st_mode & 0777) == 0600,
             "Expected auth token file mode to be 0600 on Unix");
 #endif
+}
+
+void testCommandServerStartFailureDoesNotClobberExistingAuthTokenFile()
+{
+    constexpr int testPort = 39090;
+
+    CommandServer server ([] (const juce::String&) { return "{}"; }, testPort);
+    expect (server.start(), "Expected primary command server to start for auth-token lifecycle test");
+
+    const auto authTokenFile = server.getAuthTokenFile();
+    const auto originalToken = authTokenFile.loadFileAsString();
+    expect (authTokenFile.existsAsFile(), "Expected primary auth token file to exist");
+    expect (originalToken == server.getAuthToken(), "Expected primary auth token file contents to match");
+
+    {
+        CommandServer competingServer ([] (const juce::String&) { return "{}"; }, testPort);
+        expect (! competingServer.start(),
+                "Expected second command server on the same port to fail to start");
+    }
+
+    expect (authTokenFile.existsAsFile(),
+            "Expected failed competing server start not to delete the original auth token file");
+    expect (authTokenFile.loadFileAsString() == originalToken,
+            "Expected failed competing server start not to overwrite the original auth token");
 }
 
 void testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (te::Engine& engine)
@@ -3426,7 +3472,9 @@ int main()
         testCollectAndSaveRollsBackOnPartialCopyFailure (engine);
         testRemoveUnusedMediaCommandReturnsErrorOnMoveFailure (engine);
         testProjectScopedCommandsRequireExplicitSavedProject (engine);
+        testProjectScopedCommandsUseResolvedSavedBackingFileWithoutExplicitProjectFile (engine);
         testCommandServerWritesSecureAuthTokenFile();
+        testCommandServerStartFailureDoesNotClobberExistingAuthTokenFile();
         testPluginPresetManagerUsesDocumentedWrapperAndStableIdentifier (engine);
         testPluginPresetCommandsSupportMasterChain (engine);
         testPluginPresetCommandsRejectMissingPluginIndex (engine);

@@ -150,6 +150,14 @@ bool areCanonicalPathsEquivalent (const juce::File& lhs, const juce::File& rhs)
     return canonicalLhs == canonicalRhs;
 }
 
+bool isTransientProjectFile (const juce::File& projectFile)
+{
+    if (projectFile == juce::File())
+        return true;
+
+    return projectFile.isAChildOf (juce::File::getSpecialLocation (juce::File::tempDirectory));
+}
+
 bool copyTrackPlugins (te::Edit& edit, te::AudioTrack& sourceTrack, te::AudioTrack& destinationTrack)
 {
     for (auto* sourcePlugin : getAddressablePlugins (sourceTrack.pluginList))
@@ -354,13 +362,17 @@ juce::File CommandHandler::resolveProjectFile() const
 juce::File CommandHandler::requireSavedProjectFile (const juce::String& actionDescription,
                                                     juce::var& errorResult) const
 {
-    if (currentProjectFile == juce::File())
-    {
-        errorResult = makeError ("Edit file not saved - cannot " + actionDescription);
-        return {};
-    }
+    if (currentProjectFile != juce::File())
+        return currentProjectFile;
 
-    return currentProjectFile;
+    auto resolvedProjectFile = resolveProjectFile();
+    if (resolvedProjectFile != juce::File()
+        && resolvedProjectFile.existsAsFile()
+        && ! isTransientProjectFile (resolvedProjectFile))
+        return resolvedProjectFile;
+
+    errorResult = makeError ("Edit file not saved - cannot " + actionDescription);
+    return {};
 }
 
 bool CommandHandler::requireIntProperty (const juce::var& params,

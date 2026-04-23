@@ -225,32 +225,37 @@ void CommandServer::generateAuthToken()
     if (! fillSecureRandomBytes (randomBytes))
     {
         authToken = {};
-        authTokenFile = juce::File();
         juce::Logger::writeToLog ("CommandServer: failed to obtain cryptographic random bytes for auth token");
         return;
     }
 
     authToken = bytesToHexString (randomBytes);
-    authTokenFile = getAuthTokenFilePathForPort (port);
-
-    if (! writeAuthTokenFile (authTokenFile, authToken))
-    {
-        authToken = {};
-        authTokenFile = juce::File();
-        juce::Logger::writeToLog ("CommandServer: failed to write auth token file");
-        return;
-    }
-
-    juce::Logger::writeToLog ("Authentication token written to: " + authTokenFile.getFullPathName());
 }
 
 bool CommandServer::start()
 {
     generateAuthToken();
-    if (authToken.isEmpty() || authTokenFile == juce::File())
+    if (authToken.isEmpty())
         return false;
 
-    return beginWaitingForSocket (port, "127.0.0.1");
+    if (! beginWaitingForSocket (port, "127.0.0.1"))
+    {
+        authToken = {};
+        return false;
+    }
+
+    auto nextAuthTokenFile = getAuthTokenFilePathForPort (port);
+    if (! writeAuthTokenFile (nextAuthTokenFile, authToken))
+    {
+        stop();
+        authToken = {};
+        juce::Logger::writeToLog ("CommandServer: failed to write auth token file");
+        return false;
+    }
+
+    authTokenFile = nextAuthTokenFile;
+    juce::Logger::writeToLog ("Authentication token written to: " + authTokenFile.getFullPathName());
+    return true;
 }
 
 juce::InterprocessConnection* CommandServer::createConnectionObject()
