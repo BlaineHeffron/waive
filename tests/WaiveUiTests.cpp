@@ -2,6 +2,7 @@
 #include <tracktion_engine/tracktion_engine.h>
 
 #include "MainComponent.h"
+#include "ConsoleComponent.h"
 #include "ChatPanelComponent.h"
 #include "AiAgent.h"
 #include "AiSettings.h"
@@ -1705,6 +1706,9 @@ void runUiPhase1LibraryAndPhase2PluginRoutingRegression()
     const int chainCountAfterRemove = pluginBrowser.getChainPluginCountForTesting();
     expect (chainCountAfterRemove == chainCountBeforeRemove - 1,
             "Expected chain size decrement after remove");
+    expect (pluginBrowser.getPresetPluginNameForTesting()
+                == pluginBrowser.getSelectedChainPluginNameForTesting(),
+            "Expected preset browser selection to follow the live chain selection after plugin removal");
 
     expect (mainComponent.invokeCommandForTesting (MainComponent::cmdUndo),
             "Expected undo to restore removed plugin");
@@ -3337,6 +3341,28 @@ void runPhase2ModelWorkflowTests()
     (void) modelStorage.deleteRecursively();
 }
 
+void runConsoleErrorStatusRegression()
+{
+    te::Engine engine ("WaiveUiConsoleStatusTests");
+    engine.getPluginManager().initialise();
+
+    EditSession session (engine);
+    waive::JobQueue jobQueue;
+    ProjectManager projectManager (session);
+    CommandHandler commandHandler (session.getEdit());
+    UndoableCommandHandler undoableHandler (commandHandler, session);
+
+    MainComponent mainComponent (undoableHandler, session, jobQueue, projectManager);
+    auto& console = mainComponent.getConsoleForTesting();
+
+    console.submitRequestForTesting ("{ \"action\": \"definitely_not_a_real_command\" }");
+
+    expect (console.getStatusTextForTesting() == "Last command failed",
+            "Expected console to report command-handler error responses as failures");
+    expect (console.getResponseLogTextForTesting().contains ("[ERROR]"),
+            "Expected console log to prefix command-handler error responses with ERROR");
+}
+
 void runPhase5PerformanceOptimizationTests()
 {
     std::cout << "runPhase5PerformanceOptimizationTests: START" << std::endl;
@@ -4209,6 +4235,7 @@ int main()
     RUN_TEST_SAFELY(runUiPhase1LibraryAndPhase2PluginRoutingRegression);
     RUN_TEST_SAFELY(runUiPhase3TimeAutomationLoopPunchRegression);
     RUN_TEST_SAFELY(runUiPhase3TransportAndWorkflowTests);
+    RUN_TEST_SAFELY(runConsoleErrorStatusRegression);
     RUN_TEST_SAFELY(runToolSidebarNoChangePlanRegression);
     RUN_TEST_SAFELY(runToolSidebarEditSwapClearsPendingPlanRegression);
 

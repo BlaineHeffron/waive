@@ -194,6 +194,11 @@ PluginBrowserComponent& MainComponent::getPluginBrowserForTesting()
     return *pluginBrowser;
 }
 
+ConsoleComponent& MainComponent::getConsoleForTesting()
+{
+    return *console;
+}
+
 bool MainComponent::invokeCommandForTesting (juce::CommandID commandID)
 {
     juce::ApplicationCommandTarget::InvocationInfo info (commandID);

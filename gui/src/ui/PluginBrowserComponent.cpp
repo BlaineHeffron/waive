@@ -573,6 +573,29 @@ juce::StringArray PluginBrowserComponent::getChainPluginTypeOrderForTesting() co
     return order;
 }
 
+bool PluginBrowserComponent::hasPresetPluginSelectionForTesting() const
+{
+    return presetBrowser.hasSelectedPluginForTesting();
+}
+
+juce::String PluginBrowserComponent::getPresetPluginNameForTesting() const
+{
+    return presetBrowser.getSelectedPluginNameForTesting();
+}
+
+juce::String PluginBrowserComponent::getSelectedChainPluginNameForTesting() const
+{
+    const int row = chainList.getSelectedRow();
+    auto plugins = getChainPlugins (getSelectedPluginList());
+    if (! juce::isPositiveAndBelow (row, plugins.size()))
+        return {};
+
+    if (auto* plugin = plugins[row].get())
+        return plugin->getName();
+
+    return {};
+}
+
 int PluginBrowserComponent::getAvailableInputCountForTesting() const
 {
     return juce::jmax (0, inputCombo.getNumItems() - 1);
@@ -929,6 +952,7 @@ void PluginBrowserComponent::removeSelectedChainPlugin()
 
     chainList.updateContent();
     chainList.repaint();
+    updatePresetBrowserSelection();
 }
 
 void PluginBrowserComponent::moveSelectedChainPlugin (int delta)

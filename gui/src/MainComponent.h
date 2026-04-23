@@ -39,6 +39,7 @@ public:
     ToolSidebarComponent& getToolSidebarForTesting();
     LibraryComponent& getLibraryComponentForTesting();
     PluginBrowserComponent& getPluginBrowserForTesting();
+    ConsoleComponent& getConsoleForTesting();
     bool invokeCommandForTesting (juce::CommandID commandID);
     waive::ModelManager* getModelManager() { return modelManager; }
     void markCleanShutdown();

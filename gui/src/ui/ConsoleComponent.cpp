@@ -50,13 +50,7 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
 
     sendButton.onClick = [this]
     {
-        auto request = requestEditor.getText();
-        auto response = commandHandler.handleCommand (request);
-        const auto parsed = juce::JSON::parse (response);
-        const bool isError = parsed.isObject() && parsed.hasProperty ("error");
-        const auto prefix = isError ? "ERROR" : "OK";
-        updateStatus (isError ? "Last command failed" : "Last command succeeded", isError);
-        appendLog ("[" + juce::String (prefix) + "]\n> " + request + "\n" + response + "\n\n");
+        submitRequest (requestEditor.getText());
     };
 
     clearButton.onClick = [this]
@@ -64,6 +58,21 @@ ConsoleComponent::ConsoleComponent (UndoableCommandHandler& handler)
         responseEditor.clear();
         updateStatus ("Console log cleared", false);
     };
+}
+
+void ConsoleComponent::submitRequestForTesting (const juce::String& request)
+{
+    submitRequest (request);
+}
+
+juce::String ConsoleComponent::getStatusTextForTesting() const
+{
+    return statusLabel.getText();
+}
+
+juce::String ConsoleComponent::getResponseLogTextForTesting() const
+{
+    return responseEditor.getText();
 }
 
 void ConsoleComponent::resized()
@@ -106,4 +115,16 @@ void ConsoleComponent::updateStatus (const juce::String& text, bool isError)
 
     if (auto* pal = waive::getWaivePalette (*this))
         statusLabel.setColour (juce::Label::textColourId, isError ? pal->danger : pal->textPrimary);
+}
+
+void ConsoleComponent::submitRequest (const juce::String& request)
+{
+    auto response = commandHandler.handleCommand (request);
+    const auto parsed = juce::JSON::parse (response);
+    const bool isError = parsed.isObject()
+                         && (parsed["status"].toString() == "error"
+                             || parsed.hasProperty ("error"));
+    const auto prefix = isError ? "ERROR" : "OK";
+    updateStatus (isError ? "Last command failed" : "Last command succeeded", isError);
+    appendLog ("[" + juce::String (prefix) + "]\n> " + request + "\n" + response + "\n\n");
 }

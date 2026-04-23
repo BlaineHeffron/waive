@@ -49,6 +49,16 @@ void PluginPresetBrowser::setPlugin (tracktion::engine::Plugin* plugin)
     refreshPresetList();
 }
 
+bool PluginPresetBrowser::hasSelectedPluginForTesting() const
+{
+    return currentPlugin != nullptr;
+}
+
+juce::String PluginPresetBrowser::getSelectedPluginNameForTesting() const
+{
+    return currentPlugin != nullptr ? currentPlugin->getName() : juce::String();
+}
+
 void PluginPresetBrowser::refreshPresetList()
 {
     presetComboBox.clear (juce::dontSendNotification);
@@ -100,6 +110,12 @@ void PluginPresetBrowser::onSaveClicked()
 {
     if (!currentPlugin)
         return;
+
+    if (! waive::canShowUiDialogs())
+    {
+        juce::Logger::writeToLog ("Save Preset: dialog suppressed in headless/automated environment");
+        return;
+    }
 
     juce::AlertWindow window ("Save Preset", "Enter a name for this preset:", juce::MessageBoxIconType::NoIcon);
     window.addTextEditor ("presetName", "", "Preset Name:");

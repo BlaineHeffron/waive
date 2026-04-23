@@ -19,6 +19,8 @@ public:
     ~PluginPresetBrowser() override;
 
     void setPlugin (tracktion::engine::Plugin* plugin);
+    bool hasSelectedPluginForTesting() const;
+    juce::String getSelectedPluginNameForTesting() const;
 
     void paint (juce::Graphics& g) override;
     void resized() override;

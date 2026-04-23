@@ -37,6 +37,9 @@ public:
     bool closeSelectedChainPluginEditorForTesting();
     int getChainPluginCountForTesting() const;
     juce::StringArray getChainPluginTypeOrderForTesting() const;
+    bool hasPresetPluginSelectionForTesting() const;
+    juce::String getPresetPluginNameForTesting() const;
+    juce::String getSelectedChainPluginNameForTesting() const;
     tracktion::engine::AudioTrack* getSelectedTrackForTesting() const;
     int getAvailableInputCountForTesting() const;
     juce::String getSelectedTrackLabelForTesting() const;
