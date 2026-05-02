@@ -458,10 +458,20 @@ void ToolSidebarComponent::resized()
 {
     auto bounds = getLocalBounds().reduced (waive::Spacing::sm);
 
+    // Reserve space for tool row + schema area + bottom block, then cap model section
+    const int reservedForRest = waive::Spacing::controlHeightMedium + waive::Spacing::sm  // toolRow + gap
+                              + 120                                                        // schema min
+                              + waive::Spacing::controlHeightMedium + waive::Spacing::sm   // action row + gap
+                              + waive::Spacing::labelHeight + waive::Spacing::xs           // status + gap
+                              + waive::Spacing::labelHeight + waive::Spacing::xxs          // preview label + gap
+                              + 60;                                                        // preview min
+
     // Model manager section at top
     if (modelManagerSection != nullptr)
     {
-        auto modelSectionHeight = juce::jlimit (120, 240, modelManagerSection->getIdealHeight());
+        int avail = bounds.getHeight() - reservedForRest;
+        int desired = juce::jmin (240, modelManagerSection->getIdealHeight());
+        int modelSectionHeight = juce::jlimit (80, desired, avail);
         modelManagerSection->setBounds (bounds.removeFromTop (modelSectionHeight));
         bounds.removeFromTop (waive::Spacing::sm);
     }
@@ -472,15 +482,27 @@ void ToolSidebarComponent::resized()
 
     bounds.removeFromTop (waive::Spacing::sm);
 
-    // Schema form in viewport
-    auto schemaHeight = juce::jmin (schemaForm.getIdealHeight(), bounds.getHeight() / 3);
-    schemaHeight = juce::jmax (schemaHeight, 60);
-    schemaViewport.setBounds (bounds.removeFromTop (schemaHeight));
-    schemaForm.setSize (schemaViewport.getWidth() - (schemaViewport.isVerticalScrollBarShown() ? 10 : 0),
-                         juce::jmax (schemaForm.getIdealHeight(), schemaHeight));
+    // Reserve schema first (priority), then bottom block fills rest
+    const int actionRowH = waive::Spacing::controlHeightMedium;
+    const int statusH    = waive::Spacing::labelHeight;
+    const int previewLabelH = waive::Spacing::labelHeight;
+    const int schemaMinH = juce::jmin (140, juce::jmax (60, bounds.getHeight() / 2));
 
-    bounds.removeFromTop (waive::Spacing::sm);
-    auto actionRow = bounds.removeFromTop (waive::Spacing::controlHeightMedium);
+    // Bottom block is everything below schema; minimum = action row + status only (preview can collapse)
+    const int bottomMinH = actionRowH + waive::Spacing::sm + statusH;
+    const int bottomDesiredH = bottomMinH + waive::Spacing::xs + previewLabelH + waive::Spacing::xxs + 60;
+
+    int schemaH = juce::jmax (schemaMinH, bounds.getHeight() - bottomDesiredH);
+    schemaH = juce::jmin (schemaH, juce::jmax (60, bounds.getHeight() - bottomMinH));
+
+    auto schemaArea = bounds.removeFromTop (schemaH);
+    schemaViewport.setBounds (schemaArea);
+    schemaForm.setSize (schemaViewport.getWidth() - (schemaViewport.isVerticalScrollBarShown() ? 10 : 0),
+                         juce::jmax (schemaForm.getIdealHeight(), schemaArea.getHeight()));
+
+    auto bottomBlock = bounds;
+
+    auto actionRow = bottomBlock.removeFromTop (actionRowH);
     int btnW = (actionRow.getWidth() - 3 * waive::Spacing::xs) / 4;
     planButton.setBounds (actionRow.removeFromLeft (btnW));
     actionRow.removeFromLeft (waive::Spacing::xs);
@@ -490,12 +512,12 @@ void ToolSidebarComponent::resized()
     actionRow.removeFromLeft (waive::Spacing::xs);
     cancelButton.setBounds (actionRow);
 
-    bounds.removeFromTop (waive::Spacing::sm);
-    statusLabel.setBounds (bounds.removeFromTop (waive::Spacing::labelHeight));
-    bounds.removeFromTop (waive::Spacing::xs);
-    previewLabel.setBounds (bounds.removeFromTop (waive::Spacing::labelHeight));
-    bounds.removeFromTop (waive::Spacing::xxs);
-    previewEditor.setBounds (bounds);
+    bottomBlock.removeFromTop (waive::Spacing::sm);
+    statusLabel.setBounds (bottomBlock.removeFromTop (statusH));
+    bottomBlock.removeFromTop (waive::Spacing::xs);
+    previewLabel.setBounds (bottomBlock.removeFromTop (previewLabelH));
+    bottomBlock.removeFromTop (waive::Spacing::xxs);
+    previewEditor.setBounds (bottomBlock);
 }
 
 void ToolSidebarComponent::populateToolList()

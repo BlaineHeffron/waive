@@ -235,10 +235,40 @@ void MixerChannelStrip::setupControls()
                 editSession.performEdit ("Toggle Arm", [this, newState] (te::Edit& edit)
                 {
                     auto& eid = edit.getEditInputDevices();
-                    for (auto* idi : eid.getDevicesForTargetTrack (*track))
+                    auto assigned = eid.getDevicesForTargetTrack (*track);
+
+                    // If arming and no input assigned yet, auto-assign first wave input
+                    if (newState && assigned.isEmpty())
+                    {
+                        auto& deviceMgr = edit.engine.getDeviceManager();
+                        auto inputs = deviceMgr.getWaveInputDevices();
+                        if (! inputs.empty())
+                        {
+                            auto* waveIn = inputs[0];
+                            edit.getTransport().ensureContextAllocated();
+                            (void) eid.getInstanceStateForInputDevice (*waveIn);
+
+                            if (auto* epc = edit.getCurrentPlaybackContext())
+                            {
+                                if (auto* idi = epc->getInputFor (waveIn))
+                                {
+                                    if (! idi->setTarget (track->itemID, false, &edit.getUndoManager()))
+                                        DBG ("Failed to auto-assign input device to track");
+                                }
+                            }
+                            assigned = eid.getDevicesForTargetTrack (*track);
+                        }
+                    }
+
+                    for (auto* idi : assigned)
                     {
                         if (idi != nullptr)
+                        {
                             idi->setRecordingEnabled (track->itemID, newState);
+                            // Default monitor off on arm to avoid input/output feedback loop
+                            if (newState)
+                                idi->getInputDevice().setMonitorMode (te::InputDevice::MonitorMode::off);
+                        }
                     }
                 });
             };

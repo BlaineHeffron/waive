@@ -588,6 +588,7 @@ bool MainComponent::perform (const juce::ApplicationCommandTarget::InvocationInf
             auto* selector = new juce::AudioDeviceSelectorComponent (
                 deviceManager.deviceManager,
                 0, 256, 0, 256, false, false, true, false);
+            selector->setSize (500, 450);
 
             opts.content.setOwned (selector);
             opts.dialogTitle = "Audio Settings";
